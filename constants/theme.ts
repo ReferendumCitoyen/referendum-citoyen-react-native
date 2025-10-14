@@ -5,6 +5,7 @@ export const Colors = {
   black: '#000',
   background: '#EDEFF9',
   border: '#EDEFF9',
+  switchGray: '#E2E1E7',
   gradientStart: 'rgba(255, 255, 255, 0.1)',
   gradientEnd: '#FFFFFF',
 };
@@ -16,20 +17,24 @@ export const Typography = {
   },
   fontSize: {
     h1: 24,
+    settingRow: 20,
     body: 16,
     tabLabel: 16,
   },
   fontWeight: {
     bold: '700' as const,
+    semibold: '600' as const,
     medium: '500' as const,
   },
   lineHeight: {
     h1: 31,
+    settingRow: 26,
     body: 21,
     tabLabel: 16,
   },
   letterSpacing: {
     h1: 0.48,
+    settingRow: 0.4,
     body: 0.16,
     tabLabel: -0.16,
   },
@@ -42,6 +47,11 @@ export const Spacing = {
     bottom: 8,
     gap: 8,
     sectionGap: 24,
+  },
+  settingRow: {
+    paddingVertical: 24,
+    paddingHorizontal: 32,
+    gap: 24,
   },
   accordion: {
     padding: 32,
