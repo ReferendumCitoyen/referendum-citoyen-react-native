@@ -29,6 +29,7 @@ export default function TabLayout() {
         name="parametres"
         options={{
           title: 'Paramètres',
+          headerShown: false,
         }}
       />
     </Tabs>
