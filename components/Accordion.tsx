@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  withTiming,
+  useSharedValue,
+  interpolate,
+  Extrapolation,
+  Easing
+} from 'react-native-reanimated';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface AccordionProps {
   title: string;
@@ -28,10 +32,54 @@ const CaretDownIcon = ({ color, size = 24 }: { color: string; size?: number }) =
 
 export default function Accordion({ title, content, defaultExpanded = false, showBorder = true }: AccordionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [measured, setMeasured] = useState(false);
+  const rotation = useSharedValue(defaultExpanded ? 180 : 0);
+  const animatedHeight = useSharedValue(defaultExpanded ? 1 : 0);
 
   const toggleExpanded = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
+    rotation.value = withTiming(expanded ? 0 : 180, {
+      duration: 350,
+      easing: Easing.bezier(0.4, 0.0, 0.2, 1)
+    });
+    animatedHeight.value = withTiming(expanded ? 0 : 1, {
+      duration: 350,
+      easing: Easing.bezier(0.4, 0.0, 0.2, 1)
+    });
+  };
+
+  const iconAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    const height = interpolate(
+      animatedHeight.value,
+      [0, 1],
+      [0, contentHeight || 1000],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      height,
+      opacity: animatedHeight.value,
+      overflow: 'hidden',
+    };
+  });
+
+  const innerContentStyle = useAnimatedStyle(() => {
+    return {
+      height: contentHeight || undefined,
+    };
+  });
+
+  const onContentLayout = (event: any) => {
+    const { height } = event.nativeEvent.layout;
+    if (!measured && height > 0) {
+      setContentHeight(height);
+      setMeasured(true);
+    }
   };
 
   return (
@@ -39,16 +87,27 @@ export default function Accordion({ title, content, defaultExpanded = false, sho
       <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.7}>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{title}</Text>
-          <View style={[styles.iconContainer, expanded && styles.iconRotated]}>
+          <Animated.View style={[styles.iconContainer, iconAnimatedStyle]}>
             <CaretDownIcon color={Colors.secondary} size={Spacing.icon.size} />
-          </View>
+          </Animated.View>
         </View>
       </TouchableOpacity>
-      {expanded && (
-        <View style={styles.contentContainer}>
+
+      {/* Measurement view - invisible but rendered to get height */}
+      <View style={styles.measurementContainer} onLayout={onContentLayout}>
+        <View style={styles.contentInner}>
           <Text style={styles.content}>{content}</Text>
         </View>
-      )}
+      </View>
+
+      {/* Animated visible content */}
+      <Animated.View style={contentAnimatedStyle}>
+        <Animated.View style={innerContentStyle}>
+          <View style={styles.contentInner}>
+            <Text style={styles.content}>{content}</Text>
+          </View>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -82,11 +141,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconRotated: {
-    transform: [{ rotate: '180deg' }],
+  measurementContainer: {
+    position: 'absolute',
+    opacity: 0,
+    zIndex: -1,
   },
-  contentContainer: {
-    marginTop: Spacing.accordion.contentGap,
+  contentInner: {
+    paddingTop: Spacing.accordion.contentGap,
   },
   content: {
     fontFamily: Typography.fontFamily.medium,
