@@ -23,6 +23,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Accueil',
+          headerShown: false,
         }}
       />
       <Tabs.Screen

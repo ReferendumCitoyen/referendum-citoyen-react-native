@@ -6,6 +6,9 @@ export const Colors = {
   background: '#EDEFF9',
   border: '#EDEFF9',
   switchGray: '#E2E1E7',
+  voteBarOui: '#D5DCFF',
+  voteBarBlanc: '#BFC4DA',
+  voteBarNon: '#FFD2D2',
   gradientStart: 'rgba(255, 255, 255, 0.1)',
   gradientEnd: '#FFFFFF',
 };
@@ -18,8 +21,11 @@ export const Typography = {
   fontSize: {
     h1: 24,
     settingRow: 20,
+    voteCount: 20,
+    button: 20,
     body: 16,
     tabLabel: 16,
+    small: 14,
   },
   fontWeight: {
     bold: '700' as const,
@@ -29,14 +35,20 @@ export const Typography = {
   lineHeight: {
     h1: 31,
     settingRow: 26,
+    voteCount: 26,
+    button: 26,
     body: 21,
     tabLabel: 16,
+    small: 18,
   },
   letterSpacing: {
     h1: 0.48,
     settingRow: 0.4,
+    voteCount: 0.2,
+    button: 0.4,
     body: 0.16,
     tabLabel: -0.16,
+    small: 0.14,
   },
 };
 
@@ -48,10 +60,36 @@ export const Spacing = {
     gap: 8,
     sectionGap: 24,
   },
+  video: {
+    characterWidth: 71,
+    characterHeight: 100,
+    borderRadius: 8,
+  },
+  voteList: {
+    paddingTop: 64,
+    paddingHorizontal: 24,
+    titlePaddingVertical: 8,
+    itemPaddingVertical: 16,
+    itemGap: 16,
+  },
+  voteCard: {
+    padding: 32,
+    gap: 24,
+    badgeGap: 8,
+    badgePaddingVertical: 4,
+    badgePaddingHorizontal: 12,
+    badgeRadius: 29,
+    buttonPaddingVertical: 14,
+    statsGap: 2,
+    resultsGap: 8,
+    resultsBarGap: 16,
+    barPaddingVertical: 14,
+  },
   settingRow: {
     paddingVertical: 24,
     paddingHorizontal: 32,
     gap: 24,
+    valueGap: 8,
   },
   accordion: {
     padding: 32,
