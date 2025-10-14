@@ -1,18 +1,12 @@
 import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
+import AccueilIcon from '@/components/icons/AccueilIcon';
+import ComprendreIcon from '@/components/icons/ComprendreIcon';
+import ParametresIcon from '@/components/icons/ParametresIcon';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -26,24 +20,24 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Accueil',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="comprendre"
         options={{
           title: 'Comprendre',
-          tabBarIcon: ({ color }) => <TabBarIcon name="book" color={color} />,
+          tabBarIcon: ({ color }) => <ComprendreIcon color={color} size={28} />,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Accueil',
+          tabBarIcon: ({ color }) => <AccueilIcon color={color} size={28} />,
         }}
       />
       <Tabs.Screen
         name="parametres"
         options={{
           title: 'Paramètres',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          tabBarIcon: ({ color }) => <ParametresIcon color={color} size={28} />,
         }}
       />
     </Tabs>
