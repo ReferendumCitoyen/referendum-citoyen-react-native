@@ -16,6 +16,7 @@ export default function TabLayout() {
         name="comprendre"
         options={{
           title: 'Comprendre',
+          headerShown: false,
         }}
       />
       <Tabs.Screen

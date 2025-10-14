@@ -1,7 +1,10 @@
 export const Colors = {
   primary: '#111F84',
+  secondary: '#3044DD',
   white: '#FFFFFF',
   black: '#000',
+  background: '#EDEFF9',
+  border: '#EDEFF9',
   gradientStart: 'rgba(255, 255, 255, 0.1)',
   gradientEnd: '#FFFFFF',
 };
@@ -12,17 +15,40 @@ export const Typography = {
     mono: 'SpaceMono',
   },
   fontSize: {
+    h1: 24,
+    body: 16,
     tabLabel: 16,
   },
   fontWeight: {
+    bold: '700' as const,
     medium: '500' as const,
   },
+  lineHeight: {
+    h1: 31,
+    body: 21,
+    tabLabel: 16,
+  },
   letterSpacing: {
+    h1: 0.48,
+    body: 0.16,
     tabLabel: -0.16,
   },
 };
 
 export const Spacing = {
+  screen: {
+    horizontal: 32,
+    top: 72,
+    bottom: 8,
+    gap: 8,
+    sectionGap: 24,
+  },
+  accordion: {
+    padding: 32,
+    gap: 24,
+    titleGap: 16,
+    contentGap: 8,
+  },
   tabBar: {
     containerHeight: 120,
     height: 72,
