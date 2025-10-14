@@ -1,9 +1,32 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Text } from 'react-native';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import Accordion from '@/components/Accordion';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 
 export default function ComprendreScreen() {
+  const player = useVideoPlayer(require('@/assets/images/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'), player => {
+    player.loop = false;
+    player.muted = true;
+    player.play();
+  });
+
+  useEffect(() => {
+    const subscription = player.addListener('playingChange', (newStatus) => {
+      if (newStatus.isPlaying === false && player.currentTime >= player.duration - 0.1) {
+        // Video finished, wait 30 seconds before replaying
+        setTimeout(() => {
+          player.currentTime = 0;
+          player.play();
+        }, 30000);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [player]);
+
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
@@ -11,8 +34,12 @@ export default function ComprendreScreen() {
         <View style={styles.headerSection}>
           <Text style={styles.headerTitle}>Bienvenue!</Text>
           <View style={styles.welcomeContainer}>
-            {/* Character image placeholder - user will add SVG later */}
-            <View style={styles.characterPlaceholder} />
+            <VideoView
+              style={styles.characterVideo}
+              player={player}
+              contentFit="cover"
+              nativeControls={false}
+            />
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>
                 Nous appelons tous les citoyens à voter lors d'un référendum sur des sujets d'actualité
@@ -103,10 +130,9 @@ const styles = StyleSheet.create({
     gap: Spacing.screen.gap,
     backgroundColor: Colors.white,
   },
-  characterPlaceholder: {
+  characterVideo: {
     width: 71,
     height: 100,
-    backgroundColor: '#E0E0E0',
     borderRadius: 8,
   },
   welcomeTextContainer: {
