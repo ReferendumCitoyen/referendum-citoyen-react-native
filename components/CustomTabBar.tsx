@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ComprendreIcon from './icons/ComprendreIcon';
 import AccueilIcon from './icons/AccueilIcon';
 import ParametresIcon from './icons/ParametresIcon';
+import { Colors, Typography, Spacing, Shadows } from '@/constants/theme';
 
 const iconMap: { [key: string]: React.ComponentType<{ color: string; size?: number }> } = {
   comprendre: ComprendreIcon,
@@ -22,7 +23,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['rgba(255, 255, 255, 0.1)', '#FFFFFF']}
+        colors={[Colors.gradientStart, Colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={styles.gradient}
@@ -56,8 +57,8 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                 <View style={styles.tabContent}>
                   {Icon && (
                     <Icon
-                      color={isFocused ? '#FFFFFF' : '#111F84'}
-                      size={24}
+                      color={isFocused ? Colors.white : Colors.primary}
+                      size={Spacing.icon.size}
                     />
                   )}
                   <Text
@@ -84,61 +85,54 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: Spacing.tabBar.containerHeight,
   },
   gradient: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    paddingHorizontal: Spacing.tabBar.horizontalPadding,
+    paddingBottom: Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid,
   },
   tabBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 64,
-    height: 72,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
+    backgroundColor: Colors.white,
+    borderRadius: Spacing.tabBar.borderRadius,
+    height: Spacing.tabBar.height,
+    paddingHorizontal: Spacing.tabBar.innerPadding,
+    paddingVertical: Spacing.tabBar.innerPadding,
+    ...Shadows.tabBar,
     width: '100%',
-    maxWidth: 344,
+    maxWidth: Spacing.tabBar.maxWidth,
   },
   tabItem: {
     flex: 1,
-    height: 64,
-    borderRadius: 40,
+    height: Spacing.tabBar.itemHeight,
+    borderRadius: Spacing.tabBar.itemBorderRadius,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
   tabItemActive: {
-    backgroundColor: '#111F84',
+    backgroundColor: Colors.primary,
   },
   tabContent: {
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 2,
+    gap: Spacing.icon.labelGap,
   },
   tabLabel: {
-    fontFamily: 'RethinkSans-Medium',
-    fontWeight: '500',
-    fontSize: 16,
-    lineHeight: 16,
-    letterSpacing: -0.16,
-    color: '#111F84',
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.medium,
+    fontSize: Typography.fontSize.tabLabel,
+    lineHeight: Typography.fontSize.tabLabel,
+    letterSpacing: Typography.letterSpacing.tabLabel,
+    color: Colors.primary,
     textAlign: 'center',
   },
   tabLabelActive: {
-    color: '#FFFFFF',
+    color: Colors.white,
   },
 });
