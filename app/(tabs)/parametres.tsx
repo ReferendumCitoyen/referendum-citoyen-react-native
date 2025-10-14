@@ -2,10 +2,10 @@ import { StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 
-export default function AccueilScreen() {
+export default function ParametresScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Accueil</Text>
+      <Text style={styles.title}>Paramètres</Text>
     </View>
   );
 }
