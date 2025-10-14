@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   settingValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.settingRow.valueGap,
   },
   settingValue: {
     fontFamily: Typography.fontFamily.medium,

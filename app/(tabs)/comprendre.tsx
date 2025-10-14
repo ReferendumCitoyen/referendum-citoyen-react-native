@@ -107,9 +107,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   characterVideo: {
-    width: 71,
-    height: 100,
-    borderRadius: 8,
+    width: Spacing.video.characterWidth,
+    height: Spacing.video.characterHeight,
+    borderRadius: Spacing.video.borderRadius,
   },
   welcomeTextContainer: {
     flex: 1,
