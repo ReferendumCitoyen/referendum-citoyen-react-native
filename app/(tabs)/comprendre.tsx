@@ -3,6 +3,7 @@ import { StyleSheet, ScrollView, View, Text } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import Accordion from '@/components/Accordion';
 import { Colors, Typography, Spacing } from '@/constants/theme';
+import { comprendreContent } from '@/constants/comprendreContent';
 
 export default function ComprendreScreen() {
   const player = useVideoPlayer(require('@/assets/images/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'), player => {
@@ -32,7 +33,7 @@ export default function ComprendreScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Header Section */}
         <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>Bienvenue!</Text>
+          <Text style={styles.headerTitle}>{comprendreContent.welcome.title}</Text>
           <View style={styles.welcomeContainer}>
             <VideoView
               style={styles.characterVideo}
@@ -42,52 +43,27 @@ export default function ComprendreScreen() {
             />
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>
-                Nous appelons tous les citoyens à voter lors d'un référendum sur des sujets d'actualité
+                {comprendreContent.welcome.text}
               </Text>
             </View>
           </View>
         </View>
 
         {/* Accordion Sections */}
-        <Accordion
-          title="Un vote unique et infalsifiable"
-          content="Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:&#10;1. Vous êtes français et majeur&#10;2. Personne ne peut voter deux fois"
-          showBorder={true}
-        />
-
-        <Accordion
-          title="Un vote garanti anonyme"
-          content="Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:&#10;1. Vous êtes français et majeur&#10;2. Personne ne peut voter deux fois"
-          showBorder={true}
-        />
-
-        <Accordion
-          title="Un vote transparent"
-          content="Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:&#10;1. Vous êtes français et majeur&#10;2. Personne ne peut voter deux fois"
-          showBorder={true}
-        />
-
-        <Accordion
-          title="Les autres peuvent voter sur votre référendum"
-          content="Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:&#10;1. Vous êtes français et majeur&#10;2. Personne ne peut voter deux fois"
-          showBorder={true}
-        />
-
-        <Accordion
-          title="Que se passe-t-il une fois les votes comptés ?"
-          content="Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:&#10;1. Vous êtes français et majeur&#10;2. Personne ne peut voter deux fois"
-          showBorder={true}
-        />
+        {comprendreContent.accordions.map((accordion, index) => (
+          <Accordion
+            key={index}
+            title={accordion.title}
+            content={accordion.content}
+            showBorder={true}
+          />
+        ))}
 
         {/* Final Section - D'où ça vient */}
         <View style={styles.finalSection}>
-          <Text style={styles.finalSectionTitle}>D'où ça vient</Text>
+          <Text style={styles.finalSectionTitle}>{comprendreContent.origin.title}</Text>
           <Text style={styles.finalSectionContent}>
-            Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN et actuel Nym) du potentiel de la blockchain pour mettre en place une démocratie directe sans attendre.{'\n\n'}
-            Ils s'associent avec Alexis Roussel (penseur phare de la démocratie numérique suisse et co-fondateur de Nym) qui établit le cahier des charges de cette application.{'\n\n'}
-            Application en logiciel libre{'\n'}
-            Logiciel hébergé par le Parti Pirate Suisse{'\n'}
-            Traitement de données local - GDPR
+            {comprendreContent.origin.content}
           </Text>
         </View>
 
