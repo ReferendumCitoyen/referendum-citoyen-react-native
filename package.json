@@ -14,6 +14,7 @@
     "expo": "~54.0.13",
     "expo-constants": "~18.0.9",
     "expo-font": "~14.0.9",
+    "expo-linear-gradient": "~15.0.7",
     "expo-linking": "~8.0.8",
     "expo-router": "~6.0.11",
     "expo-splash-screen": "~31.0.10",
