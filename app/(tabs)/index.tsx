@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, TouchableOpacity } from 'react-native';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
+import VotingModal, { VotingModalRef } from '@/components/VotingModal';
+import VotingModalSimple from '@/components/VotingModalSimple';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -67,6 +69,16 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
 };
 
 export default function AccueilScreen() {
+  const votingModalRef = useRef<VotingModalRef>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  const handleVoterPress = () => {
+    console.log('Voter button pressed - using state approach');
+    setIsModalVisible(true);
+    // Also try the ref approach
+    // votingModalRef.current?.present();
+  };
+
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
@@ -112,7 +124,7 @@ export default function AccueilScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.voteButton} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={handleVoterPress}>
             <Text style={styles.voteButtonText}>Voter</Text>
           </TouchableOpacity>
 
@@ -186,6 +198,15 @@ export default function AccueilScreen() {
         {/* Empty spacer for tab bar */}
         <View style={styles.tabBarSpacer} />
       </ScrollView>
+
+      {/* Using state-based approach */}
+      <VotingModalSimple
+        isVisible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+      />
+
+      {/* Original ref approach (commented out for now) */}
+      {/* <VotingModal ref={votingModalRef} /> */}
     </View>
   );
 }
