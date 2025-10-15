@@ -10,6 +10,9 @@ import Step1 from './Step1';
 import Step2 from './Step2';
 import Step3 from './Step3';
 import Step4 from './Step4';
+import Step5 from './Step5';
+import Step6 from './Step6';
+import Step7 from './Step7';
 
 interface VotingModalProps {
   isVisible: boolean;
@@ -47,6 +50,18 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     player.play();
   });
 
+  const player4 = useVideoPlayer(require('@/assets/videos/phoneOverCard.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  const player5 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5198_0.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
   useEffect(() => {
     if (isVisible) {
       bottomSheetRef.current?.present();
@@ -77,7 +92,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, [onClose]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < 4) {
+    if (currentStep < 7) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
 
@@ -122,7 +137,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         style={modalStyles.container}
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
-        {/* Title Section - Hidden for Step 4 */}
+        {/* Title Section - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
           <View style={modalStyles.titleSection}>
             <Text style={modalStyles.title}>Processus de vote</Text>
@@ -142,11 +157,15 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             <Step1 player={player1} containerWidth={containerWidth} />
             <Step2 player={player2} containerWidth={containerWidth} />
             <Step3 player={player3} containerWidth={containerWidth} />
-            <Step4 player={player1} containerWidth={containerWidth} />
+            <Step4 player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} />
+            <Step5 containerWidth={containerWidth} onManualFill={handleNext} />
+            {/* TODO: Step 6 Analyse button should trigger NFC in future */}
+            <Step6 containerWidth={containerWidth} player={player4} onAnalyze={handleNext} />
+            <Step7 containerWidth={containerWidth} player={player5} />
           </Animated.View>
         </View>
 
-        {/* Footer with Progress and Button - Hidden for Step 4 */}
+        {/* Footer with Progress and Button - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
           <View style={modalStyles.footer}>
             <View style={modalStyles.progressContainer}>
