@@ -15,6 +15,10 @@ import Step6 from './Step6';
 import Step7 from './Step7';
 import Step8 from './Step8';
 import Step9Error from './Step9Error';
+import Step10 from './Step10';
+import Step11 from './Step11';
+import Step12Success from './Step12Success';
+import Step12Error from './Step12Error';
 
 interface VotingModalProps {
   isVisible: boolean;
@@ -25,11 +29,16 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
+  const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const snapPoints = useMemo(() => {
     if (currentStep === 8 && verificationResult === 'success') return [380];
-    if (currentStep === 8 && verificationResult === 'error') return [460];
+    if (currentStep === 8 && verificationResult === 'error') return [490];
+    if (currentStep === 9) return [440];
+    if (currentStep === 10) return ['85%'];
+    if (currentStep === 11 && voteSubmissionResult === 'success') return [480];
+    if (currentStep === 11 && voteSubmissionResult === 'error') return [440];
     return ['85%'];
-  }, [currentStep, verificationResult]);
+  }, [currentStep, verificationResult, voteSubmissionResult]);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(375);
 
@@ -74,6 +83,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       bottomSheetRef.current?.present();
       setCurrentStep(1);
       setVerificationResult(null);
+      setVoteSubmissionResult(null);
       slideAnim.setValue(0);
       progressOpacity1.setValue(1);
       progressOpacity2.setValue(0.25);
@@ -100,7 +110,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, [onClose]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < 8) {
+    if (currentStep < 11) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
 
@@ -153,6 +163,28 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     }).start();
   }, [slideAnim, containerWidth]);
 
+  const handleVoteSubmissionSuccess = useCallback(() => {
+    setVoteSubmissionResult('success');
+    setCurrentStep(11);
+    Animated.timing(slideAnim, {
+      toValue: -10 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
+
+  const handleVoteSubmissionError = useCallback(() => {
+    setVoteSubmissionResult('error');
+    setCurrentStep(11);
+    Animated.timing(slideAnim, {
+      toValue: -10 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
+
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
@@ -191,12 +223,24 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             <Step5 containerWidth={containerWidth} onManualFill={handleNext} />
             {/* TODO: Step 6 Analyse button should trigger NFC in future */}
             <Step6 containerWidth={containerWidth} player={player4} onAnalyze={handleNext} />
-            <Step7 containerWidth={containerWidth} player={player5} onSuccess={handleVerificationSuccess} onError={handleVerificationError} />
+            <Step7 containerWidth={containerWidth} player={player5} isActive={currentStep === 7} onSuccess={handleVerificationSuccess} onError={handleVerificationError} />
             {/* Step 8 position - shows either success or error based on verification result */}
             {verificationResult === 'success' ? (
-              <Step8 containerWidth={containerWidth} onVote={onClose} />
+              <Step8 containerWidth={containerWidth} onVote={handleNext} />
             ) : verificationResult === 'error' ? (
               <Step9Error containerWidth={containerWidth} onGoHome={onClose} />
+            ) : (
+              <View style={{ width: containerWidth }} />
+            )}
+            {/* Step 9 - Vote confirmation */}
+            <Step10 containerWidth={containerWidth} player={player3} onCancel={onClose} onConfirm={handleNext} />
+            {/* Step 10 - Vote submission loading */}
+            <Step11 containerWidth={containerWidth} isActive={currentStep === 10} onSuccess={handleVoteSubmissionSuccess} onError={handleVoteSubmissionError} />
+            {/* Step 11 position - shows either success or error based on vote submission result */}
+            {voteSubmissionResult === 'success' ? (
+              <Step12Success containerWidth={containerWidth} onViewResults={onClose} />
+            ) : voteSubmissionResult === 'error' ? (
+              <Step12Error containerWidth={containerWidth} onGoHome={onClose} />
             ) : (
               <View style={{ width: containerWidth }} />
             )}
