@@ -28,6 +28,12 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
     player.play();
   });
 
+  const player3 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5078_0.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
   useEffect(() => {
     if (isVisible) {
       bottomSheetRef.current?.present();
@@ -96,10 +102,10 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
               <View style={styles.numberCircle}>
                 <Text style={styles.numberText}>3</Text>
               </View>
-              <Text style={styles.stepTitle}>Step 3 - Placeholder</Text>
+              <Text style={styles.stepTitle}>Vote anonyme</Text>
             </View>
             <Text style={styles.stepDescription}>
-              This is placeholder content for step 3. Replace with actual content later.
+              Une fois vos données vérifiées et authentiques, l'application produit un jeton anonyme vous permettant de voter.
             </Text>
           </View>
         );
@@ -139,6 +145,16 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
           <VideoView
             style={styles.phoneImage}
             player={player2}
+            contentFit="contain"
+            nativeControls={false}
+          />
+        )}
+
+        {/* Step 3: Ballot Box Video */}
+        {currentStep === 3 && (
+          <VideoView
+            style={styles.ballotImage}
+            player={player3}
             contentFit="contain"
             nativeControls={false}
           />
@@ -214,6 +230,10 @@ const styles = StyleSheet.create({
   phoneImage: {
     width: Spacing.modal.phoneImageSize,
     height: Spacing.modal.phoneImageSize,
+  },
+  ballotImage: {
+    width: Spacing.modal.ballotImageSize,
+    height: Spacing.modal.ballotImageSize,
   },
   contentSection: {
     flexDirection: 'column',

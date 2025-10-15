@@ -131,6 +131,7 @@ export const Spacing = {
     cardImageWidth: 199,
     cardImageHeight: 167,
     phoneImageSize: 171,
+    ballotImageSize: 175,
   },
   icon: {
     size: 24,
