@@ -132,6 +132,8 @@ export const Spacing = {
     cardImageHeight: 167,
     phoneImageSize: 171,
     ballotImageSize: 175,
+    mediaContainerHeight: 175,
+    contentSectionHeight: 251,
   },
   icon: {
     size: 24,
