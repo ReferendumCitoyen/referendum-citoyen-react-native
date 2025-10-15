@@ -13,6 +13,8 @@ import Step4 from './Step4';
 import Step5 from './Step5';
 import Step6 from './Step6';
 import Step7 from './Step7';
+import Step8 from './Step8';
+import Step9Error from './Step9Error';
 
 interface VotingModalProps {
   isVisible: boolean;
@@ -21,8 +23,13 @@ interface VotingModalProps {
 
 const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['85%'], []);
   const [currentStep, setCurrentStep] = useState(1);
+  const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
+  const snapPoints = useMemo(() => {
+    if (currentStep === 8 && verificationResult === 'success') return [380];
+    if (currentStep === 8 && verificationResult === 'error') return [460];
+    return ['85%'];
+  }, [currentStep, verificationResult]);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(375);
 
@@ -66,6 +73,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     if (isVisible) {
       bottomSheetRef.current?.present();
       setCurrentStep(1);
+      setVerificationResult(null);
       slideAnim.setValue(0);
       progressOpacity1.setValue(1);
       progressOpacity2.setValue(0.25);
@@ -92,7 +100,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, [onClose]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < 7) {
+    if (currentStep < 8) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
 
@@ -122,6 +130,28 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       }
     }
   }, [currentStep, slideAnim, containerWidth, progressOpacity2, progressOpacity3]);
+
+  const handleVerificationSuccess = useCallback(() => {
+    setVerificationResult('success');
+    setCurrentStep(8);
+    Animated.timing(slideAnim, {
+      toValue: -7 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
+
+  const handleVerificationError = useCallback(() => {
+    setVerificationResult('error');
+    setCurrentStep(8);
+    Animated.timing(slideAnim, {
+      toValue: -7 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
 
   return (
     <BottomSheetModal
@@ -161,7 +191,15 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             <Step5 containerWidth={containerWidth} onManualFill={handleNext} />
             {/* TODO: Step 6 Analyse button should trigger NFC in future */}
             <Step6 containerWidth={containerWidth} player={player4} onAnalyze={handleNext} />
-            <Step7 containerWidth={containerWidth} player={player5} />
+            <Step7 containerWidth={containerWidth} player={player5} onSuccess={handleVerificationSuccess} onError={handleVerificationError} />
+            {/* Step 8 position - shows either success or error based on verification result */}
+            {verificationResult === 'success' ? (
+              <Step8 containerWidth={containerWidth} onVote={onClose} />
+            ) : verificationResult === 'error' ? (
+              <Step9Error containerWidth={containerWidth} onGoHome={onClose} />
+            ) : (
+              <View style={{ width: containerWidth }} />
+            )}
           </Animated.View>
         </View>
 
