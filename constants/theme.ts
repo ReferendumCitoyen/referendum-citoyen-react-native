@@ -20,6 +20,8 @@ export const Colors = {
 export const Typography = {
   fontFamily: {
     medium: 'RethinkSans-Medium',
+    semibold: 'RethinkSans-SemiBold',
+    bold: 'RethinkSans-Bold',
     mono: 'SpaceMono',
   },
   fontSize: {

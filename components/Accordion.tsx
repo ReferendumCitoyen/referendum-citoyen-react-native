@@ -128,8 +128,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,

@@ -93,8 +93,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.settingRow.paddingVertical,
   },
   headerTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -112,8 +111,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   settingLabel: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.settingRow,
     lineHeight: Typography.lineHeight.settingRow,
     letterSpacing: Typography.letterSpacing.settingRow,
