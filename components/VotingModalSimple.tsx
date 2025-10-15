@@ -69,7 +69,7 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
   }, [onClose]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < 3) {
+    if (currentStep < 4) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
 
@@ -116,9 +116,11 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
         {/* Title Section */}
-        <View style={styles.titleSection}>
-          <Text style={styles.title}>Processus de vote</Text>
-        </View>
+        {currentStep < 4 && (
+          <View style={styles.titleSection}>
+            <Text style={styles.title}>Processus de vote</Text>
+          </View>
+        )}
 
         {/* Sliding Container */}
         <View style={styles.slidingWrapper}>
@@ -204,11 +206,33 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
                 </View>
               </View>
             </View>
+
+            {/* Step 4 - Card Analysis */}
+            <View style={[styles.stepSlide, { width: containerWidth }]}>
+              <View style={styles.step4Container}>
+                <View style={styles.step4Content}>
+                  <Text style={styles.step4Title}>Analyse de la Carte d'Identité</Text>
+                  <Text style={styles.step4Description}>
+                    Maintenez votre appareil sur votre Carte d'identité
+                  </Text>
+                </View>
+                <VideoView
+                  style={styles.step4Video}
+                  player={player}
+                  contentFit="cover"
+                  nativeControls={false}
+                />
+                <TouchableOpacity style={styles.step4Button} activeOpacity={0.8} onPress={() => console.log('Start analysis')}>
+                  <Text style={styles.step4ButtonText}>Démarrer l'analyse</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </Animated.View>
         </View>
 
         {/* Footer with Progress and Button */}
-        <View style={styles.footer}>
+        {currentStep < 4 && (
+          <View style={styles.footer}>
           <View style={styles.progressContainer}>
             <Animated.View
               style={[
@@ -244,6 +268,7 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
             </Svg>
           </TouchableOpacity>
         </View>
+        )}
       </BottomSheetView>
     </BottomSheetModal>
   );
@@ -264,6 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: Colors.background,
   },
   titleSection: {
     flexDirection: 'row',
@@ -272,6 +298,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.modal.titlePadding,
     paddingHorizontal: Spacing.modal.titlePaddingHorizontal,
     width: '100%',
+    backgroundColor: Colors.white,
   },
   title: {
     flex: 1,
@@ -297,6 +324,8 @@ const styles = StyleSheet.create({
     height: Spacing.modal.mediaContainerHeight,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.white,
+    width: '100%',
   },
   cardVideo: {
     width: Spacing.modal.cardImageWidth,
@@ -397,6 +426,56 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.secondary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  step4Container: {
+    padding: Spacing.modal.step4Padding,
+    gap: Spacing.modal.step4Gap,
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: Colors.white,
+  },
+  step4Content: {
+    gap: Spacing.modal.step4ContentGap,
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  step4Title: {
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.bold,
+    fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
+    letterSpacing: Typography.letterSpacing.settingRow,
+    color: Colors.primary,
+    textAlign: 'center',
+    width: '100%',
+  },
+  step4Description: {
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.medium,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    letterSpacing: Typography.letterSpacing.body,
+    color: Colors.primary,
+    width: '100%',
+  },
+  step4Video: {
+    width: Spacing.modal.cardImageWidth,
+    height: Spacing.modal.cardImageHeight,
+  },
+  step4Button: {
+    paddingVertical: Spacing.modal.step4ButtonPaddingVertical,
+    backgroundColor: Colors.secondary,
+    alignItems: 'center',
+    width: '100%',
+  },
+  step4ButtonText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.bold,
+    fontSize: Typography.fontSize.button,
+    lineHeight: Typography.lineHeight.button,
+    letterSpacing: Typography.letterSpacing.button,
+    color: Colors.white,
+    textAlign: 'center',
   },
 });
 

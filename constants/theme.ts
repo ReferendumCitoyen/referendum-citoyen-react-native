@@ -134,6 +134,10 @@ export const Spacing = {
     ballotImageSize: 175,
     mediaContainerHeight: 175,
     contentSectionHeight: 251,
+    step4Padding: 32,
+    step4Gap: 24,
+    step4ContentGap: 16,
+    step4ButtonPaddingVertical: 14,
   },
   icon: {
     size: 24,
