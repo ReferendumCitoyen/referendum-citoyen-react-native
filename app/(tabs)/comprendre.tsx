@@ -93,8 +93,7 @@ const styles = StyleSheet.create({
     gap: Spacing.screen.gap,
   },
   headerTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -130,8 +129,7 @@ const styles = StyleSheet.create({
     gap: Spacing.accordion.gap,
   },
   finalSectionTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,

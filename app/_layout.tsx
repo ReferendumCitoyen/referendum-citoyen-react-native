@@ -27,6 +27,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     'RethinkSans-Medium': require('../assets/fonts/RethinkSans-Medium.ttf'),
+    'RethinkSans-SemiBold': require('../assets/fonts/RethinkSans-SemiBold.ttf'),
+    'RethinkSans-Bold': require('../assets/fonts/RethinkSans-Bold.ttf'),
     ...FontAwesome.font,
   });
 

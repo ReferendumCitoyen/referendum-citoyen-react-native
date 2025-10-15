@@ -223,8 +223,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.voteList.titlePaddingVertical,
   },
   voteListTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -241,8 +240,7 @@ const styles = StyleSheet.create({
   },
   voteListItemText: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.settingRow,
     lineHeight: Typography.lineHeight.settingRow,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -272,8 +270,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   voteTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -296,16 +293,14 @@ const styles = StyleSheet.create({
     gap: Spacing.voteCard.statsGap,
   },
   statLabel: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.small,
     lineHeight: Typography.lineHeight.small,
     letterSpacing: Typography.letterSpacing.small,
     color: Colors.primary,
   },
   statValue: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.voteCount,
@@ -317,8 +312,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   voteButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -347,8 +341,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.voteCard.barPaddingVertical,
   },
   barPercent: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.button,
@@ -361,8 +354,7 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.semibold,
+    fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.button,
@@ -375,8 +367,7 @@ const styles = StyleSheet.create({
   },
   barCount: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.small,
     lineHeight: Typography.lineHeight.small,
     letterSpacing: Typography.letterSpacing.small,

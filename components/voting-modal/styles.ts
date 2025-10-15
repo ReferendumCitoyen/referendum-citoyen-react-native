@@ -29,8 +29,7 @@ export const modalStyles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -85,15 +84,13 @@ export const modalStyles = StyleSheet.create({
     alignItems: 'center',
   },
   numberText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.body,
     color: Colors.white,
   },
   stepTitle: {
     flex: 1,
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -170,8 +167,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step4Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -199,8 +195,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step4ButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -216,8 +211,7 @@ export const stepSpecificStyles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   step5Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -253,8 +247,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step5ButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -270,8 +263,7 @@ export const stepSpecificStyles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   step6Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -299,8 +291,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step6ButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -315,8 +306,7 @@ export const stepSpecificStyles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   step7Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
@@ -351,8 +341,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step8Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -371,8 +360,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step8ButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -392,8 +380,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step9ErrorTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -422,8 +409,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step9ErrorButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -443,8 +429,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step10Title: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -468,8 +453,7 @@ export const stepSpecificStyles = StyleSheet.create({
     alignItems: 'center',
   },
   step10CancelButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -483,8 +467,7 @@ export const stepSpecificStyles = StyleSheet.create({
     alignItems: 'center',
   },
   step10ConfirmButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -517,8 +500,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step12SuccessTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -547,8 +529,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step12SuccessButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
@@ -568,8 +549,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step12ErrorTitle: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
@@ -598,8 +578,7 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '100%',
   },
   step12ErrorButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.bold,
+    fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
