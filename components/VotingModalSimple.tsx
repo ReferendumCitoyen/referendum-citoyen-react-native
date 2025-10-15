@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react';
 import { Text, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
@@ -14,8 +14,15 @@ interface VotingModalSimpleProps {
 const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ['85%'], []);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const player = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4846_0.mp4'), player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  const player2 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4900_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -24,6 +31,7 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
   useEffect(() => {
     if (isVisible) {
       bottomSheetRef.current?.present();
+      setCurrentStep(1); // Reset to step 1 when opening
     } else {
       bottomSheetRef.current?.dismiss();
     }
@@ -45,6 +53,61 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
     onClose();
   }, [onClose]);
 
+  const handleNext = useCallback(() => {
+    if (currentStep < 3) {
+      setCurrentStep(currentStep + 1);
+    }
+  }, [currentStep]);
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <View style={styles.stepContent}>
+            <View style={styles.stepHeader}>
+              <View style={styles.numberCircle}>
+                <Text style={styles.numberText}>1</Text>
+              </View>
+              <Text style={styles.stepTitle}>Scannez votre Carte d'identité anonymement</Text>
+            </View>
+            <Text style={styles.stepDescription}>
+              Scannez votre Carte d'identité pour valider votre âge et votre nationalité. Vos données sont chiffrées et non traçables. Vous êtes 100% anonyme.
+            </Text>
+          </View>
+        );
+      case 2:
+        return (
+          <View style={styles.stepContent}>
+            <View style={styles.stepHeader}>
+              <View style={styles.numberCircle}>
+                <Text style={styles.numberText}>2</Text>
+              </View>
+              <Text style={styles.stepTitle}>Vérifiez votre âge et nationalité localement sur votre appareil</Text>
+            </View>
+            <Text style={styles.stepDescription}>
+              Cette application vérifie les données sur la puce NFC à l'intérieur de votre Carte d'identité. Les données ne sont pas transférées ni conservées sur un serveur tiers.
+            </Text>
+          </View>
+        );
+      case 3:
+        return (
+          <View style={styles.stepContent}>
+            <View style={styles.stepHeader}>
+              <View style={styles.numberCircle}>
+                <Text style={styles.numberText}>3</Text>
+              </View>
+              <Text style={styles.stepTitle}>Step 3 - Placeholder</Text>
+            </View>
+            <Text style={styles.stepDescription}>
+              This is placeholder content for step 3. Replace with actual content later.
+            </Text>
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
@@ -61,37 +124,39 @@ const VotingModalSimple = ({ isVisible, onClose }: VotingModalSimpleProps) => {
           <Text style={styles.title}>Processus de vote</Text>
         </View>
 
-        {/* Card Video */}
-        <VideoView
-          style={styles.cardVideo}
-          player={player}
-          contentFit="cover"
-          nativeControls={false}
-        />
+        {/* Step 1: Card Video */}
+        {currentStep === 1 && (
+          <VideoView
+            style={styles.cardVideo}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+          />
+        )}
+
+        {/* Step 2: Phone Video */}
+        {currentStep === 2 && (
+          <VideoView
+            style={styles.phoneImage}
+            player={player2}
+            contentFit="contain"
+            nativeControls={false}
+          />
+        )}
 
         {/* Content Section */}
         <View style={styles.contentSection}>
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <View style={styles.numberCircle}>
-                <Text style={styles.numberText}>1</Text>
-              </View>
-              <Text style={styles.stepTitle}>Scannez votre Carte d'identité anonymement</Text>
-            </View>
-            <Text style={styles.stepDescription}>
-              Scannez votre Carte d'identité pour valider votre âge et votre nationalité. Vos données sont chiffrées et non traçables. Vous êtes 100% anonyme.
-            </Text>
-          </View>
+          {renderStepContent()}
         </View>
 
         {/* Footer with Progress and Button */}
         <View style={styles.footer}>
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, styles.progressBarActive]} />
-            <View style={[styles.progressBar, styles.progressBarInactive]} />
-            <View style={[styles.progressBar, styles.progressBarInactive]} />
+            <View style={[styles.progressBar, currentStep >= 1 ? styles.progressBarActive : styles.progressBarInactive]} />
+            <View style={[styles.progressBar, currentStep >= 2 ? styles.progressBarActive : styles.progressBarInactive]} />
+            <View style={[styles.progressBar, currentStep >= 3 ? styles.progressBarActive : styles.progressBarInactive]} />
           </View>
-          <TouchableOpacity style={styles.arrowButton} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.arrowButton} activeOpacity={0.8} onPress={handleNext}>
             <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
               <Path
                 d="M5 12H19M19 12L12 5M19 12L12 19"
@@ -145,6 +210,10 @@ const styles = StyleSheet.create({
   cardVideo: {
     width: Spacing.modal.cardImageWidth,
     height: Spacing.modal.cardImageHeight,
+  },
+  phoneImage: {
+    width: Spacing.modal.phoneImageSize,
+    height: Spacing.modal.phoneImageSize,
   },
   contentSection: {
     flexDirection: 'column',

@@ -130,6 +130,7 @@ export const Spacing = {
     numberCircleSize: 32,
     cardImageWidth: 199,
     cardImageHeight: 167,
+    phoneImageSize: 171,
   },
   icon: {
     size: 24,
