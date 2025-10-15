@@ -1,7 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import CustomTabBar from '@/components/CustomTabBar';
 
 export default function TabLayout() {
@@ -9,7 +8,7 @@ export default function TabLayout() {
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: false,
         tabBarStyle: { display: 'none' },
       }}>
       <Tabs.Screen
