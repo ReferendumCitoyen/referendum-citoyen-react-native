@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { Audio } from 'expo-av';
 
 
 export {
@@ -42,6 +43,17 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  // Configure audio mode to allow mixing with other apps' audio
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+      playThroughEarpieceAndroid: false,
+      allowsRecordingIOS: false,
+    });
+  }, []);
 
   if (!loaded) {
     return null;
