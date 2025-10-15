@@ -11,6 +11,8 @@ export const Colors = {
   voteBarNon: '#FFD2D2',
   gradientStart: 'rgba(255, 255, 255, 0.1)',
   gradientEnd: '#FFFFFF',
+  progressActive: '#3044DD',
+  progressInactive: 'rgba(48, 68, 221, 0.25)',
 };
 
 export const Typography = {
@@ -108,6 +110,26 @@ export const Spacing = {
     bottomPaddingAndroid: 16,
     innerPadding: 4,
     maxWidth: 344,
+  },
+  modal: {
+    borderRadius: 32,
+    titlePadding: 32,
+    titlePaddingHorizontal: 24,
+    contentPadding: 40,
+    contentPaddingHorizontal: 32,
+    contentGap: 24,
+    stepTitleGap: 16,
+    footerPadding: 24,
+    footerPaddingHorizontal: 32,
+    footerGap: 39,
+    progressBarHeight: 4,
+    progressBarGap: 6,
+    progressBarRadius: 4,
+    arrowButtonSize: 48,
+    arrowButtonRadius: 48,
+    numberCircleSize: 32,
+    cardImageWidth: 199,
+    cardImageHeight: 167,
   },
   icon: {
     size: 24,
