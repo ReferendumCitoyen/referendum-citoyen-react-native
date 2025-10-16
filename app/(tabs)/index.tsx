@@ -76,7 +76,7 @@ export default function AccueilScreen() {
 
   return (
     <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Vote List Section */}
         <View style={styles.voteListSection}>
           <View style={styles.voteListHeader}>
