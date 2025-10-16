@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
+import * as Application from 'expo-application';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 
@@ -20,7 +21,7 @@ export default function ParametresScreen() {
 
   return (
     <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Header Section */}
         <View style={styles.headerSection}>
           <Text style={styles.headerTitle}>Paramètres</Text>
@@ -66,6 +67,13 @@ export default function ParametresScreen() {
               <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Version Text */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>
+            Version {Application.nativeApplicationVersion || '1.0.0'} ({Application.nativeBuildVersion || '1'})
+          </Text>
         </View>
 
         {/* Empty spacer for tab bar */}
@@ -130,6 +138,20 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
     color: Colors.primary,
+  },
+  versionContainer: {
+    paddingVertical: Spacing.screen.gap,
+    paddingHorizontal: Spacing.screen.horizontal,
+    alignItems: 'center',
+  },
+  versionText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.medium,
+    fontSize: Typography.fontSize.small,
+    lineHeight: Typography.lineHeight.small,
+    letterSpacing: Typography.letterSpacing.small,
+    color: Colors.primary,
+    opacity: 0.5,
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,

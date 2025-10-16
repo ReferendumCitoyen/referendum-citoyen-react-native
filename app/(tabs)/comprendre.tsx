@@ -38,7 +38,7 @@ export default function ComprendreScreen() {
 
   return (
     <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Header Section */}
         <View style={styles.headerSection}>
           <Text style={styles.headerTitle}>{comprendreContent.welcome.title}</Text>
