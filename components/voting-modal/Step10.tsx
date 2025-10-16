@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
 import { stepSpecificStyles } from './styles';
 
@@ -8,11 +8,12 @@ interface Step10Props {
   player: any;
   onCancel?: () => void;
   onConfirm?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm }) => {
+const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step10Container}>
         <View style={stepSpecificStyles.step10Content}>
           <Text style={stepSpecificStyles.step10Title}>

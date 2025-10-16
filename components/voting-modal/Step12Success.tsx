@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { stepSpecificStyles } from './styles';
 
 interface Step12SuccessProps {
   containerWidth: number;
   onViewResults?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, onViewResults }) => {
+const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, onViewResults, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step12SuccessContainer}>
         <View style={stepSpecificStyles.step12SuccessContent}>
           <Text style={stepSpecificStyles.step12SuccessTitle}>

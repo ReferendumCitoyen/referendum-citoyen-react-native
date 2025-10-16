@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
 import { stepSpecificStyles } from './styles';
 
@@ -7,11 +7,12 @@ interface Step4Props {
   player: any;
   containerWidth: number;
   onStartAnalysis?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis }) => {
+const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step4Container}>
         <View style={stepSpecificStyles.step4Content}>
           <Text style={stepSpecificStyles.step4Title}>Analyse de la Carte d'Identité</Text>
