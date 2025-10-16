@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { stepSpecificStyles } from './styles';
 
 interface Step12ErrorProps {
   containerWidth: number;
   onGoHome?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome }) => {
+const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step12ErrorContainer}>
         <View style={stepSpecificStyles.step12ErrorContent}>
           <Text style={stepSpecificStyles.step12ErrorTitle}>

@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { stepSpecificStyles } from './styles';
 
 interface Step9ErrorProps {
   containerWidth: number;
   onGoHome?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome }) => {
+const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step9ErrorContainer}>
         <View style={stepSpecificStyles.step9ErrorContent}>
           <Text style={stepSpecificStyles.step9ErrorTitle}>

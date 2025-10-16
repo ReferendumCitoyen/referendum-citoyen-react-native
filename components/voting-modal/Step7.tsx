@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
 import { stepSpecificStyles } from './styles';
 import { Colors, Typography } from '@/constants/theme';
@@ -10,9 +10,10 @@ interface Step7Props {
   isActive?: boolean;
   onSuccess?: () => void;
   onError?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSuccess, onError }) => {
+const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSuccess, onError, onLayout }) => {
   const [countdown, setCountdown] = useState(5);
   const [willSucceed] = useState(() => Math.random() < 0.75);
   const hasCalledCallback = useRef(false);
@@ -42,7 +43,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
   }, [hasStarted, countdown, willSucceed, onSuccess, onError]);
 
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step7Container}>
         <Text style={stepSpecificStyles.step7Title}>Vérification locale</Text>
 

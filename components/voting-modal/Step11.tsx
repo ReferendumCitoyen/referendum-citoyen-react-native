@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { stepSpecificStyles } from './styles';
 import { Colors, Typography } from '@/constants/theme';
@@ -9,9 +9,10 @@ interface Step11Props {
   isActive?: boolean;
   onSuccess?: () => void;
   onError?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, onError }) => {
+const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, onError, onLayout }) => {
   const [countdown, setCountdown] = useState(5);
   const [willSucceed] = useState(() => Math.random() < 0.75);
   const hasCalledCallback = useRef(false);
@@ -41,7 +42,7 @@ const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, on
   }, [hasStarted, countdown, willSucceed, onSuccess, onError]);
 
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step11Container}>
         <LottieView
           source={require('@/assets/animations/loading.json')}

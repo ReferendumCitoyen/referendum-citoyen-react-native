@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
 import { modalStyles, stepSpecificStyles } from './styles';
 
 interface Step3Props {
   player: any;
   containerWidth: number;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step3: React.FC<Step3Props> = ({ player, containerWidth }) => {
+const Step3: React.FC<Step3Props> = ({ player, containerWidth, onLayout }) => {
   return (
-    <View style={[modalStyles.stepSlide, { width: containerWidth }]}>
+    <View style={[modalStyles.stepSlide, { width: containerWidth }]} onLayout={onLayout}>
       <View style={modalStyles.mediaContainer}>
         <VideoView
           style={stepSpecificStyles.ballotImage}

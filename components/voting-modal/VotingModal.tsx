@@ -2,10 +2,10 @@ import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { Text, View, TouchableOpacity, Animated, Easing } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useVideoPlayer } from 'expo-video';
 import { Colors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { modalStyles } from './styles';
+import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
 import Step1 from './Step1';
 import Step2 from './Step2';
 import Step3 from './Step3';
@@ -30,63 +30,79 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
+  const [stepHeights, setStepHeights] = useState<Record<string, number>>({});
   const snapPoints = useMemo(() => {
-    if (currentStep === 8 && verificationResult === 'success') return [380];
-    if (currentStep === 8 && verificationResult === 'error') return [490];
-    if (currentStep === 9) return [440];
-    if (currentStep === 10) return ['85%'];
-    if (currentStep === 11 && voteSubmissionResult === 'success') return [480];
-    if (currentStep === 11 && voteSubmissionResult === 'error') return [440];
-    return ['85%'];
-  }, [currentStep, verificationResult, voteSubmissionResult]);
+    // Generate unique key for current step configuration
+    let stepKey = `step${currentStep}`;
+    if (currentStep === 8) stepKey += `_${verificationResult}`;
+    if (currentStep === 11) stepKey += `_${voteSubmissionResult || 'loading'}`;
+
+    // Check if we have a measured height for this step
+    const measuredHeight = stepHeights[stepKey];
+
+    // For steps 1-3, always use percentage to keep them tall
+    if (currentStep <= 3) {
+      console.log(`[BottomSheet] Step: ${currentStep}, Using fixed percentage: 85%`);
+      return ['85%'];
+    }
+
+    // For Step 8 success, use fixed percentage
+    if (currentStep === 8 && verificationResult === 'success') {
+      console.log(`[BottomSheet] Step: ${currentStep}, Using fixed percentage: 45%`);
+      return ['45%'];
+    }
+
+    // For Step 9 (vote confirmation - "voter oui"), use fixed percentage
+    if (currentStep === 9) {
+      console.log(`[BottomSheet] Step: ${currentStep}, Using fixed percentage: 50%`);
+      return ['50%'];
+    }
+
+    if (measuredHeight) {
+      console.log(`[BottomSheet] Step: ${currentStep}, Key: ${stepKey}, Measured Height: ${measuredHeight}px`);
+      return [measuredHeight];
+    }
+
+    // Fallback to percentage heights while measurements are being taken
+    let height;
+    if (currentStep <= 3) height = ['85%'];
+    else if (currentStep === 4) height = ['60%'];
+    else if (currentStep === 5) height = ['65%'];
+    else if (currentStep === 6) height = ['55%'];
+    else if (currentStep === 7) height = ['58%'];
+    else if (currentStep === 8 && verificationResult === 'success') height = ['35%'];
+    else if (currentStep === 8 && verificationResult === 'error') height = ['55%'];
+    else if (currentStep === 9) height = ['50%'];
+    else if (currentStep === 10) height = ['45%'];
+    else if (currentStep === 11 && !voteSubmissionResult) height = ['26%'];
+    else if (currentStep === 11 && voteSubmissionResult === 'success') height = ['48%'];
+    else if (currentStep === 11 && voteSubmissionResult === 'error') height = ['45%'];
+    else height = ['85%'];
+
+    console.log(`[BottomSheet] Step: ${currentStep}, Key: ${stepKey}, Fallback Height: ${height[0]}`);
+    return height;
+  }, [currentStep, verificationResult, voteSubmissionResult, stepHeights]);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(375);
+
+  // Callback for steps to report their heights
+  const handleStepLayout = useCallback((stepKey: string, height: number) => {
+    setStepHeights(prev => {
+      if (prev[stepKey] !== height) {
+        return { ...prev, [stepKey]: height };
+      }
+      return prev;
+    });
+  }, []);
 
   // Progress bar animations
   const progressOpacity1 = useRef(new Animated.Value(1)).current;
   const progressOpacity2 = useRef(new Animated.Value(0.25)).current;
   const progressOpacity3 = useRef(new Animated.Value(0.25)).current;
 
-  // Video players for each step
-  const player1 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4846_0.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
-    // Preload immediately but pause - will play when modal opens
-    player.pause();
-  });
-
-  const player2 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4900_0.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
-    // Preload but don't play yet
-    player.pause();
-  });
-
-  const player3 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5078_0.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
-    // Preload but don't play yet
-    player.pause();
-  });
-
-  const player4 = useVideoPlayer(require('@/assets/videos/phoneOverCard.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
-    // Preload but don't play yet
-    player.pause();
-  });
-
-  const player5 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5198_0.mp4'), player => {
-    player.loop = true;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
-    // Preload but don't play yet
-    player.pause();
-  });
+  // Video players hook
+  const { players, handleStepChange, pauseAll, pauseVerificationVideo } = useModalVideoPlayers();
+  const { player1, player2, player3, player4, player5 } = players;
 
   useEffect(() => {
     if (isVisible) {
@@ -99,17 +115,13 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       progressOpacity2.setValue(0.25);
       progressOpacity3.setValue(0.25);
       // Start playing the first video when modal opens
-      player1.play();
+      handleStepChange(1);
     } else {
       bottomSheetRef.current?.dismiss();
       // Pause all videos when closing
-      player1.pause();
-      player2.pause();
-      player3.pause();
-      player4.pause();
-      player5.pause();
+      pauseAll();
     }
-  }, [isVisible, slideAnim, progressOpacity1, progressOpacity2, progressOpacity3, player1, player2, player3, player4, player5]);
+  }, [isVisible, slideAnim, progressOpacity1, progressOpacity2, progressOpacity3, handleStepChange, pauseAll]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -140,10 +152,11 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         useNativeDriver: true,
       }).start();
 
-      // Handle video playback for steps
+      // Handle video playback
+      handleStepChange(nextStep);
+
+      // Progress bar animations
       if (nextStep === 2) {
-        player1.pause();
-        player2.play();
         Animated.timing(progressOpacity2, {
           toValue: 1,
           duration: 300,
@@ -151,56 +164,50 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
           useNativeDriver: true,
         }).start();
       } else if (nextStep === 3) {
-        player2.pause();
-        player3.play();
         Animated.timing(progressOpacity3, {
           toValue: 1,
           duration: 300,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }).start();
-      } else if (nextStep === 4) {
-        player3.pause();
-        player1.play(); // Reuse player1 for step 4
-      } else if (nextStep === 5) {
-        player1.pause(); // No video on step 5
-      } else if (nextStep === 6) {
-        player4.play(); // phoneOverCard video
-      } else if (nextStep === 7) {
-        player4.pause();
-        player5.play(); // verification video
-      } else if (nextStep === 9) {
-        // Step 9 is vote confirmation
-        player3.play(); // Reuse ballot video
-      } else if (nextStep === 10) {
-        player3.pause();
+      }
+
+      // Force snap for step 9 (voter oui screen)
+      if (nextStep === 9) {
+        setTimeout(() => {
+          bottomSheetRef.current?.snapToIndex(0);
+        }, 100);
       }
     }
-  }, [currentStep, slideAnim, containerWidth, progressOpacity2, progressOpacity3, player1, player2, player3, player4, player5]);
+  }, [currentStep, slideAnim, containerWidth, progressOpacity2, progressOpacity3, handleStepChange]);
 
   const handleVerificationSuccess = useCallback(() => {
     setVerificationResult('success');
     setCurrentStep(8);
-    player5.pause(); // Pause step 7 video
+    pauseVerificationVideo();
     Animated.timing(slideAnim, {
       toValue: -7 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [slideAnim, containerWidth, player5]);
+    // Force snap to new height
+    setTimeout(() => {
+      bottomSheetRef.current?.snapToIndex(0);
+    }, 100);
+  }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
   const handleVerificationError = useCallback(() => {
     setVerificationResult('error');
     setCurrentStep(8);
-    player5.pause(); // Pause step 7 video
+    pauseVerificationVideo();
     Animated.timing(slideAnim, {
       toValue: -7 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [slideAnim, containerWidth, player5]);
+  }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
   const handleVoteSubmissionSuccess = useCallback(() => {
     setVoteSubmissionResult('success');
@@ -229,6 +236,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose={true}
+      enableContentPanningGesture={currentStep < 4}
       backdropComponent={renderBackdrop}
       backgroundStyle={modalStyles.bottomSheetBackground}
       handleIndicatorStyle={modalStyles.handleIndicator}
@@ -255,31 +263,31 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               }
             ]}
           >
-            <Step1 player={player1} containerWidth={containerWidth} />
-            <Step2 player={player2} containerWidth={containerWidth} />
-            <Step3 player={player3} containerWidth={containerWidth} />
-            <Step4 player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} />
-            <Step5 containerWidth={containerWidth} onManualFill={handleNext} />
+            <Step1 player={player1} containerWidth={containerWidth} onLayout={(e) => handleStepLayout('step1', e.nativeEvent.layout.height)} />
+            <Step2 player={player2} containerWidth={containerWidth} onLayout={(e) => handleStepLayout('step2', e.nativeEvent.layout.height)} />
+            <Step3 player={player3} containerWidth={containerWidth} onLayout={(e) => handleStepLayout('step3', e.nativeEvent.layout.height)} />
+            <Step4 player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} onLayout={(e) => handleStepLayout('step4', e.nativeEvent.layout.height)} />
+            <Step5 containerWidth={containerWidth} onManualFill={handleNext} onLayout={(e) => handleStepLayout('step5', e.nativeEvent.layout.height)} />
             {/* TODO: Step 6 Analyse button should trigger NFC in future */}
-            <Step6 containerWidth={containerWidth} player={player4} onAnalyze={handleNext} />
-            <Step7 containerWidth={containerWidth} player={player5} isActive={currentStep === 7} onSuccess={handleVerificationSuccess} onError={handleVerificationError} />
+            <Step6 containerWidth={containerWidth} player={player4} onAnalyze={handleNext} onLayout={(e) => handleStepLayout('step6', e.nativeEvent.layout.height)} />
+            <Step7 containerWidth={containerWidth} player={player5} isActive={currentStep === 7} onSuccess={handleVerificationSuccess} onError={handleVerificationError} onLayout={(e) => handleStepLayout('step7', e.nativeEvent.layout.height)} />
             {/* Step 8 position - shows either success or error based on verification result */}
             {verificationResult === 'success' ? (
-              <Step8 containerWidth={containerWidth} onVote={handleNext} />
+              <Step8 containerWidth={containerWidth} onVote={handleNext} onLayout={(e) => handleStepLayout('step8_success', e.nativeEvent.layout.height)} />
             ) : verificationResult === 'error' ? (
-              <Step9Error containerWidth={containerWidth} onGoHome={onClose} />
+              <Step9Error containerWidth={containerWidth} onGoHome={onClose} onLayout={(e) => handleStepLayout('step8_error', e.nativeEvent.layout.height)} />
             ) : (
               <View style={{ width: containerWidth }} />
             )}
             {/* Step 9 - Vote confirmation */}
-            <Step10 containerWidth={containerWidth} player={player3} onCancel={onClose} onConfirm={handleNext} />
+            <Step10 containerWidth={containerWidth} player={player3} onCancel={onClose} onConfirm={handleNext} onLayout={(e) => handleStepLayout('step10', e.nativeEvent.layout.height)} />
             {/* Step 10 - Vote submission loading */}
-            <Step11 containerWidth={containerWidth} isActive={currentStep === 10} onSuccess={handleVoteSubmissionSuccess} onError={handleVoteSubmissionError} />
+            <Step11 containerWidth={containerWidth} isActive={currentStep === 10} onSuccess={handleVoteSubmissionSuccess} onError={handleVoteSubmissionError} onLayout={(e) => handleStepLayout('step11_loading', e.nativeEvent.layout.height)} />
             {/* Step 11 position - shows either success or error based on vote submission result */}
             {voteSubmissionResult === 'success' ? (
-              <Step12Success containerWidth={containerWidth} onViewResults={onClose} />
+              <Step12Success containerWidth={containerWidth} onViewResults={onClose} onLayout={(e) => handleStepLayout('step11_success', e.nativeEvent.layout.height)} />
             ) : voteSubmissionResult === 'error' ? (
-              <Step12Error containerWidth={containerWidth} onGoHome={onClose} />
+              <Step12Error containerWidth={containerWidth} onGoHome={onClose} onLayout={(e) => handleStepLayout('step11_error', e.nativeEvent.layout.height)} />
             ) : (
               <View style={{ width: containerWidth }} />
             )}

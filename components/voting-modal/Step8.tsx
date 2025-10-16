@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { stepSpecificStyles } from './styles';
 
 interface Step8Props {
   containerWidth: number;
   onVote?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step8: React.FC<Step8Props> = ({ containerWidth, onVote }) => {
+const Step8: React.FC<Step8Props> = ({ containerWidth, onVote, onLayout }) => {
   return (
-    <View style={[{ width: containerWidth }]}>
+    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step8Container}>
         <View style={stepSpecificStyles.step8Content}>
           <Text style={stepSpecificStyles.step8Title}>Vous êtes prêts</Text>
