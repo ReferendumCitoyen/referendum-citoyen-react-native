@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 
 
 export {
@@ -52,6 +52,8 @@ export default function RootLayout() {
       shouldDuckAndroid: false,
       playThroughEarpieceAndroid: false,
       allowsRecordingIOS: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
     });
   }, []);
 

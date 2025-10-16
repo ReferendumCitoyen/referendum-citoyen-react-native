@@ -9,6 +9,7 @@ export default function ComprendreScreen() {
   const player = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'), player => {
     player.loop = false;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 

@@ -51,30 +51,35 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   const player1 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4846_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
   const player2 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4900_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
   const player3 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5078_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
   const player4 = useVideoPlayer(require('@/assets/videos/phoneOverCard.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
   const player5 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5198_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
+    player.audioMixingMode = 'mixWithOthers';
     player.play();
   });
 
