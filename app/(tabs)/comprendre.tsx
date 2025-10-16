@@ -1,17 +1,24 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Text } from 'react-native';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { VideoView } from 'expo-video';
 import Accordion from '@/components/Accordion';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { comprendreContent } from '@/constants/comprendreContent';
+import { useComprendreVideo } from '@/contexts/VideoContext';
 
 export default function ComprendreScreen() {
-  const player = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'), player => {
-    player.loop = false;
-    player.muted = true;
-    player.audioMixingMode = 'mixWithOthers';
+  const player = useComprendreVideo();
+
+  useEffect(() => {
+    // Start playing when screen is mounted
     player.play();
-  });
+
+    return () => {
+      // Pause when leaving screen
+      player.pause();
+      player.currentTime = 0;
+    };
+  }, [player]);
 
   useEffect(() => {
     const subscription = player.addListener('playingChange', (newStatus) => {

@@ -52,35 +52,40 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     player.loop = true;
     player.muted = true;
     player.audioMixingMode = 'mixWithOthers';
-    player.play();
+    // Preload immediately but pause - will play when modal opens
+    player.pause();
   });
 
   const player2 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4900_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.audioMixingMode = 'mixWithOthers';
-    player.play();
+    // Preload but don't play yet
+    player.pause();
   });
 
   const player3 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5078_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.audioMixingMode = 'mixWithOthers';
-    player.play();
+    // Preload but don't play yet
+    player.pause();
   });
 
   const player4 = useVideoPlayer(require('@/assets/videos/phoneOverCard.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.audioMixingMode = 'mixWithOthers';
-    player.play();
+    // Preload but don't play yet
+    player.pause();
   });
 
   const player5 = useVideoPlayer(require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5198_0.mp4'), player => {
     player.loop = true;
     player.muted = true;
     player.audioMixingMode = 'mixWithOthers';
-    player.play();
+    // Preload but don't play yet
+    player.pause();
   });
 
   useEffect(() => {
@@ -93,10 +98,18 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       progressOpacity1.setValue(1);
       progressOpacity2.setValue(0.25);
       progressOpacity3.setValue(0.25);
+      // Start playing the first video when modal opens
+      player1.play();
     } else {
       bottomSheetRef.current?.dismiss();
+      // Pause all videos when closing
+      player1.pause();
+      player2.pause();
+      player3.pause();
+      player4.pause();
+      player5.pause();
     }
-  }, [isVisible, slideAnim, progressOpacity1, progressOpacity2, progressOpacity3]);
+  }, [isVisible, slideAnim, progressOpacity1, progressOpacity2, progressOpacity3, player1, player2, player3, player4, player5]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -127,8 +140,10 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         useNativeDriver: true,
       }).start();
 
-      // Progress bar animations
+      // Handle video playback for steps
       if (nextStep === 2) {
+        player1.pause();
+        player2.play();
         Animated.timing(progressOpacity2, {
           toValue: 1,
           duration: 300,
@@ -136,37 +151,56 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
           useNativeDriver: true,
         }).start();
       } else if (nextStep === 3) {
+        player2.pause();
+        player3.play();
         Animated.timing(progressOpacity3, {
           toValue: 1,
           duration: 300,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }).start();
+      } else if (nextStep === 4) {
+        player3.pause();
+        player1.play(); // Reuse player1 for step 4
+      } else if (nextStep === 5) {
+        player1.pause(); // No video on step 5
+      } else if (nextStep === 6) {
+        player4.play(); // phoneOverCard video
+      } else if (nextStep === 7) {
+        player4.pause();
+        player5.play(); // verification video
+      } else if (nextStep === 9) {
+        // Step 9 is vote confirmation
+        player3.play(); // Reuse ballot video
+      } else if (nextStep === 10) {
+        player3.pause();
       }
     }
-  }, [currentStep, slideAnim, containerWidth, progressOpacity2, progressOpacity3]);
+  }, [currentStep, slideAnim, containerWidth, progressOpacity2, progressOpacity3, player1, player2, player3, player4, player5]);
 
   const handleVerificationSuccess = useCallback(() => {
     setVerificationResult('success');
     setCurrentStep(8);
+    player5.pause(); // Pause step 7 video
     Animated.timing(slideAnim, {
       toValue: -7 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [slideAnim, containerWidth]);
+  }, [slideAnim, containerWidth, player5]);
 
   const handleVerificationError = useCallback(() => {
     setVerificationResult('error');
     setCurrentStep(8);
+    player5.pause(); // Pause step 7 video
     Animated.timing(slideAnim, {
       toValue: -7 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [slideAnim, containerWidth]);
+  }, [slideAnim, containerWidth, player5]);
 
   const handleVoteSubmissionSuccess = useCallback(() => {
     setVoteSubmissionResult('success');
