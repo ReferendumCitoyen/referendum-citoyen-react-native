@@ -17,7 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.referendumcitoyen.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NFCReaderUsageDescription": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
+        "NSCameraUsageDescription": "Cette application a besoin d'accéder à la caméra pour scanner la zone MRZ de votre carte d'identité."
       }
     },
     "android": {
@@ -27,7 +29,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.NFC",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -36,7 +42,24 @@
     },
     "plugins": [
       "expo-router",
-      "expo-video"
+      "expo-video",
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
+          "includeNdefEntitlement": false,
+          "includeTagEntitlement": true,
+          "includeIso15693Entitlement": false,
+          "includeIso18092Entitlement": false
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Cette application a besoin d'accéder à la caméra pour scanner la zone MRZ de votre carte d'identité.",
+          "enableCodeScanner": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
