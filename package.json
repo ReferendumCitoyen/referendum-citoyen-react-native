@@ -58,7 +58,8 @@
     "react-native-vision-camera-text-recognition": "^3.1.1",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
-    "react-native-worklets-core": "^1.6.2"
+    "react-native-worklets-core": "^1.6.2",
+    "uniffi-bindgen-react-native": "^0.29.3-0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
