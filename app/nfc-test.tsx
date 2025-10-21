@@ -56,6 +56,20 @@ export default function NFCTestScreen() {
     }
   }, []);
 
+  // Convert YYMMDD to YYYY-MM-DD
+  const convertMRZDate = (yymmdd: string): string => {
+    if (!yymmdd || yymmdd.length !== 6) return yymmdd;
+
+    const yy = parseInt(yymmdd.substring(0, 2), 10);
+    const mm = yymmdd.substring(2, 4);
+    const dd = yymmdd.substring(4, 6);
+
+    // If year >= 50, it's 19YY (1950-1999), otherwise 20YY (2000-2049)
+    const yyyy = yy >= 50 ? `19${yy}` : `20${yy}`;
+
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     try {
       const result = parseMRZ(lines);
@@ -63,10 +77,10 @@ export default function NFCTestScreen() {
       if (result?.valid) {
         console.log("✅ MRZ Detected:", result.fields);
 
-        // Auto-fill the form
+        // Auto-fill the form with converted dates
         setDocumentNo(result.fields.documentNumber || "");
-        setBirthDate(result.fields.birthDate || "");
-        setExpiryDate(result.fields.expirationDate || "");
+        setBirthDate(convertMRZDate(result.fields.birthDate || ""));
+        setExpiryDate(convertMRZDate(result.fields.expirationDate || ""));
 
         // Close camera
         setShowCamera(false);
