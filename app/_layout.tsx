@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import NfcManager from 'react-native-nfc-manager';
 
 
 export {
@@ -55,6 +56,11 @@ export default function RootLayout() {
       interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
       interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
     });
+  }, []);
+
+  // Initialize NFC Manager
+  useEffect(() => {
+    NfcManager.start();
   }, []);
 
   if (!loaded) {
