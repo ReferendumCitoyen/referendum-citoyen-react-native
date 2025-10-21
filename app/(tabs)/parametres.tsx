@@ -3,6 +3,7 @@ import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 're
 import * as Application from 'expo-application';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -18,6 +19,7 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 
 export default function ParametresScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const router = useRouter();
 
   return (
     <View style={styles.screenContainer}>
@@ -64,6 +66,19 @@ export default function ParametresScreen() {
             <Text style={styles.settingLabel}>Smart Contract</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
               <Text style={styles.settingValue}>Selectioner</Text>
+              <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+            </TouchableOpacity>
+          </View>
+
+          {/* NFC Test Row */}
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>Test NFC</Text>
+            <TouchableOpacity
+              style={styles.settingValueContainer}
+              activeOpacity={0.7}
+              onPress={() => router.push('/nfc-test')}
+            >
+              <Text style={styles.settingValue}>Ouvrir</Text>
               <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
