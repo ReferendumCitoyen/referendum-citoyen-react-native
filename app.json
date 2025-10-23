@@ -2,7 +2,7 @@
   "expo": {
     "name": "referendum-citoyen",
     "slug": "referendum-citoyen",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "referendumcitoyen",
@@ -21,6 +21,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NFCReaderUsageDescription": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
         "NSCameraUsageDescription": "Cette application a besoin d'accéder à la caméra pour scanner la zone MRZ de votre carte d'identité.",
+        "NSLocationWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre localisation.",
         "com.apple.developer.nfc.readersession.iso7816.select-identifiers": [
           "A0000002471001",
           "00000000000000",
@@ -53,7 +54,7 @@
         "react-native-nfc-manager",
         {
           "nfcPermission": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
-          "includeNdefEntitlement": true,
+          "includeNdefEntitlement": false,
           "includeTagEntitlement": true,
           "includeIso15693Entitlement": false,
           "includeIso18092Entitlement": false
@@ -85,5 +86,71 @@
       }
     },
     "owner": "referendum-citoyen"
+  },
+  "cli": {
+    "version": ">= 10.0.3",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development:simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "simulator": true,
+        "cocoapods": "1.15.2"
+      },
+      "env": {
+        "BUILD_ENV": "development"
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2"
+      },
+      "env": {
+        "BUILD_ENV": "development"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2"
+      },
+      "env": {
+        "BUILD_ENV": "production"
+      }
+    },
+    "testflight": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2",
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "BUILD_ENV": "production"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2",
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "BUILD_ENV": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
   }
 }
