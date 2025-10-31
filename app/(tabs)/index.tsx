@@ -71,7 +71,7 @@ export default function AccueilScreen() {
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleVoterPress = () => {
-    // setIsModalVisible(true);
+    setIsModalVisible(true);
   };
 
   return (

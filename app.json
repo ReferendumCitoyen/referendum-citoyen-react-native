@@ -2,7 +2,7 @@
   "expo": {
     "name": "referendum-citoyen",
     "slug": "referendum-citoyen",
-    "version": "1.0.1",
+    "version": "1.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "referendumcitoyen",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.referendumcitoyen.app",
+      "bundleIdentifier": "com.referendumcitoyen.app2",
       "deploymentTarget": "16.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -33,6 +33,11 @@
       "package": "com.referendumcitoyen.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "splash": {
+        "image": "./assets/images/splash.png",
+        "resizeMode": "cover",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,

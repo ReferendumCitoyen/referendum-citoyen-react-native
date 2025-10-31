@@ -10,7 +10,8 @@ import {
   useCameraPermission,
   useFrameProcessor,
 } from 'react-native-vision-camera'
-import { useTextRecognition } from 'react-native-vision-camera-text-recognition'
+// @ts-ignore
+// import { useTextRecognition } from 'react-native-vision-camera-text-recognition' // Temporarily disabled
 import { Worklets } from 'react-native-worklets-core'
 
 import { bus, DefaultBusEvents, ErrorHandler } from '@/core'
@@ -76,9 +77,10 @@ export default function ScanMrzStep() {
   const device = useCameraDevice('back')
   const { hasPermission, requestPermission } = useCameraPermission()
 
-  const { scanText } = useTextRecognition({
-    language: 'latin',
-  })
+  // Temporarily disabled - text recognition package incompatible
+  // const { scanText } = useTextRecognition({
+  //   language: 'latin',
+  // })
 
   const mrzParser = useMrzParser(docType ?? DocType.PASSPORT)
 
@@ -97,7 +99,8 @@ export default function ScanMrzStep() {
     }
   })
 
-  const frameProcessor = useFrameProcessor(
+  // Temporarily disabled - text recognition package incompatible
+  /* const frameProcessor = useFrameProcessor(
     frame => {
       'worklet'
 
@@ -129,7 +132,7 @@ export default function ScanMrzStep() {
       })
     },
     [scanText, onMRZDetected],
-  )
+  ) */
 
   const isActive = useMemo(() => {
     return isFocused && currentAppState === 'active'
@@ -146,7 +149,16 @@ export default function ScanMrzStep() {
   return (
     <View className='flex flex-1 flex-col'>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        {isActive && (
+        <View className='p-4'>
+          <Text className='typography-h4 text-textPrimary'>
+            Scanner MRZ temporairement désactivé
+          </Text>
+          <Text className='typography-body text-textSecondary mt-2'>
+            Le module de reconnaissance de texte est en cours de mise à jour pour compatibilité
+          </Text>
+        </View>
+        {/* Temporarily disabled - text recognition package incompatible */}
+        {/* {isActive && (
           <>
             {hasPermission ? (
               <>
@@ -172,7 +184,7 @@ export default function ScanMrzStep() {
               </View>
             )}
           </>
-        )}
+        )} */}
       </ScrollView>
     </View>
   )

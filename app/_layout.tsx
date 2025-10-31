@@ -5,7 +5,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -34,16 +34,24 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
 
+  // Ensure splash screen shows for at least 1 second
   useEffect(() => {
-    if (loaded) {
+    const timer = setTimeout(() => setMinTimeElapsed(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (loaded && minTimeElapsed) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, minTimeElapsed]);
 
   // Configure audio mode to allow mixing with other apps' audio
   useEffect(() => {
