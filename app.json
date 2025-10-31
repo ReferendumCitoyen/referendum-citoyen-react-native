@@ -56,6 +56,13 @@
       "expo-router",
       "expo-video",
       [
+        "./plugins/withNfc.plugin/build/index.js",
+        {
+          "nfcPermission": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
+          "includeNdefEntitlement": false
+        }
+      ],
+      [
         "react-native-nfc-manager",
         {
           "nfcPermission": "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
@@ -76,7 +83,14 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "16.0"
+            "deploymentTarget": "16.0",
+            "extraPods": [
+              {
+                "name": "NFCPassportReader",
+                "git": "https://github.com/rarimo/NFCPassportReader.git",
+                "commit": "4c463a687f59eb6cc5c7955af854c7d41295d54f"
+              }
+            ]
           }
         }
       ]

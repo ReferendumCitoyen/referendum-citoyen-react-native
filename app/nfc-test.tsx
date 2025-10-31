@@ -16,6 +16,7 @@ import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtT
 import { useTextRecognition } from "react-native-vision-camera-text-recognition";
 import { Worklets } from "react-native-worklets-core";
 import { parse } from "mrz";
+import { getRandomValues } from "expo-crypto";
 
 export default function NFCTestScreen() {
   const router = useRouter();
@@ -68,6 +69,26 @@ export default function NFCTestScreen() {
     const yyyy = yy >= 50 ? `19${yy}` : `20${yy}`;
 
     return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Convert YYYY-MM-DD back to YYMMDD for BAC
+  const convertToMRZFormat = (date: string): string => {
+    if (!date) return date;
+    // If already in YYMMDD format, return as-is
+    if (date.length === 6 && !date.includes('-')) return date;
+
+    // Parse YYYY-MM-DD format
+    const parts = date.split('-');
+    if (parts.length !== 3) return date;
+
+    const yyyy = parts[0];
+    const mm = parts[1];
+    const dd = parts[2];
+
+    // Get last 2 digits of year
+    const yy = yyyy.substring(2, 4);
+
+    return `${yy}${mm}${dd}`;
   };
 
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
@@ -238,15 +259,33 @@ export default function NFCTestScreen() {
       }
 
       console.log("=== STARTING EDOCUMENT READER ===");
-      // TODO: Import and use the EDocument module
-      // const { scanDocument } = require('@/modules');
-      // const result = await scanDocument('P', {
-      //   documentNumber: documentNo,
-      //   dateOfBirth: birthDate,
-      //   dateOfExpiry: expiryDate,
-      // }, new Uint8Array(32));
+      console.log("Document No:", documentNo);
+      console.log("Birth Date:", birthDate);
+      console.log("Expiry Date:", expiryDate);
 
-      setError("EDocument implementation à venir");
+      const { scanDocument } = await import('@/modules/e-document');
+
+      // Generate random challenge for Active Authentication
+      const challenge = getRandomValues(new Uint8Array(32));
+
+      // Convert dates to YYMMDD format for BAC
+      const bacBirthDate = convertToMRZFormat(birthDate);
+      const bacExpiryDate = convertToMRZFormat(expiryDate);
+
+      console.log("BAC Birth Date:", bacBirthDate);
+      console.log("BAC Expiry Date:", bacExpiryDate);
+
+      const result = await scanDocument('P', {
+        documentNumber: documentNo,
+        dateOfBirth: bacBirthDate,
+        dateOfExpiry: bacExpiryDate,
+      }, challenge);
+
+      console.log("=== EDOCUMENT DATA ===");
+      console.log(JSON.stringify(result.personDetails, null, 2));
+      console.log("=====================");
+
+      setTagData(result);
     } catch (ex: any) {
       console.warn("EDocument error:", ex);
       setError(ex?.message || "Unknown error");
