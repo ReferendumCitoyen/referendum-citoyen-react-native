@@ -1,5 +1,6 @@
 import 'react-native-reanimated';
 import 'react-native-gesture-handler';
+import '@/locales';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -86,6 +87,13 @@ function RootLayoutNav() {
           <StatusBar style="dark" />
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="nfc-test"
+              options={{
+                title: 'Test NFC',
+                headerBackTitle: 'Retour'
+              }}
+            />
           </Stack>
         </BottomSheetModalProvider>
       </ThemeProvider>
