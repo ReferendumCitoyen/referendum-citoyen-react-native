@@ -11,9 +11,10 @@ import {
 } from "react-native";
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
 // @ts-ignore
-import NfcPassportReader from "react-native-nfc-passport-reader";
+// import NfcPassportReader from "react-native-nfc-passport-reader"; // Temporarily disabled
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from "react-native-vision-camera";
-import { useTextRecognition } from "react-native-vision-camera-text-recognition";
+// @ts-ignore
+// import { useTextRecognition } from "react-native-vision-camera-text-recognition"; // Temporarily disabled
 import { Worklets } from "react-native-worklets-core";
 import { parse } from "mrz";
 
@@ -32,7 +33,7 @@ export default function NFCTestScreen() {
   const [showCamera, setShowCamera] = React.useState(false);
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
-  const { scanText } = useTextRecognition({ language: 'latin' });
+  // const { scanText } = useTextRecognition({ language: 'latin' }); // Temporarily disabled
 
   // MRZ Parser for passports
   const parseMRZ = React.useCallback((lines: string[]) => {
@@ -91,6 +92,7 @@ export default function NFCTestScreen() {
     }
   });
 
+  /* Temporarily disabled - text recognition package incompatible
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
 
@@ -118,9 +120,14 @@ export default function NFCTestScreen() {
       }
     });
   }, [scanText, onMRZDetected]);
+  */
 
   async function openMRZScanner() {
-    if (!hasPermission) {
+    // Temporarily disabled - text recognition package incompatible
+    setError("Scanner MRZ temporairement désactivé");
+    return;
+
+    /* if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
         setError("Permission caméra refusée");
@@ -128,7 +135,7 @@ export default function NFCTestScreen() {
       }
     }
     setShowCamera(true);
-    setError(null);
+    setError(null); */
   }
 
   async function readNdef() {
@@ -187,7 +194,11 @@ export default function NFCTestScreen() {
   }
 
   async function readPassportWithNfcReader() {
-    try {
+    // Temporarily disabled - package removed
+    setError("NFC Passport Reader temporairement désactivé");
+    return;
+
+    /* try {
       setIsScanning(true);
       setError(null);
       setTagData(null);
@@ -222,7 +233,7 @@ export default function NFCTestScreen() {
       setError(ex?.message || "Unknown error");
     } finally {
       setIsScanning(false);
-    }
+    } */
   }
 
   async function readPassportWithEDocument() {
@@ -274,7 +285,7 @@ export default function NFCTestScreen() {
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Camera Scanner */}
+          {/* Camera Scanner - Temporarily disabled
           {showCamera && device && (
             <View style={styles.cameraContainer}>
               <Camera
@@ -296,49 +307,46 @@ export default function NFCTestScreen() {
               </View>
             </View>
           )}
+          */}
 
           {/* MRZ Input Section */}
-          {!showCamera && (
-            <>
-              <View style={styles.mrzSection}>
-                <Text style={styles.sectionTitle}>Données MRZ (au dos du passeport)</Text>
+          <View style={styles.mrzSection}>
+            <Text style={styles.sectionTitle}>Données MRZ (au dos du passeport)</Text>
 
-                <TouchableOpacity
-                  style={styles.cameraButton}
-                  onPress={openMRZScanner}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cameraButtonText}>📷 Scanner avec caméra</Text>
-                </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cameraButton}
+              onPress={openMRZScanner}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cameraButtonText}>📷 Scanner avec caméra</Text>
+            </TouchableOpacity>
 
-                <Text style={styles.orText}>ou saisir manuellement:</Text>
+            <Text style={styles.orText}>ou saisir manuellement:</Text>
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Numéro de document (ex: 12AB34567)"
-                  value={documentNo}
-                  onChangeText={setDocumentNo}
-                  autoCapitalize="characters"
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Date de naissance (AAMMJJ)"
-                  value={birthDate}
-                  onChangeText={setBirthDate}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Date d'expiration (AAMMJJ)"
-                  value={expiryDate}
-                  onChangeText={setExpiryDate}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </View>
-            </>
-          )}
+            <TextInput
+              style={styles.input}
+              placeholder="Numéro de document (ex: 12AB34567)"
+              value={documentNo}
+              onChangeText={setDocumentNo}
+              autoCapitalize="characters"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Date de naissance (AAMMJJ)"
+              value={birthDate}
+              onChangeText={setBirthDate}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Date d'expiration (AAMMJJ)"
+              value={expiryDate}
+              onChangeText={setExpiryDate}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+          </View>
 
           {/* Passport Reading Buttons */}
           <Text style={styles.sectionTitle}>Lecture complète du passeport:</Text>
