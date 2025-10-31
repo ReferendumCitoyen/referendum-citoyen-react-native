@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import ComprendreIcon from './icons/ComprendreIcon';
 import AccueilIcon from './icons/AccueilIcon';
 import ParametresIcon from './icons/ParametresIcon';
@@ -13,13 +14,14 @@ const iconMap: { [key: string]: React.ComponentType<{ color: string; size?: numb
   parametres: ParametresIcon,
 };
 
-const labelMap: { [key: string]: string } = {
-  comprendre: 'Comprendre',
-  index: 'Accueil',
-  parametres: 'Paramètres',
+const labelKeyMap: { [key: string]: string } = {
+  comprendre: 'tabs.comprendre',
+  index: 'tabs.accueil',
+  parametres: 'tabs.parametres',
 };
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -32,7 +34,8 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
           {state.routes.map((route, index) => {
             const isFocused = state.index === index;
             const Icon = iconMap[route.name];
-            const label = labelMap[route.name];
+            const labelKey = labelKeyMap[route.name];
+            const label = t(labelKey);
 
             const onPress = () => {
               const event = navigation.emit({

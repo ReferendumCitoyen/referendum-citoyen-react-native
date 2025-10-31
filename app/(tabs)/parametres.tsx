@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
 import * as Application from 'expo-application';
+import { useTranslation } from 'react-i18next';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
@@ -20,6 +21,14 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 export default function ParametresScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
+  const { i18n } = useTranslation();
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'fr' ? 'en' : 'fr';
+    i18n.changeLanguage(newLang);
+  };
+
+  const currentLanguageLabel = i18n.language === 'fr' ? 'Français' : 'English';
 
   return (
     <View style={styles.screenContainer}>
@@ -46,8 +55,8 @@ export default function ParametresScreen() {
           {/* Langue Row */}
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>Langue</Text>
-            <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
-              <Text style={styles.settingValue}>Français</Text>
+            <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7} onPress={toggleLanguage}>
+              <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
               <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>

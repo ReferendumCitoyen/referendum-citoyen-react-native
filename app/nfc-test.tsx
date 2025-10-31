@@ -11,10 +11,9 @@ import {
 } from "react-native";
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
 // @ts-ignore
-// import NfcPassportReader from "react-native-nfc-passport-reader"; // Temporarily disabled
+import NfcPassportReader from "react-native-nfc-passport-reader";
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from "react-native-vision-camera";
-// @ts-ignore
-// import { useTextRecognition } from "react-native-vision-camera-text-recognition"; // Temporarily disabled
+import { useTextRecognition } from "react-native-vision-camera-text-recognition";
 import { Worklets } from "react-native-worklets-core";
 import { parse } from "mrz";
 
@@ -33,7 +32,7 @@ export default function NFCTestScreen() {
   const [showCamera, setShowCamera] = React.useState(false);
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
-  // const { scanText } = useTextRecognition({ language: 'latin' }); // Temporarily disabled
+  const { scanText } = useTextRecognition({ language: 'latin' });
 
   // MRZ Parser for passports
   const parseMRZ = React.useCallback((lines: string[]) => {
@@ -92,7 +91,6 @@ export default function NFCTestScreen() {
     }
   });
 
-  /* Temporarily disabled - text recognition package incompatible
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
 
@@ -120,14 +118,9 @@ export default function NFCTestScreen() {
       }
     });
   }, [scanText, onMRZDetected]);
-  */
 
   async function openMRZScanner() {
-    // Temporarily disabled - text recognition package incompatible
-    setError("Scanner MRZ temporairement désactivé");
-    return;
-
-    /* if (!hasPermission) {
+    if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
         setError("Permission caméra refusée");
@@ -135,7 +128,7 @@ export default function NFCTestScreen() {
       }
     }
     setShowCamera(true);
-    setError(null); */
+    setError(null);
   }
 
   async function readNdef() {
@@ -194,11 +187,7 @@ export default function NFCTestScreen() {
   }
 
   async function readPassportWithNfcReader() {
-    // Temporarily disabled - package removed
-    setError("NFC Passport Reader temporairement désactivé");
-    return;
-
-    /* try {
+    try {
       setIsScanning(true);
       setError(null);
       setTagData(null);
@@ -233,7 +222,7 @@ export default function NFCTestScreen() {
       setError(ex?.message || "Unknown error");
     } finally {
       setIsScanning(false);
-    } */
+    }
   }
 
   async function readPassportWithEDocument() {
@@ -272,20 +261,9 @@ export default function NFCTestScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
       >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>← Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Test NFC</Text>
-        </View>
-
         {/* Content */}
         <View style={styles.content}>
-          {/* Camera Scanner - Temporarily disabled
+          {/* Camera Scanner */}
           {showCamera && device && (
             <View style={styles.cameraContainer}>
               <Camera
@@ -307,7 +285,6 @@ export default function NFCTestScreen() {
               </View>
             </View>
           )}
-          */}
 
           {/* MRZ Input Section */}
           <View style={styles.mrzSection}>
@@ -441,27 +418,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: Spacing.screen.gap,
-  },
-  headerSection: {
-    backgroundColor: Colors.white,
-    paddingTop: Spacing.screen.top,
-    paddingHorizontal: Spacing.screen.horizontal,
-    paddingBottom: Spacing.settingRow.paddingVertical,
-  },
-  backButton: {
-    marginBottom: Spacing.screen.gap / 2,
-  },
-  backButtonText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.body,
-    color: Colors.secondary,
-  },
-  headerTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.h1,
-    lineHeight: Typography.lineHeight.h1,
-    letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
   },
   content: {
     padding: Spacing.screen.horizontal,
