@@ -32,12 +32,12 @@
     "android": {
       "package": "com.referendumcitoyen.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/app-icon.png",
+        "foregroundImage": "./assets/images/app-icon-android.png",
         "backgroundColor": "#ffffff"
       },
       "splash": {
-        "image": "./assets/images/splash.png",
-        "resizeMode": "cover",
+        "image": "./assets/images/app-icon-android.png",
+        "resizeMode": "contain",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
