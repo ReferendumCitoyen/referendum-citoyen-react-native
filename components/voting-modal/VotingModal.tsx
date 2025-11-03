@@ -2,9 +2,9 @@ import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { Text, View, TouchableOpacity, Animated, Easing } from 'react-native';
 import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { Colors } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
-import { modalStyles } from './styles';
+import { createModalStyles } from './styles';
 import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
 import Step1 from './Step1';
 import Step2 from './Step2';
@@ -26,6 +26,8 @@ interface VotingModalProps {
 }
 
 const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
+  const colors = useColors();
+  const modalStyles = createModalStyles(colors);
   const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
@@ -324,7 +326,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
                 <Path
                   d="M5 12H19M19 12L12 5M19 12L12 19"
-                  stroke={Colors.white}
+                  stroke={colors.white}
                   strokeWidth={2}
                   strokeLinecap="round"
                   strokeLinejoin="round"

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ComprendreIcon from './icons/ComprendreIcon';
 import AccueilIcon from './icons/AccueilIcon';
 import ParametresIcon from './icons/ParametresIcon';
-import { Colors, Typography, Spacing, Shadows } from '@/constants/theme';
+import { useColors, Typography, Spacing, Shadows } from '@/constants/theme';
 
 const iconMap: { [key: string]: React.ComponentType<{ color: string; size?: number }> } = {
   comprendre: ComprendreIcon,
@@ -24,11 +24,13 @@ const labelKeyMap: { [key: string]: string } = {
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const colors = useColors();
+  const styles = createStyles(colors);
 
   return (
     <View style={[styles.container, Platform.OS === 'android' && { marginBottom: Spacing.m }]}>
       <LinearGradient
-        colors={[Colors.gradientStart, Colors.gradientEnd]}
+        colors={[colors.gradientStart, colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={[
@@ -69,7 +71,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                 <View style={styles.tabContent}>
                   {Icon && (
                     <Icon
-                      color={isFocused ? Colors.white : Colors.primary}
+                      color={isFocused ? colors.buttonText : colors.icon}
                       size={Spacing.icon.size}
                     />
                   )}
@@ -91,7 +93,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: {
     position: 'absolute',
     bottom: 0,
@@ -108,7 +110,7 @@ const styles = StyleSheet.create({
   tabBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderRadius: Spacing.tabBar.borderRadius,
     height: Spacing.tabBar.height,
     paddingHorizontal: Spacing.tabBar.innerPadding,
@@ -126,7 +128,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   tabItemActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   tabContent: {
     flexDirection: 'column',
@@ -140,11 +142,11 @@ const styles = StyleSheet.create({
     fontSize: Platform.OS === 'android' ? 13 : Typography.fontSize.tabLabel,
     lineHeight: Typography.lineHeight.tabLabel,
     letterSpacing: Typography.letterSpacing.tabLabel,
-    color: Colors.primary,
+    color: colors.icon,
     textAlign: 'center',
     ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
   tabLabelActive: {
-    color: Colors.white,
+    color: colors.buttonText,
   },
 });

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 
@@ -19,9 +19,13 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 );
 
 export default function ParametresScreen() {
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const router = useRouter();
   const { i18n } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
+  const colors = useColors();
+  const styles = createStyles(colors);
+
+  const darkModeEnabled = theme === 'dark';
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'fr' ? 'en' : 'fr';
@@ -45,10 +49,10 @@ export default function ParametresScreen() {
             <Text style={styles.settingLabel}>Dark Mode</Text>
             <Switch
               value={darkModeEnabled}
-              onValueChange={setDarkModeEnabled}
-              trackColor={{ false: Colors.switchGray, true: Colors.secondary }}
-              thumbColor={Colors.white}
-              ios_backgroundColor={Colors.switchGray}
+              onValueChange={toggleTheme}
+              trackColor={{ false: colors.switchGray, true: colors.secondary }}
+              thumbColor={colors.buttonText}
+              ios_backgroundColor={colors.switchGray}
             />
           </View>
 
@@ -57,7 +61,7 @@ export default function ParametresScreen() {
             <Text style={styles.settingLabel}>Langue</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7} onPress={toggleLanguage}>
               <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
-              <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
 
@@ -66,7 +70,7 @@ export default function ParametresScreen() {
             <Text style={styles.settingLabel}>RPC</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
               <Text style={styles.settingValue}>Selectioner</Text>
-              <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
 
@@ -75,7 +79,7 @@ export default function ParametresScreen() {
             <Text style={styles.settingLabel}>Smart Contract</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
               <Text style={styles.settingValue}>Selectioner</Text>
-              <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
 
@@ -88,7 +92,7 @@ export default function ParametresScreen() {
               onPress={() => router.push('/nfc-test')}
             >
               <Text style={styles.settingValue}>Ouvrir</Text>
-              <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
         </View>
@@ -107,10 +111,10 @@ export default function ParametresScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -119,7 +123,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.tabBar.containerHeight,
   },
   headerSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     paddingTop: Spacing.screen.top,
     paddingHorizontal: Spacing.screen.horizontal,
     paddingBottom: Spacing.settingRow.paddingVertical,
@@ -129,7 +133,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   settingsContainer: {
     gap: Spacing.settingRow.gap,
@@ -140,14 +144,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: Spacing.settingRow.paddingVertical,
     paddingHorizontal: Spacing.settingRow.paddingHorizontal,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   settingLabel: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.settingRow,
     lineHeight: Typography.lineHeight.settingRow,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     flex: 1,
   },
   settingValueContainer: {
@@ -161,7 +165,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
   versionContainer: {
     paddingVertical: Spacing.screen.gap,
@@ -174,11 +178,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.small,
     lineHeight: Typography.lineHeight.small,
     letterSpacing: Typography.letterSpacing.small,
-    color: Colors.primary,
+    color: colors.text,
     opacity: 0.5,
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,
-    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+    backgroundColor: 'transparent',
   },
 });

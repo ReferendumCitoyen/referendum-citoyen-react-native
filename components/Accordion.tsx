@@ -8,7 +8,7 @@ import Animated, {
   Extrapolation,
   Easing
 } from 'react-native-reanimated';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 
 interface AccordionProps {
@@ -31,6 +31,8 @@ const CaretDownIcon = ({ color, size = 24 }: { color: string; size?: number }) =
 );
 
 export default function Accordion({ title, content, defaultExpanded = false, showBorder = true }: AccordionProps) {
+  const colors = useColors();
+  const styles = createStyles(colors);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [contentHeight, setContentHeight] = useState(0);
   const [measured, setMeasured] = useState(false);
@@ -88,7 +90,7 @@ export default function Accordion({ title, content, defaultExpanded = false, sho
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{title}</Text>
           <Animated.View style={[styles.iconContainer, iconAnimatedStyle]}>
-            <CaretDownIcon color={Colors.secondary} size={Spacing.icon.size} />
+            <CaretDownIcon color={colors.icon} size={Spacing.icon.size} />
           </Animated.View>
         </View>
       </TouchableOpacity>
@@ -112,14 +114,14 @@ export default function Accordion({ title, content, defaultExpanded = false, sho
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     padding: Spacing.accordion.padding,
   },
   containerWithBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   titleContainer: {
     flexDirection: 'row',
@@ -132,7 +134,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   iconContainer: {
     width: Spacing.icon.size,
@@ -154,6 +156,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
 });

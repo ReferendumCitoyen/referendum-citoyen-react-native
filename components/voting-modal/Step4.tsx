@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
-import { stepSpecificStyles } from './styles';
+import { createModalStyles, createStepSpecificStyles } from './styles';
+import { useColors } from '@/constants/theme';
 
 interface Step4Props {
   player: any;
@@ -11,6 +12,9 @@ interface Step4Props {
 }
 
 const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, onLayout }) => {
+  const colors = useColors();
+  const modalStyles = createModalStyles(colors);
+  const stepSpecificStyles = createStepSpecificStyles(colors);
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step4Container}>

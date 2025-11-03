@@ -1,3 +1,7 @@
+// Re-export theme utilities from ThemeContext
+export { LightColors, DarkColors, useColors, useTheme } from '@/contexts/ThemeContext';
+
+// Static colors for backward compatibility (use useColors() hook instead for theme support)
 export const Colors = {
   primary: '#111F84',
   secondary: '#3044DD',
@@ -15,6 +19,8 @@ export const Colors = {
   gradientEnd: '#FFFFFF',
   progressActive: '#3044DD',
   progressInactive: 'rgba(48, 68, 221, 0.3)',
+  text: '#000000',
+  cardBackground: '#FFFFFF',
 };
 
 export const Typography = {

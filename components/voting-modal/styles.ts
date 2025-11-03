@@ -1,14 +1,14 @@
 import { StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useColors, Typography, Spacing } from '@/constants/theme';
 
-export const modalStyles = StyleSheet.create({
+export const createModalStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   bottomSheetBackground: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     borderTopLeftRadius: Spacing.modal.borderRadius,
     borderTopRightRadius: Spacing.modal.borderRadius,
   },
   handleIndicator: {
-    backgroundColor: Colors.border,
+    backgroundColor: colors.border,
     width: 40,
     height: 4,
   },
@@ -16,7 +16,7 @@ export const modalStyles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   titleSection: {
     flexDirection: 'row',
@@ -25,7 +25,7 @@ export const modalStyles = StyleSheet.create({
     paddingVertical: Spacing.modal.titlePadding,
     paddingHorizontal: Spacing.modal.titlePaddingHorizontal,
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   title: {
     flex: 1,
@@ -33,7 +33,7 @@ export const modalStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   slidingWrapper: {
@@ -50,7 +50,7 @@ export const modalStyles = StyleSheet.create({
     height: Spacing.modal.mediaContainerHeight,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     width: '100%',
   },
   contentSection: {
@@ -59,7 +59,7 @@ export const modalStyles = StyleSheet.create({
     paddingVertical: Spacing.modal.contentPadding,
     paddingHorizontal: Spacing.modal.contentPaddingHorizontal,
     gap: Spacing.modal.contentGap,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     width: '100%',
     height: Spacing.modal.contentSectionHeight,
   },
@@ -79,14 +79,14 @@ export const modalStyles = StyleSheet.create({
     width: Spacing.modal.numberCircleSize,
     height: Spacing.modal.numberCircleSize,
     borderRadius: Spacing.modal.numberCircleSize / 2,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   numberText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.body,
-    color: Colors.white,
+    color: colors.buttonText,
   },
   stepTitle: {
     flex: 1,
@@ -94,7 +94,7 @@ export const modalStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
   },
   stepDescription: {
     fontFamily: Typography.fontFamily.medium,
@@ -102,7 +102,7 @@ export const modalStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     width: '100%',
   },
   footer: {
@@ -111,7 +111,7 @@ export const modalStyles = StyleSheet.create({
     paddingVertical: Spacing.modal.footerPadding,
     paddingHorizontal: Spacing.modal.footerPaddingHorizontal,
     gap: Spacing.modal.footerGap,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     width: '100%',
   },
   progressContainer: {
@@ -126,22 +126,22 @@ export const modalStyles = StyleSheet.create({
     borderRadius: Spacing.modal.progressBarRadius,
   },
   progressBarActive: {
-    backgroundColor: Colors.progressActive,
+    backgroundColor: colors.progressActive,
   },
   progressBarInactive: {
-    backgroundColor: Colors.progressInactive,
+    backgroundColor: colors.progressInactive,
   },
   arrowButton: {
     width: Spacing.modal.arrowButtonSize,
     height: Spacing.modal.arrowButtonSize,
     borderRadius: Spacing.modal.arrowButtonRadius,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
 });
 
-export const stepSpecificStyles = StyleSheet.create({
+export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   cardVideo: {
     width: Spacing.modal.cardImageWidth,
     height: Spacing.modal.cardImageHeight,
@@ -159,7 +159,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step4Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step4Content: {
     gap: Spacing.modal.step4ContentGap,
@@ -171,7 +171,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -181,7 +181,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
     width: '100%',
   },
   step4Video: {
@@ -190,7 +190,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step4Button: {
     paddingVertical: Spacing.modal.step4ButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -199,7 +199,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step5Container: {
@@ -208,14 +208,14 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step5Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step5Title: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -236,13 +236,13 @@ export const stepSpecificStyles = StyleSheet.create({
     width: '80%',
     height: 80,
     borderWidth: 2,
-    borderColor: Colors.white,
+    borderColor: colors.white,
     borderStyle: 'dashed',
     borderRadius: 8,
   },
   step5Button: {
     paddingVertical: Spacing.modal.step5ButtonPaddingVertical,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     alignItems: 'center',
     width: '100%',
   },
@@ -251,7 +251,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   step6Container: {
@@ -260,14 +260,14 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step6Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step6Title: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -278,7 +278,7 @@ export const stepSpecificStyles = StyleSheet.create({
   step6Image: {
     width: Spacing.modal.step6ImageWidth,
     height: Spacing.modal.step6ImageHeight,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step6ButtonContainer: {
     paddingHorizontal: Spacing.modal.step6ButtonPaddingHorizontal,
@@ -286,7 +286,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step6Button: {
     paddingVertical: Spacing.modal.step6ButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -295,7 +295,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step7Container: {
@@ -303,14 +303,14 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step7Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step7Title: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -324,7 +324,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -333,7 +333,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step8Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step8Content: {
     gap: Spacing.modal.step8ContentGap,
@@ -345,7 +345,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -355,7 +355,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step8Button: {
     paddingVertical: Spacing.modal.step8ButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -364,7 +364,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step9ErrorContainer: {
@@ -372,7 +372,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step9ErrorGap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step9ErrorContent: {
     gap: Spacing.modal.step9ErrorContentGap,
@@ -384,7 +384,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -394,7 +394,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -404,7 +404,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step9ErrorButton: {
     paddingVertical: Spacing.modal.step9ErrorButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -413,7 +413,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step10Container: {
@@ -421,7 +421,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step10Gap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step10Content: {
     gap: Spacing.modal.step10ContentGap,
@@ -433,7 +433,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -449,7 +449,7 @@ export const stepSpecificStyles = StyleSheet.create({
   step10CancelButton: {
     flex: 1,
     paddingVertical: Spacing.modal.step10ButtonPaddingVertical,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     alignItems: 'center',
   },
   step10CancelButtonText: {
@@ -457,13 +457,13 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   step10ConfirmButton: {
     flex: 1,
     paddingVertical: Spacing.modal.step10ButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
   },
   step10ConfirmButtonText: {
@@ -471,7 +471,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step11Container: {
@@ -481,7 +481,7 @@ export const stepSpecificStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step11Loading: {
     width: Spacing.modal.step11LoadingWidth,
@@ -492,7 +492,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step12SuccessGap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step12SuccessContent: {
     gap: Spacing.modal.step12SuccessContentGap,
@@ -504,7 +504,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -514,7 +514,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -524,7 +524,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step12SuccessButton: {
     paddingVertical: Spacing.modal.step12SuccessButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -533,7 +533,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step12ErrorContainer: {
@@ -541,7 +541,7 @@ export const stepSpecificStyles = StyleSheet.create({
     gap: Spacing.modal.step12ErrorGap,
     alignItems: 'center',
     width: '100%',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   step12ErrorContent: {
     gap: Spacing.modal.step12ErrorContentGap,
@@ -553,7 +553,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -563,7 +563,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
     width: '100%',
   },
@@ -573,7 +573,7 @@ export const stepSpecificStyles = StyleSheet.create({
   },
   step12ErrorButton: {
     paddingVertical: Spacing.modal.step12ErrorButtonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     width: '100%',
   },
@@ -582,7 +582,7 @@ export const stepSpecificStyles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
 });

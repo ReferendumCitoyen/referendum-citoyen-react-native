@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, TouchableOpacity } from 'react-native';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import VotingModal from '@/components/voting-modal/VotingModal';
 
@@ -26,6 +26,8 @@ interface VoteResultsProps {
 }
 
 const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCount, nonCount }: VoteResultsProps) => {
+  const colors = useColors();
+  const styles = createStyles(colors);
   const maxHeight = 64;
   const minHeight = 2;
 
@@ -38,17 +40,17 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
     <View style={styles.resultsContainer}>
       <View style={styles.barsContainer}>
         <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(ouiPercent), backgroundColor: Colors.voteBarOui }]}>
+          <View style={[styles.bar, { height: calculateHeight(ouiPercent), backgroundColor: colors.voteBarOui }]}>
             <Text style={styles.barPercent}>{ouiPercent}%</Text>
           </View>
         </View>
         <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(blancPercent), backgroundColor: Colors.voteBarBlanc }]}>
+          <View style={[styles.bar, { height: calculateHeight(blancPercent), backgroundColor: colors.voteBarBlanc }]}>
             <Text style={styles.barPercent}>{blancPercent}%</Text>
           </View>
         </View>
         <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(nonPercent), backgroundColor: Colors.voteBarNon }]}>
+          <View style={[styles.bar, { height: calculateHeight(nonPercent), backgroundColor: colors.voteBarNon }]}>
             <Text style={styles.barPercent}>{nonPercent}%</Text>
           </View>
         </View>
@@ -68,6 +70,8 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
 };
 
 export default function AccueilScreen() {
+  const colors = useColors();
+  const styles = createStyles(colors);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleVoterPress = () => {
@@ -85,12 +89,12 @@ export default function AccueilScreen() {
 
           <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
             <Text style={styles.voteListItemText}>Les Zones à Fortes Emission (ZFE)</Text>
-            <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
             <Text style={styles.voteListItemText}>La Politique Pluriannuelle de l'Energie (PPE)</Text>
-            <CaretRightIcon color={Colors.secondary} size={Spacing.icon.size} />
+            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
           </TouchableOpacity>
         </View>
 
@@ -202,10 +206,10 @@ export default function AccueilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -215,7 +219,7 @@ const styles = StyleSheet.create({
     gap: Spacing.screen.sectionGap,
   },
   voteListSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     paddingTop: Spacing.voteList.paddingTop,
     paddingHorizontal: Spacing.voteList.paddingHorizontal,
   },
@@ -227,7 +231,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   voteListItem: {
     flexDirection: 'row',
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.voteList.itemPaddingVertical,
     gap: Spacing.voteList.itemGap,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   voteListItemText: {
     flex: 1,
@@ -244,10 +248,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.settingRow,
     lineHeight: Typography.lineHeight.settingRow,
     letterSpacing: Typography.letterSpacing.settingRow,
-    color: Colors.primary,
+    color: colors.text,
   },
   voteCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     padding: Spacing.voteCard.padding,
     gap: Spacing.voteCard.gap,
   },
@@ -258,7 +262,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingVertical: Spacing.voteCard.badgePaddingVertical,
     paddingHorizontal: Spacing.voteCard.badgePaddingHorizontal,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
     borderRadius: Spacing.voteCard.badgeRadius,
   },
   badgeText: {
@@ -267,14 +271,14 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
   voteTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   voteDescription: {
     fontFamily: Typography.fontFamily.medium,
@@ -282,7 +286,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -297,18 +301,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.small,
     lineHeight: Typography.lineHeight.small,
     letterSpacing: Typography.letterSpacing.small,
-    color: Colors.primary,
+    color: colors.text,
   },
   statValue: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.voteCount,
-    color: Colors.primary,
+    color: colors.text,
   },
   voteButton: {
     paddingVertical: Spacing.voteCard.buttonPaddingVertical,
-    backgroundColor: Colors.secondary,
+    backgroundColor: colors.secondary,
     alignItems: 'center',
   },
   voteButtonText: {
@@ -316,7 +320,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.button,
     lineHeight: Typography.lineHeight.button,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   resultsContainer: {
@@ -327,7 +331,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: Spacing.voteCard.resultsBarGap,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: colors.border,
   },
   barWrapper: {
     flex: 1,
@@ -345,7 +349,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   labelsContainer: {
@@ -358,7 +362,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.voteCount,
     lineHeight: Typography.lineHeight.voteCount,
     letterSpacing: Typography.letterSpacing.button,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   countsContainer: {
@@ -371,7 +375,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.small,
     lineHeight: Typography.lineHeight.small,
     letterSpacing: Typography.letterSpacing.small,
-    color: Colors.primary,
+    color: colors.text,
     textAlign: 'center',
   },
   tabBarSpacer: {
