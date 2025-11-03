@@ -2,11 +2,13 @@ import React, { useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Text } from 'react-native';
 import { VideoView } from 'expo-video';
 import Accordion from '@/components/Accordion';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useColors, Typography, Spacing } from '@/constants/theme';
 import { comprendreContent } from '@/constants/comprendreContent';
 import { useComprendreVideo } from '@/contexts/VideoContext';
 
 export default function ComprendreScreen() {
+  const colors = useColors();
+  const styles = createStyles(colors);
   const player = useComprendreVideo();
 
   useEffect(() => {
@@ -82,10 +84,10 @@ export default function ComprendreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   screenContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -94,7 +96,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.tabBar.containerHeight,
   },
   headerSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     paddingTop: Spacing.screen.top,
     paddingHorizontal: Spacing.screen.horizontal,
     paddingBottom: Spacing.screen.bottom,
@@ -105,13 +107,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   welcomeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.screen.gap,
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   characterVideo: {
     width: Spacing.video.characterWidth,
@@ -121,7 +123,7 @@ const styles = StyleSheet.create({
   welcomeTextContainer: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
   },
   welcomeText: {
     fontFamily: Typography.fontFamily.medium,
@@ -129,10 +131,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
   finalSection: {
-    backgroundColor: Colors.white,
+    backgroundColor: colors.cardBackground,
     padding: Spacing.accordion.padding,
     gap: Spacing.accordion.gap,
   },
@@ -141,7 +143,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
-    color: Colors.primary,
+    color: colors.text,
   },
   finalSectionContent: {
     fontFamily: Typography.fontFamily.medium,
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
-    color: Colors.primary,
+    color: colors.text,
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,

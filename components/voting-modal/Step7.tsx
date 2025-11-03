@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, LayoutChangeEvent } from 'react-native';
 import { VideoView } from 'expo-video';
-import { stepSpecificStyles } from './styles';
-import { Colors, Typography } from '@/constants/theme';
+import { createStepSpecificStyles } from './styles';
+import { useColors, Typography } from '@/constants/theme';
 
 interface Step7Props {
   containerWidth: number;
@@ -14,6 +14,8 @@ interface Step7Props {
 }
 
 const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSuccess, onError, onLayout }) => {
+  const colors = useColors();
+  const stepSpecificStyles = createStepSpecificStyles(colors);
   const [countdown, setCountdown] = useState(5);
   const [willSucceed] = useState(() => Math.random() < 0.75);
   const hasCalledCallback = useRef(false);
@@ -60,7 +62,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
             fontFamily: Typography.fontFamily.medium,
             fontWeight: Typography.fontWeight.medium,
             fontSize: Typography.fontSize.small,
-            color: Colors.primary,
+            color: colors.text,
           }}>
             {countdown} ({willSucceed ? 'Success' : 'Fail'})
           </Text>

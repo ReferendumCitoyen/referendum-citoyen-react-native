@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { stepSpecificStyles } from './styles';
-import { Colors } from '@/constants/theme';
+import { createStepSpecificStyles } from './styles';
+import { useColors } from '@/constants/theme';
 
 interface Step5Props {
   containerWidth: number;
@@ -11,6 +11,8 @@ interface Step5Props {
 }
 
 const Step5: React.FC<Step5Props> = ({ containerWidth, onManualFill, onLayout }) => {
+  const colors = useColors();
+  const stepSpecificStyles = createStepSpecificStyles(colors);
   const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
@@ -29,7 +31,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, onManualFill, onLayout })
         <View style={stepSpecificStyles.step5Container}>
           <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
           <View style={stepSpecificStyles.step5Camera}>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
               <Text style={stepSpecificStyles.step5Title}>Permission requise pour accéder à la caméra</Text>
             </View>
           </View>

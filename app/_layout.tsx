@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
+import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
 
 
 export {
@@ -76,27 +77,33 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <CustomThemeProvider>
+        <RootLayoutNav />
+      </CustomThemeProvider>
+    </GestureHandlerRootView>
+  );
 }
 
 function RootLayoutNav() {
+  const { theme } = useTheme();
+
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={DefaultTheme}>
-        <BottomSheetModalProvider>
-          <StatusBar style="dark" />
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="nfc-test"
-              options={{
-                title: 'Test NFC',
-                headerBackTitle: 'Retour'
-              }}
-            />
-          </Stack>
-        </BottomSheetModalProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <BottomSheetModalProvider>
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="nfc-test"
+            options={{
+              title: 'Test NFC',
+              headerBackTitle: 'Retour'
+            }}
+          />
+        </Stack>
+      </BottomSheetModalProvider>
+    </ThemeProvider>
   );
 }
