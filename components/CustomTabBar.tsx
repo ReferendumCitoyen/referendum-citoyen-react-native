@@ -26,14 +26,17 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'android' && { marginBottom: Spacing.m }]}>
       <LinearGradient
         colors={[Colors.gradientStart, Colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={[
           styles.gradient,
-          { paddingBottom: (Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid) + insets.bottom }
+          {
+            paddingTop: Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid,
+            paddingBottom: (Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid) + insets.bottom
+          }
         ]}
       >
         <View style={styles.tabBarContainer}>
@@ -134,11 +137,12 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontFamily: Typography.fontFamily.medium,
     fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.tabLabel,
-    lineHeight: Typography.fontSize.tabLabel,
+    fontSize: Platform.OS === 'android' ? 13 : Typography.fontSize.tabLabel,
+    lineHeight: Typography.lineHeight.tabLabel,
     letterSpacing: Typography.letterSpacing.tabLabel,
     color: Colors.primary,
     textAlign: 'center',
+    ...(Platform.OS === 'android' && { includeFontPadding: false }),
   },
   tabLabelActive: {
     color: Colors.white,
