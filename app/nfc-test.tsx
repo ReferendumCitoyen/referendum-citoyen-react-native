@@ -10,8 +10,6 @@ import {
   View,
 } from "react-native";
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
-// @ts-ignore
-import NfcPassportReader from "react-native-nfc-passport-reader";
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from "react-native-vision-camera";
 import { useTextRecognition } from "react-native-vision-camera-text-recognition";
 import { Worklets } from "react-native-worklets-core";
@@ -23,6 +21,7 @@ export default function NFCTestScreen() {
   const [tagData, setTagData] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
+  const [scanStatus, setScanStatus] = React.useState<string>("");
 
   // MRZ data for passport reading
   const [documentNo, setDocumentNo] = React.useState("");
@@ -34,6 +33,52 @@ export default function NFCTestScreen() {
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
+
+  // Listen to EDocument scan events
+  React.useEffect(() => {
+    let listeners: any[] = [];
+
+    const setupEventListeners = async () => {
+      try {
+        const { EDocumentModuleListener, EDocumentModuleEvents } = await import('@/modules/e-document');
+
+        listeners = [
+          EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
+            setScanStatus("📱 Approchez votre passeport du téléphone");
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
+            setScanStatus("🔐 Authentification avec le passeport...");
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
+            setScanStatus("📖 Lecture des données du passeport...");
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
+            setScanStatus("✅ Authentification active...");
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
+            setScanStatus("✅ Lecture réussie !");
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
+            setScanStatus("❌ Erreur de lecture");
+          }),
+        ];
+      } catch (error) {
+        console.warn("Failed to setup event listeners:", error);
+      }
+    };
+
+    setupEventListeners();
+
+    return () => {
+      listeners.forEach(listener => {
+        try {
+          listener.remove();
+        } catch (error) {
+          // Ignore cleanup errors
+        }
+      });
+    };
+  }, []);
 
   // MRZ Parser for passports
   const parseMRZ = React.useCallback((lines: string[]) => {
@@ -207,54 +252,17 @@ export default function NFCTestScreen() {
     }
   }
 
-  async function readPassportWithNfcReader() {
-    try {
-      setIsScanning(true);
-      setError(null);
-      setTagData(null);
-
-      if (!documentNo || !birthDate || !expiryDate) {
-        setError("Veuillez remplir tous les champs MRZ");
-        setIsScanning(false);
-        return;
-      }
-
-      console.log("=== STARTING NFC PASSPORT READER ===");
-      console.log("Document No:", documentNo);
-      console.log("Birth Date:", birthDate);
-      console.log("Expiry Date:", expiryDate);
-
-      const result = await NfcPassportReader.startReading({
-        bacKey: {
-          documentNo: documentNo,
-          birthDate: birthDate,
-          expiryDate: expiryDate,
-        },
-        includeImages: true,
-      });
-
-      console.log("=== PASSPORT DATA ===");
-      console.log(JSON.stringify(result, null, 2));
-      console.log("=====================");
-
-      setTagData(result);
-    } catch (ex: any) {
-      console.warn("Passport reading error:", ex);
-      setError(ex?.message || "Unknown error");
-    } finally {
-      setIsScanning(false);
-    }
-  }
-
   async function readPassportWithEDocument() {
     try {
       setIsScanning(true);
       setError(null);
       setTagData(null);
+      setScanStatus("");
 
       if (!documentNo || !birthDate || !expiryDate) {
         setError("Veuillez remplir tous les champs MRZ");
         setIsScanning(false);
+        setScanStatus("");
         return;
       }
 
@@ -281,16 +289,32 @@ export default function NFCTestScreen() {
         dateOfExpiry: bacExpiryDate,
       }, challenge);
 
-      console.log("=== EDOCUMENT DATA ===");
+      console.log("=== EDOCUMENT FULL RESULT ===");
+      console.log(JSON.stringify(result, null, 2));
+      console.log("=== EDOCUMENT PERSON DETAILS ===");
       console.log(JSON.stringify(result.personDetails, null, 2));
       console.log("=====================");
 
+      console.log("✅ Scan completed successfully, updating UI...");
+      console.log("Result object keys:", Object.keys(result || {}));
+      console.log("personDetails exists?", !!result.personDetails);
+      if (result.personDetails) {
+        console.log("personDetails keys:", Object.keys(result.personDetails));
+      }
+      setScanStatus("✅ Scan terminé avec succès !");
       setTagData(result);
+      setError(null);
     } catch (ex: any) {
       console.warn("EDocument error:", ex);
       setError(ex?.message || "Unknown error");
+      setScanStatus("");
     } finally {
+      console.log("Finally block: setting isScanning to false");
       setIsScanning(false);
+      setTimeout(() => {
+        console.log("Clearing scan status");
+        setScanStatus("");
+      }, 3000); // Clear status after 3 seconds
     }
   }
 
@@ -368,17 +392,6 @@ export default function NFCTestScreen() {
           <Text style={styles.sectionTitle}>Lecture complète du passeport:</Text>
 
           <TouchableOpacity
-            style={[styles.scanButton, styles.scanButtonPrimary, isScanning && styles.scanButtonDisabled]}
-            onPress={readPassportWithNfcReader}
-            disabled={isScanning}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.scanButtonText}>
-              {isScanning ? "Scan en cours..." : "📱 NFC Passport Reader"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.scanButton, styles.scanButtonSecondary, isScanning && styles.scanButtonDisabled]}
             onPress={readPassportWithEDocument}
             disabled={isScanning}
@@ -418,6 +431,12 @@ export default function NFCTestScreen() {
             </Text>
           </TouchableOpacity>
 
+          {scanStatus && isScanning && (
+            <View style={styles.statusContainer}>
+              <Text style={styles.statusText}>{scanStatus}</Text>
+            </View>
+          )}
+
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorTitle}>Erreur:</Text>
@@ -427,10 +446,50 @@ export default function NFCTestScreen() {
 
           {tagData && (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultTitle}>Tag trouvé:</Text>
-              <Text style={styles.resultText}>
-                {JSON.stringify(tagData, null, 2)}
-              </Text>
+              <Text style={styles.resultTitle}>✅ Passeport scanné avec succès</Text>
+
+              {tagData.personDetails ? (
+                <>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Nom:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.lastName || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Prénom:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.firstName || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Date de naissance:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.dateOfBirth || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Nationalité:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.nationality || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>N° Document:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.documentNumber || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Date d'expiration:</Text>
+                    <Text style={styles.infoValue}>{tagData.personDetails?.dateOfExpiry || 'N/A'}</Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.infoValue}>Données du passeport disponibles dans les logs</Text>
+              )}
+
+              <TouchableOpacity
+                style={styles.viewRawButton}
+                onPress={() => console.log("Full data:", JSON.stringify(tagData, null, 2))}
+              >
+                <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -566,6 +625,17 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     color: Colors.white,
   },
+  statusContainer: {
+    backgroundColor: "#DBEAFE",
+    padding: Spacing.screen.horizontal,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: "#1E40AF",
+    textAlign: 'center',
+  },
   errorContainer: {
     backgroundColor: "#FEE2E2",
     padding: Spacing.screen.horizontal,
@@ -591,12 +661,46 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.body,
     color: "#065F46",
-    marginBottom: 8,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   resultText: {
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.small,
     color: "#065F46",
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#A7F3D0',
+  },
+  infoLabel: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.small,
+    color: "#065F46",
+    flex: 1,
+  },
+  infoValue: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    color: "#047857",
+    flex: 2,
+    textAlign: 'right',
+  },
+  viewRawButton: {
+    marginTop: 16,
+    backgroundColor: "#059669",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  viewRawButtonText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.small,
+    color: Colors.white,
   },
   instructionContainer: {
     backgroundColor: Colors.white,
