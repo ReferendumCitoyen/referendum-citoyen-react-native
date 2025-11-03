@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ComprendreIcon from './icons/ComprendreIcon';
 import AccueilIcon from './icons/AccueilIcon';
 import ParametresIcon from './icons/ParametresIcon';
@@ -22,13 +23,18 @@ const labelKeyMap: { [key: string]: string } = {
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
       <LinearGradient
         colors={[Colors.gradientStart, Colors.gradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.gradient}
+        style={[
+          styles.gradient,
+          { paddingBottom: (Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid) + insets.bottom }
+        ]}
       >
         <View style={styles.tabBarContainer}>
           {state.routes.map((route, index) => {
@@ -95,7 +101,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Spacing.tabBar.horizontalPadding,
-    paddingBottom: Platform.OS === 'ios' ? Spacing.tabBar.bottomPaddingIOS : Spacing.tabBar.bottomPaddingAndroid,
   },
   tabBarContainer: {
     flexDirection: 'row',
