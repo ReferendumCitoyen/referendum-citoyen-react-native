@@ -12,29 +12,56 @@ export default function ComprendreScreen() {
   const player = useComprendreVideo();
 
   useEffect(() => {
+    if (!player) return;
+
     // Start playing when screen is mounted
-    player.play();
+    try {
+      player.play();
+    } catch (error) {
+      console.log('Error playing video:', error);
+    }
 
     return () => {
       // Pause when leaving screen
-      player.pause();
-      player.currentTime = 0;
+      try {
+        player.pause();
+        player.currentTime = 0;
+      } catch (error) {
+        console.log('Error pausing video:', error);
+      }
     };
   }, [player]);
 
   useEffect(() => {
-    const subscription = player.addListener('playingChange', (newStatus) => {
-      if (newStatus.isPlaying === false && player.currentTime >= player.duration - 0.1) {
-        // Video finished, wait 30 seconds before replaying
-        setTimeout(() => {
-          player.currentTime = 0;
-          player.play();
-        }, 30000);
-      }
-    });
+    if (!player) return;
+
+    let subscription: any;
+    try {
+      subscription = player.addListener('playingChange', (newStatus) => {
+        if (newStatus.isPlaying === false && player.currentTime >= player.duration - 0.1) {
+          // Video finished, wait 30 seconds before replaying
+          setTimeout(() => {
+            try {
+              player.currentTime = 0;
+              player.play();
+            } catch (error) {
+              console.log('Error replaying video:', error);
+            }
+          }, 30000);
+        }
+      });
+    } catch (error) {
+      console.log('Error adding listener:', error);
+    }
 
     return () => {
-      subscription.remove();
+      if (subscription) {
+        try {
+          subscription.remove();
+        } catch (error) {
+          console.log('Error removing listener:', error);
+        }
+      }
     };
   }, [player]);
 

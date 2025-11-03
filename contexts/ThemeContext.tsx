@@ -61,7 +61,7 @@ export const LightColors: ColorScheme = {
   progressInactive: 'rgba(48, 68, 221, 0.3)',
   text: '#111F84',
   cardBackground: '#FFFFFF',
-  icon: '#3044DD',
+  icon: '#111F84',
   buttonText: '#FFFFFF',
 };
 
@@ -71,7 +71,7 @@ export const DarkColors: ColorScheme = {
   white: '#000000', // Swapped
   black: '#FFFFFF', // Swapped
   background: '#1A1A1A', // Dark grey instead of light grey
-  border: '#2A2A2A', // Dark grey instead of light grey
+  border: '#3A3A3A', // Lighter grey for visibility in dark mode
   success: '#48C26D',
   error: '#DD3030',
   switchGray: '#2A2A2A', // Dark grey instead of light grey
