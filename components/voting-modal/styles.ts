@@ -1,5 +1,5 @@
-import { StyleSheet } from 'react-native';
-import { useColors, Typography, Spacing } from '@/constants/theme';
+import { Spacing, Typography, useColors } from '@/constants/theme';
+import { Platform, StyleSheet } from 'react-native';
 
 export const createModalStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   bottomSheetBackground: {
@@ -14,7 +14,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   },
   container: {
     flexDirection: 'column',
-    justifyContent: 'space-between',
+    justifyContent: Platform.OS === 'android' ? 'flex-start' : 'space-between',
     alignItems: 'center',
     backgroundColor: colors.background,
   },
@@ -39,6 +39,8 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   slidingWrapper: {
     overflow: 'hidden',
     alignSelf: 'stretch',
+    backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 0, 0.2)' : 'transparent',
+    flex: Platform.OS === 'android' ? 0 : undefined,
   },
   slidingContainer: {
     flexDirection: 'row',
@@ -47,7 +49,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     alignItems: 'center',
   },
   mediaContainer: {
-    height: Spacing.modal.mediaContainerHeight,
+    height: Platform.OS === 'android' ? 120 : Spacing.modal.mediaContainerHeight,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
@@ -56,18 +58,20 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   contentSection: {
     flexDirection: 'column',
     alignItems: 'flex-start',
-    paddingVertical: Spacing.modal.contentPadding,
+    paddingTop: Platform.OS === 'android' ? Spacing.s : Spacing.modal.contentPadding,
+    paddingBottom: Platform.OS === 'android' ? 0 : Spacing.modal.contentPadding,
     paddingHorizontal: Spacing.modal.contentPaddingHorizontal,
-    gap: Spacing.modal.contentGap,
-    backgroundColor: colors.background,
+    gap: Platform.OS === 'android' ? 0 : Spacing.modal.contentGap,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(0, 0, 255, 0.2)' : colors.background,
     width: '100%',
-    height: Spacing.modal.contentSectionHeight,
+    height: Platform.OS === 'android' ? 'auto' : Spacing.modal.contentSectionHeight,
   },
   stepContent: {
     flexDirection: 'column',
     alignItems: 'flex-start',
-    gap: Spacing.modal.stepTitleGap,
+    gap: Platform.OS === 'android' ? Spacing.s : Spacing.modal.stepTitleGap,
     width: '100%',
+    backgroundColor: Platform.OS === 'android' ? 'rgba(255, 0, 0, 0.2)' : 'transparent',
   },
   stepHeader: {
     flexDirection: 'row',
@@ -91,16 +95,16 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   stepTitle: {
     flex: 1,
     fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.h1,
-    lineHeight: Typography.lineHeight.h1,
+    fontSize: Platform.OS === 'android' ? 19 : Typography.fontSize.h1,
+    lineHeight: Platform.OS === 'android' ? 26 : Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.settingRow,
     color: colors.text,
   },
   stepDescription: {
     fontFamily: Typography.fontFamily.medium,
     fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
+    fontSize: Platform.OS === 'android' ? 15 : Typography.fontSize.body,
+    lineHeight: Platform.OS === 'android' ? 22 : Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.settingRow,
     color: colors.text,
     width: '100%',
@@ -108,10 +112,11 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.modal.footerPadding,
+    paddingTop: Platform.OS === 'android' ? 0 : Spacing.modal.footerPadding,
+    paddingBottom: Spacing.modal.footerPadding,
     paddingHorizontal: Spacing.modal.footerPaddingHorizontal,
     gap: Spacing.modal.footerGap,
-    backgroundColor: colors.background,
+    backgroundColor: Platform.OS === 'android' ? 'rgba(0, 255, 0, 0.2)' : colors.background,
     width: '100%',
   },
   progressContainer: {
@@ -235,10 +240,41 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
   step5ScanArea: {
     width: '80%',
     height: 80,
-    borderWidth: 2,
-    borderColor: colors.white,
-    borderStyle: 'dashed',
-    borderRadius: 8,
+    justifyContent: 'flex-end',
+    paddingBottom: 8,
+  },
+  step5CornerTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  step5CornerTopRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+  },
+  step5CornerBottomLeft: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+  },
+  step5CornerBottomRight: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+  },
+  step5MrzContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 2,
+  },
+  step5MrzText: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.white,
+    letterSpacing: 0.5,
+    opacity: 1,
   },
   step5Button: {
     paddingVertical: Spacing.modal.step5ButtonPaddingVertical,

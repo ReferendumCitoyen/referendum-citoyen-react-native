@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, LayoutChangeEvent } from 'react-native';
+import { View, Text, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -49,12 +49,21 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
       <View style={stepSpecificStyles.step7Container}>
         <Text style={stepSpecificStyles.step7Title}>Vérification locale</Text>
 
-        <VideoView
-          style={stepSpecificStyles.step7Image}
-          player={player}
-          contentFit="contain"
-          nativeControls={false}
-        />
+        {Platform.OS === 'android' ? (
+          <Image
+            source={require('@/assets/images/poster-verify.png')}
+            style={stepSpecificStyles.step7Image}
+            resizeMode="contain"
+          />
+        ) : (
+          <VideoView
+            style={stepSpecificStyles.step7Image}
+            player={player}
+            contentFit="contain"
+            nativeControls={false}
+            surfaceType="textureView"
+          />
+        )}
 
         <Text style={stepSpecificStyles.step7Description}>
           Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter, cela peut prendre jusqu'à 1 minute…{' '}

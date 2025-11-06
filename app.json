@@ -40,7 +40,7 @@
         "resizeMode": "contain",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.NFC",

@@ -77,6 +77,7 @@ export default function ComprendreScreen() {
               player={player}
               contentFit="cover"
               nativeControls={false}
+              surfaceType="textureView"
             />
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>

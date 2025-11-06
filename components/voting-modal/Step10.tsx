@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
@@ -24,12 +24,21 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
             Vous êtes sûr de vouloir voter: OUI ?
           </Text>
 
-          <VideoView
-            style={stepSpecificStyles.step10BallotVideo}
-            player={player}
-            contentFit="cover"
-            nativeControls={false}
-          />
+          {Platform.OS === 'android' ? (
+            <Image
+              source={require('@/assets/images/poster-ballot.png')}
+              style={stepSpecificStyles.step10BallotVideo}
+              resizeMode="cover"
+            />
+          ) : (
+            <VideoView
+              style={stepSpecificStyles.step10BallotVideo}
+              player={player}
+              contentFit="cover"
+              nativeControls={false}
+              surfaceType="textureView"
+            />
+          )}
         </View>
 
         <View style={stepSpecificStyles.step10ButtonContainer}>
