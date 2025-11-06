@@ -1,4 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { useVideoPlayer } from 'expo-video';
 
 interface VideoContextType {
@@ -10,7 +11,10 @@ const VideoContext = createContext<VideoContextType | null>(null);
 export function VideoProvider({ children }: { children: ReactNode }) {
   // Initialize and preload comprendre video immediately when app loads
   const comprendrePlayer = useVideoPlayer(
-    require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'),
+    Platform.select({
+      ios: require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5643_0.mp4'),
+      android: require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__5643_0_android.mp4'),
+    })!,
     player => {
       player.loop = false;
       player.muted = true;

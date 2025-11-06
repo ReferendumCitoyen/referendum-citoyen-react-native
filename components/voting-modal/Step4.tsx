@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
@@ -24,12 +24,21 @@ const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, 
             Maintenez votre appareil sur votre Carte d'identité
           </Text>
         </View>
-        <VideoView
-          style={stepSpecificStyles.step4Video}
-          player={player}
-          contentFit="cover"
-          nativeControls={false}
-        />
+        {Platform.OS === 'android' ? (
+          <Image
+            source={require('@/assets/images/poster-card.png')}
+            style={stepSpecificStyles.step4Video}
+            resizeMode="cover"
+          />
+        ) : (
+          <VideoView
+            style={stepSpecificStyles.step4Video}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+            surfaceType="textureView"
+          />
+        )}
         <TouchableOpacity
           style={stepSpecificStyles.step4Button}
           activeOpacity={0.8}

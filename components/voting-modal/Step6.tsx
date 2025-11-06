@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
@@ -21,12 +21,21 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, onAnalyze, onLayo
         <Text style={stepSpecificStyles.step6Title}>Lecteur NFC</Text>
 
         <View style={stepSpecificStyles.step6ImageContainer}>
-          <VideoView
-            style={stepSpecificStyles.step6Image}
-            player={player}
-            contentFit="contain"
-            nativeControls={false}
-          />
+          {Platform.OS === 'android' ? (
+            <Image
+              source={require('@/assets/images/poster-phone-over-card.png')}
+              style={stepSpecificStyles.step6Image}
+              resizeMode="contain"
+            />
+          ) : (
+            <VideoView
+              style={stepSpecificStyles.step6Image}
+              player={player}
+              contentFit="contain"
+              nativeControls={false}
+              surfaceType="textureView"
+            />
+          )}
         </View>
 
         <View style={stepSpecificStyles.step6ButtonContainer}>

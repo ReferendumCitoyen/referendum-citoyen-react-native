@@ -28,7 +28,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
   const styles = createStyles(colors);
 
   return (
-    <View style={[styles.container, Platform.OS === 'android' && { marginBottom: Spacing.m }]}>
+    <View style={styles.container}>
       <LinearGradient
         colors={[colors.gradientStart, colors.gradientEnd]}
         start={{ x: 0, y: 0 }}

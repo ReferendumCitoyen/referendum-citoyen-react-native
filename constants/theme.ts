@@ -194,7 +194,7 @@ export const Spacing = {
     step4ContentGap: l,
     step4ButtonPaddingVertical: 14,
     step5Padding: xxl,
-    step5Gap: xl,
+    step5Gap: xxxl,
     step5CameraHeight: 282,
     step5ButtonPaddingVertical: 14,
     step6Padding: xxl,
