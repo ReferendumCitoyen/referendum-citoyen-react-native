@@ -2,38 +2,26 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log("🔧 Checking for bitcode in OpenSSL framework...");
+console.log("🔧 Stripping bitcode from OpenSSL framework...");
 
-// Paths to OpenSSL libraries
-const opensslPaths = [
-  'ios/Pods/OpenSSL-Universal/ios/lib/libssl.a',
-  'ios/Pods/OpenSSL-Universal/ios/lib/libcrypto.a',
-];
+// Path to OpenSSL framework binary (the actual executable that contains bitcode)
+const opensslBinaryPath = 'ios/Pods/OpenSSL-Universal/Frameworks/OpenSSL.xcframework/ios-arm64/OpenSSL.framework/OpenSSL';
+const fullPath = path.join(__dirname, '..', opensslBinaryPath);
 
-let strippedCount = 0;
+if (!fs.existsSync(fullPath)) {
+  console.log(`⚠️  OpenSSL framework not found at ${opensslBinaryPath}`);
+  console.log("ℹ️  This script should run after 'pod install' during EAS build");
+  process.exit(0);
+}
 
-opensslPaths.forEach((libPath) => {
-  const fullPath = path.join(__dirname, '..', libPath);
-
-  if (!fs.existsSync(fullPath)) {
-    console.log(`⏭️  Skipping ${libPath} (not found)`);
-    return;
-  }
-
-  try {
-    console.log(`🔧 Stripping bitcode from ${libPath}...`);
-    execSync(
-      `xcrun -sdk iphoneos bitcode_strip -r "${fullPath}" -o "${fullPath}"`,
-      { stdio: 'inherit' }
-    );
-    strippedCount++;
-  } catch (error) {
-    console.warn(`⚠️  Could not strip bitcode from ${libPath}:`, error.message);
-  }
-});
-
-if (strippedCount > 0) {
-  console.log(`✅ Successfully stripped bitcode from ${strippedCount} file(s)`);
-} else {
-  console.log("ℹ️  No bitcode stripping performed");
+try {
+  console.log(`🔧 Stripping bitcode from ${opensslBinaryPath}...`);
+  execSync(
+    `xcrun bitcode_strip -r "${fullPath}" -o "${fullPath}"`,
+    { stdio: 'inherit' }
+  );
+  console.log(`✅ Successfully stripped bitcode from OpenSSL.framework`);
+} catch (error) {
+  console.error(`❌ Failed to strip bitcode from OpenSSL:`, error.message);
+  process.exit(1);
 }
