@@ -36,6 +36,7 @@ import Step6 from "./Step6";
 import Step7 from "./Step7";
 import Step8 from "./Step8";
 import Step9Error from "./Step9Error";
+import ManualMRZInput from "./ManualMRZInput";
 import { createModalStyles } from "./styles";
 
 interface VotingModalProps {
@@ -56,6 +57,13 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     "success" | "error" | null
   >(null);
   const [stepHeights, setStepHeights] = useState<Record<string, number>>({});
+  const [mrzData, setMRZData] = useState<{
+    documentNumber: string;
+    birthDate: string;
+    expiryDate: string;
+  } | null>(null);
+  const [nfcData, setNFCData] = useState<any>(null);
+  const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const snapPoints = useMemo(() => {
     // Generate unique key for current step configuration
     let stepKey = `step${currentStep}`;
@@ -101,7 +109,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     let height;
     if (currentStep <= 3) height = [Platform.OS === "android" ? "85%" : "93%"];
     else if (currentStep === 4) height = ["60%"];
-    else if (currentStep === 5) height = ["65%"];
+    else if (currentStep === 5) height = ["75%"];
     else if (currentStep === 6) height = ["55%"];
     else if (currentStep === 7) height = ["58%"];
     else if (currentStep === 8 && verificationResult === "success")
@@ -151,6 +159,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       setCurrentStep(1);
       setVerificationResult(null);
       setVoteSubmissionResult(null);
+      setMRZData(null);
+      setNFCData(null);
       slideAnim.setValue(0);
       progressOpacity1.setValue(1);
       progressOpacity2.setValue(0.25);
@@ -237,6 +247,24 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     handleStepChange,
   ]);
 
+  const handleGoBackToMRZScan = useCallback(() => {
+    // Go back to Step 5 (MRZ camera scan)
+    console.log("🔙 Going back to MRZ scan");
+    setCurrentStep(5);
+    setMRZData(null); // Clear the invalid MRZ data
+
+    // Slide animation back to step 5
+    Animated.timing(slideAnim, {
+      toValue: -4 * containerWidth, // Step 5 is at index 4 (0-indexed)
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    // Handle video playback for step 5
+    handleStepChange(5);
+  }, [slideAnim, containerWidth, handleStepChange]);
+
   const handleVerificationSuccess = useCallback(() => {
     setVerificationResult("success");
     setCurrentStep(8);
@@ -287,7 +315,46 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     }).start();
   }, [slideAnim, containerWidth]);
 
+  const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
+    console.log("📄 MRZ Data scanned:", data);
+    setMRZData(data);
+    // Auto-proceed to next step (Step 6 - NFC scan)
+    handleNext();
+  }, [handleNext]);
+
+  const handleNFCSuccess = useCallback((data: any) => {
+    console.log("✅ NFC Scan successful in voting modal");
+    const pd = data.personDetails || {};
+    console.log("→", `${pd.firstName} ${pd.lastName}`, "|", pd.birthDate);
+    setNFCData(data);
+    // Proceed to next step (Step 7 - Verification)
+    handleNext();
+  }, [handleNext]);
+
+  const handleNFCError = useCallback(() => {
+    console.log("❌ NFC Scan failed in voting modal");
+    // For now, just proceed to show error in next step
+    // You can customize this behavior
+    handleNext();
+  }, [handleNext]);
+
+  const handleManualInputOpen = useCallback(() => {
+    console.log("Opening manual MRZ input");
+    setIsManualInputVisible(true);
+  }, []);
+
+  const handleManualInputClose = useCallback(() => {
+    setIsManualInputVisible(false);
+  }, []);
+
+  const handleManualInputSubmit = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
+    console.log("📝 Manual MRZ data submitted:", data);
+    setIsManualInputVisible(false);
+    handleMRZScanned(data);
+  }, [handleMRZScanned]);
+
   return (
+    <>
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
@@ -351,16 +418,20 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             />
             <Step5
               containerWidth={containerWidth}
-              onManualFill={handleNext}
+              isActive={currentStep === 5}
+              onMRZScanned={handleMRZScanned}
+              onManualFill={handleManualInputOpen}
               onLayout={(e) =>
                 handleStepLayout("step5", e.nativeEvent.layout.height)
               }
             />
-            {/* TODO: Step 6 Analyse button should trigger NFC in future */}
             <Step6
               containerWidth={containerWidth}
               player={player4}
-              onAnalyze={handleNext}
+              mrzData={mrzData}
+              onNFCSuccess={handleNFCSuccess}
+              onNFCError={handleNFCError}
+              onGoBack={handleGoBackToMRZScan}
               onLayout={(e) =>
                 handleStepLayout("step6", e.nativeEvent.layout.height)
               }
@@ -369,6 +440,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               containerWidth={containerWidth}
               player={player5}
               isActive={currentStep === 7}
+              nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
               onLayout={(e) =>
@@ -486,6 +558,12 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         )}
       </BottomSheetView>
     </BottomSheetModal>
+    <ManualMRZInput
+      isVisible={isManualInputVisible}
+      onClose={handleManualInputClose}
+      onSubmit={handleManualInputSubmit}
+    />
+    </>
   );
 };
 
