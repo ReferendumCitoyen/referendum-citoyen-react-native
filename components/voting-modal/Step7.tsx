@@ -8,16 +8,16 @@ interface Step7Props {
   containerWidth: number;
   player: any;
   isActive?: boolean;
+  nfcData?: any;
   onSuccess?: () => void;
   onError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSuccess, onError, onLayout }) => {
+const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData, onSuccess, onError, onLayout }) => {
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [countdown, setCountdown] = useState(5);
-  const [willSucceed] = useState(() => Math.random() < 0.75);
   const hasCalledCallback = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
 
@@ -25,6 +25,11 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
     if (isActive && !hasStarted) {
       setHasStarted(true);
       setCountdown(5);
+      hasCalledCallback.current = false;
+    } else if (!isActive && hasStarted) {
+      // Reset when step becomes inactive
+      setHasStarted(false);
+      hasCalledCallback.current = false;
     }
   }, [isActive, hasStarted]);
 
@@ -36,13 +41,11 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
       return () => clearTimeout(timer);
     } else if (hasStarted && countdown === 0 && !hasCalledCallback.current) {
       hasCalledCallback.current = true;
-      if (willSucceed && onSuccess) {
+      if (onSuccess) {
         onSuccess();
-      } else if (!willSucceed && onError) {
-        onError();
       }
     }
-  }, [hasStarted, countdown, willSucceed, onSuccess, onError]);
+  }, [hasStarted, countdown, onSuccess]);
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
@@ -66,16 +69,47 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, onSucce
         )}
 
         <Text style={stepSpecificStyles.step7Description}>
-          Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter, cela peut prendre jusqu'à 1 minute…{' '}
+          Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter…{' '}
           <Text style={{
             fontFamily: Typography.fontFamily.medium,
-            fontWeight: Typography.fontWeight.medium,
-            fontSize: Typography.fontSize.small,
+            fontSize: Typography.fontSize.xs,
             color: colors.text,
+            opacity: 0.5,
           }}>
-            {countdown} ({willSucceed ? 'Success' : 'Fail'})
+            ({countdown}s)
           </Text>
         </Text>
+
+        {nfcData?.personDetails && (
+          <View style={{ marginTop: 16, padding: 16, backgroundColor: colors.white, borderRadius: 8 }}>
+            <Text style={{
+              fontFamily: Typography.fontFamily.semibold,
+              fontSize: Typography.fontSize.body,
+              color: colors.text,
+              marginBottom: 8,
+            }}>
+              {`${nfcData.personDetails.firstName || ''} ${nfcData.personDetails.lastName || ''}`.trim() || 'Nom non disponible'}
+            </Text>
+            <Text style={{
+              fontFamily: Typography.fontFamily.medium,
+              fontSize: Typography.fontSize.small,
+              color: colors.text,
+              opacity: 0.7,
+            }}>
+              Né(e) le: {nfcData.personDetails.birthDate ?
+                `${nfcData.personDetails.birthDate.slice(4, 6)}/${nfcData.personDetails.birthDate.slice(2, 4)}/${nfcData.personDetails.birthDate.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.birthDate.slice(0, 2)}`
+                : 'N/A'}
+            </Text>
+            <Text style={{
+              fontFamily: Typography.fontFamily.medium,
+              fontSize: Typography.fontSize.small,
+              color: colors.text,
+              opacity: 0.7,
+            }}>
+              Nationalité: {nfcData.personDetails.nationality || 'N/A'}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );

@@ -39,7 +39,6 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   slidingWrapper: {
     overflow: 'hidden',
     alignSelf: 'stretch',
-    backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 0, 0.2)' : 'transparent',
     flex: Platform.OS === 'android' ? 0 : undefined,
   },
   slidingContainer: {
@@ -62,7 +61,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     paddingBottom: Platform.OS === 'android' ? 0 : Spacing.modal.contentPadding,
     paddingHorizontal: Spacing.modal.contentPaddingHorizontal,
     gap: Platform.OS === 'android' ? 0 : Spacing.modal.contentGap,
-    backgroundColor: Platform.OS === 'android' ? 'rgba(0, 0, 255, 0.2)' : colors.background,
+    backgroundColor: colors.background,
     width: '100%',
     height: Platform.OS === 'android' ? 'auto' : Spacing.modal.contentSectionHeight,
   },
@@ -71,7 +70,6 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     alignItems: 'flex-start',
     gap: Platform.OS === 'android' ? Spacing.s : Spacing.modal.stepTitleGap,
     width: '100%',
-    backgroundColor: Platform.OS === 'android' ? 'rgba(255, 0, 0, 0.2)' : 'transparent',
   },
   stepHeader: {
     flexDirection: 'row',
@@ -116,7 +114,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     paddingBottom: Spacing.modal.footerPadding,
     paddingHorizontal: Spacing.modal.footerPaddingHorizontal,
     gap: Spacing.modal.footerGap,
-    backgroundColor: Platform.OS === 'android' ? 'rgba(0, 255, 0, 0.2)' : colors.background,
+    backgroundColor: colors.background,
     width: '100%',
   },
   progressContainer: {
@@ -243,6 +241,13 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     justifyContent: 'flex-end',
     paddingBottom: 8,
   },
+  step5InstructionContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+  },
   step5CornerTopLeft: {
     position: 'absolute',
     top: 0,
@@ -275,6 +280,12 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     color: colors.white,
     letterSpacing: 0.5,
     opacity: 1,
+  },
+  step5InstructionText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.body,
+    color: colors.white,
+    textAlign: 'center',
   },
   step5Button: {
     paddingVertical: Spacing.modal.step5ButtonPaddingVertical,

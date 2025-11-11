@@ -24,6 +24,11 @@ const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, on
     if (isActive && !hasStarted) {
       setHasStarted(true);
       setCountdown(5);
+      hasCalledCallback.current = false;
+    } else if (!isActive && hasStarted) {
+      // Reset when step becomes inactive
+      setHasStarted(false);
+      hasCalledCallback.current = false;
     }
   }, [isActive, hasStarted]);
 
