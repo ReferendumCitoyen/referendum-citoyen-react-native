@@ -4,6 +4,7 @@ import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
+import { useRouter } from 'expo-router';
 
 interface Step6Props {
   containerWidth: number;
@@ -24,6 +25,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
+  const router = useRouter();
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
 
@@ -80,23 +82,47 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       return;
     }
 
+    // Scan NFC on the same screen for both platforms
     try {
       setIsScanning(true);
       setScanStatus("🔄 Initialisation...");
 
       console.log("=== STARTING NFC SCAN IN VOTING MODAL ===");
+      console.log("Platform:", Platform.OS);
       console.log("MRZ Data:", mrzData);
 
-      const { scanDocument } = await import('@/modules/e-document');
+      const eDocModule = await import('@/modules/e-document');
+      console.log("✅ e-document module imported, keys:", Object.keys(eDocModule));
+      const { scanDocument } = eDocModule;
+      console.log("✅ scanDocument:", typeof scanDocument);
 
       // Generate random challenge for Active Authentication
       const challenge = getRandomValues(new Uint8Array(32));
+      console.log("✅ Challenge generated, length:", challenge.length);
 
-      const result = await scanDocument('P', {
+      // Small delay on Android to ensure NFC is ready
+      if (Platform.OS === 'android') {
+        console.log("⏱️ Waiting 500ms for Android NFC...");
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      console.log("📡 Calling scanDocument...");
+      setScanStatus("📱 Approchez votre carte maintenant...");
+
+      // Add timeout for Android NFC (30 seconds)
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('NFC scan timeout - aucune carte détectée')), 30000);
+      });
+
+      const scanPromise = scanDocument('P', {
         documentNumber: mrzData.documentNumber,
         dateOfBirth: mrzData.birthDate,
         dateOfExpiry: mrzData.expiryDate,
       }, challenge);
+
+      const result = await Promise.race([scanPromise, timeoutPromise]);
+
+      console.log("✅ scanDocument returned");
 
       console.log("=== NFC SCAN SUCCESS ===");
       const pd = result.personDetails || {};
@@ -114,6 +140,11 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
     } catch (error: any) {
       console.error("❌ NFC Scan error:", error);
+      console.error("Error type:", typeof error);
+      console.error("Error keys:", error ? Object.keys(error) : 'null');
+      console.error("Error message:", error?.message);
+      console.error("Error code:", error?.code);
+      console.error("Error stack:", error?.stack);
 
       // If it's an invalid MRZ key error, go back to camera step
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
@@ -129,7 +160,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
 
       // For other errors, show message and let user retry
-      setScanStatus(`❌ Erreur: ${error.message || 'Lecture échouée'}. Réessayez.`);
+      setScanStatus(`❌ Erreur: ${error.message || error.code || 'Lecture échouée'}. Réessayez.`);
       setIsScanning(false);
     }
   };

@@ -42,3 +42,6 @@ yarn-error.*
 
 # local todo
 TODO.md
+
+# documentation
+INTEGRATION_GUIDE.md
