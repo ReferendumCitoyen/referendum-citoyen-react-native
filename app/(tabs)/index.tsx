@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Platform } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 import VotingModal from '@/components/voting-modal/VotingModal';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
@@ -72,10 +73,17 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
 export default function AccueilScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
+  const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const handleVoterPress = () => {
-    setIsModalVisible(true);
+    if (Platform.OS === 'android') {
+      // On Android, navigate to full-screen voting flow
+      router.push('/voting-flow');
+    } else {
+      // On iOS, show bottom sheet modal
+      setIsModalVisible(true);
+    }
   };
 
   return (

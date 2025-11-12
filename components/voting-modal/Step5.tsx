@@ -203,7 +203,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
           <Camera
             style={{ flex: 1 }}
             device={device}
-            isActive={true}
+            isActive={isActive || false}
             frameProcessor={frameProcessor}
           >
             <View style={stepSpecificStyles.step5CameraOverlay}>

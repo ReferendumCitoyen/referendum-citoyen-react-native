@@ -35,6 +35,7 @@ import Step5 from "./Step5";
 import Step6 from "./Step6";
 import Step7 from "./Step7";
 import Step8 from "./Step8";
+import Step9Vote from "./Step9Vote";
 import Step9Error from "./Step9Error";
 import ManualMRZInput from "./ManualMRZInput";
 import { createModalStyles } from "./styles";
@@ -199,8 +200,10 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, [onClose]);
 
   const handleNext = useCallback(() => {
+    console.log(`📍 handleNext called - currentStep: ${currentStep}`);
     if (currentStep < 11) {
       const nextStep = currentStep + 1;
+      console.log(`✅ Moving to step ${nextStep}`);
       setCurrentStep(nextStep);
 
       // Slide animation
@@ -448,25 +451,25 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               }
             />
             {/* Step 8 position - shows either success or error based on verification result */}
-            {verificationResult === "success" ? (
-              <Step8
-                containerWidth={containerWidth}
-                onVote={handleNext}
-                onLayout={(e) =>
-                  handleStepLayout("step8_success", e.nativeEvent.layout.height)
-                }
-              />
-            ) : verificationResult === "error" ? (
-              <Step9Error
-                containerWidth={containerWidth}
-                onGoHome={onClose}
-                onLayout={(e) =>
-                  handleStepLayout("step8_error", e.nativeEvent.layout.height)
-                }
-              />
-            ) : (
-              <View style={{ width: containerWidth }} />
-            )}
+            <View style={{ width: containerWidth }}>
+              {verificationResult === "success" ? (
+                <Step8
+                  containerWidth={containerWidth}
+                  onVoteSuccess={handleNext}
+                  onLayout={(e) =>
+                    handleStepLayout("step8_success", e.nativeEvent.layout.height)
+                  }
+                />
+              ) : verificationResult === "error" ? (
+                <Step9Error
+                  containerWidth={containerWidth}
+                  onGoHome={onClose}
+                  onLayout={(e) =>
+                    handleStepLayout("step8_error", e.nativeEvent.layout.height)
+                  }
+                />
+              ) : null}
+            </View>
             {/* Step 9 - Vote confirmation */}
             <Step10
               containerWidth={containerWidth}

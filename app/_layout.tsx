@@ -102,6 +102,21 @@ function RootLayoutNav() {
               headerBackTitle: 'Retour'
             }}
           />
+          <Stack.Screen
+            name="nfc-scan-modal"
+            options={{
+              title: 'Lecture NFC',
+              headerBackTitle: 'Retour',
+              presentation: 'modal'
+            }}
+          />
+          <Stack.Screen
+            name="voting-flow"
+            options={{
+              headerShown: false,
+              presentation: 'card'
+            }}
+          />
         </Stack>
       </BottomSheetModalProvider>
     </ThemeProvider>
