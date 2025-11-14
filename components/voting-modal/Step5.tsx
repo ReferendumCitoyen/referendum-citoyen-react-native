@@ -24,31 +24,9 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const device = useCameraDevice('back');
-  const { hasPermission, requestPermission } = useCameraPermission();
+  const { hasPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
-  const [cameraKey, setCameraKey] = useState(0);
-  const prevPermissionRef = React.useRef(hasPermission);
-
-  useEffect(() => {
-    if (isActive && !hasPermission) {
-      requestPermission();
-    }
-  }, [isActive, hasPermission]);
-
-  // Force camera reinit after permission granted (production build needs longer delay)
-  useEffect(() => {
-    const didJustGetPermission = !prevPermissionRef.current && hasPermission;
-    prevPermissionRef.current = hasPermission;
-
-    if (didJustGetPermission) {
-      // Longer delay for production builds - device needs time to initialize
-      const timer = setTimeout(() => {
-        setCameraKey(prev => prev + 1);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasPermission]);
 
   // Reset hasScanned when step becomes active
   useEffect(() => {
@@ -217,7 +195,6 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
         <View style={stepSpecificStyles.step5Camera}>
           <Camera
-            key={cameraKey}
             style={{ flex: 1 }}
             device={device}
             isActive={isActive || false}
