@@ -27,12 +27,24 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
+  const [cameraKey, setCameraKey] = useState(0);
 
   useEffect(() => {
-    if (!hasPermission) {
+    if (isActive && !hasPermission) {
       requestPermission();
     }
-  }, []);
+  }, [isActive, hasPermission]);
+
+  // Force camera reinit after permission granted
+  useEffect(() => {
+    if (hasPermission && device) {
+      // Small delay to ensure device is ready, then force remount
+      const timer = setTimeout(() => {
+        setCameraKey(prev => prev + 1);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [hasPermission, device]);
 
   // Reset hasScanned when step becomes active
   useEffect(() => {
@@ -201,6 +213,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
         <View style={stepSpecificStyles.step5Camera}>
           <Camera
+            key={cameraKey}
             style={{ flex: 1 }}
             device={device}
             isActive={isActive || false}

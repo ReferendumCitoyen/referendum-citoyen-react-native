@@ -80,66 +80,94 @@ export function useModalVideoPlayers() {
     // On Android, add small delay to let player initialize before playing
     const playDelay = isAndroid ? 100 : 0;
 
+    const safePlay = (player: any) => {
+      setTimeout(() => {
+        try {
+          if (player && typeof player.play === 'function') {
+            player.play();
+          }
+        } catch (e) { /* Ignore errors from released players */ }
+      }, playDelay);
+    };
+
+    const safePause = (player: any) => {
+      try {
+        if (player && typeof player.pause === 'function') {
+          player.pause();
+        }
+      } catch (e) { /* Ignore errors from released players */ }
+    };
+
     // Handle video playback for each step
     switch (nextStep) {
       case 1:
-        setTimeout(() => {
-          try { player1.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePlay(player1);
         break;
       case 2:
-        player1.pause();
-        setTimeout(() => {
-          try { player2.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePause(player1);
+        safePlay(player2);
         break;
       case 3:
-        player2.pause();
-        setTimeout(() => {
-          try { player3.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePause(player2);
+        safePlay(player3);
         break;
       case 4:
-        player3.pause();
-        setTimeout(() => {
-          try { player1.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePause(player3);
+        safePlay(player1);
         break;
       case 5:
-        player1.pause();
+        safePause(player1);
         break;
       case 6:
-        setTimeout(() => {
-          try { player4.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePlay(player4);
         break;
       case 7:
-        player4.pause();
-        setTimeout(() => {
-          try { player5.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePause(player4);
+        safePlay(player5);
         break;
       case 9:
-        setTimeout(() => {
-          try { player3.play(); } catch (e) { console.log('Error playing video:', e); }
-        }, playDelay);
+        safePlay(player3);
         break;
       case 10:
-        player3.pause();
+        safePause(player3);
         break;
     }
   }, [player1, player2, player3, player4, player5, isAndroid]);
 
   const pauseAll = useCallback(() => {
-    try { player1.pause(); } catch (e) { console.log('Error pausing player1:', e); }
-    try { player2.pause(); } catch (e) { console.log('Error pausing player2:', e); }
-    try { player3.pause(); } catch (e) { console.log('Error pausing player3:', e); }
-    try { player4.pause(); } catch (e) { console.log('Error pausing player4:', e); }
-    try { player5.pause(); } catch (e) { console.log('Error pausing player5:', e); }
+    try {
+      if (player1 && typeof player1.pause === 'function') {
+        player1.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
+    try {
+      if (player2 && typeof player2.pause === 'function') {
+        player2.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
+    try {
+      if (player3 && typeof player3.pause === 'function') {
+        player3.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
+    try {
+      if (player4 && typeof player4.pause === 'function') {
+        player4.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
+    try {
+      if (player5 && typeof player5.pause === 'function') {
+        player5.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
   }, [player1, player2, player3, player4, player5]);
 
   const pauseVerificationVideo = useCallback(() => {
-    try { player5.pause(); } catch (e) { console.log('Error pausing player5:', e); }
+    try {
+      if (player5 && typeof player5.pause === 'function') {
+        player5.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
   }, [player5]);
 
   return {

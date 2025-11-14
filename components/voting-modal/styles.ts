@@ -53,11 +53,12 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     alignItems: 'center',
     backgroundColor: colors.cardBackground,
     width: '100%',
+    paddingBottom: Platform.OS === 'android' ? 20 : 0,
   },
   contentSection: {
     flexDirection: 'column',
     alignItems: 'flex-start',
-    paddingTop: Platform.OS === 'android' ? Spacing.s : Spacing.modal.contentPadding,
+    paddingTop: Platform.OS === 'android' ? Spacing.l : Spacing.modal.contentPadding,
     paddingBottom: Platform.OS === 'android' ? 0 : Spacing.modal.contentPadding,
     paddingHorizontal: Spacing.modal.contentPaddingHorizontal,
     gap: Platform.OS === 'android' ? 0 : Spacing.modal.contentGap,

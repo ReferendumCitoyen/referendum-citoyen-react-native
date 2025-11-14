@@ -37,12 +37,21 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
     []
   );
 
+  // Convert French format (JJMMAA) to MRZ format (AAMMJJ)
+  const convertToMRZFormat = (frenchDate: string): string => {
+    if (frenchDate.length !== 6) return frenchDate;
+    const jj = frenchDate.substring(0, 2);
+    const mm = frenchDate.substring(2, 4);
+    const aa = frenchDate.substring(4, 6);
+    return aa + mm + jj;
+  };
+
   const handleSubmit = () => {
     if (documentNumber && birthDate && expiryDate) {
       onSubmit({
         documentNumber: documentNumber.toUpperCase(),
-        birthDate,
-        expiryDate,
+        birthDate: convertToMRZFormat(birthDate),
+        expiryDate: convertToMRZFormat(expiryDate),
       });
       // Reset fields
       setDocumentNumber('');
@@ -137,12 +146,12 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
             style={styles.input}
             value={birthDate}
             onChangeText={setBirthDate}
-            placeholder="AAMMJJ"
+            placeholder="JJMMAA"
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
             maxLength={6}
           />
-          <Text style={styles.hint}>Format: AAMMJJ (ex: 900101 pour 01/01/1990)</Text>
+          <Text style={styles.hint}>Format: Jour Mois Année (ex: 150790 pour 15/07/1990)</Text>
         </View>
 
         <View style={styles.inputGroup}>
@@ -151,12 +160,12 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
             style={styles.input}
             value={expiryDate}
             onChangeText={setExpiryDate}
-            placeholder="AAMMJJ"
+            placeholder="JJMMAA"
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
             maxLength={6}
           />
-          <Text style={styles.hint}>Format: AAMMJJ (ex: 290101 pour 01/01/2029)</Text>
+          <Text style={styles.hint}>Format: Jour Mois Année (ex: 251229 pour 25/12/2029)</Text>
         </View>
 
         <TouchableOpacity

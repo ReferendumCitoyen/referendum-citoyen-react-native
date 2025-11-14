@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image, LayoutChangeEvent } from 'react-native';
+import { View, Text, TouchableOpacity, Image, LayoutChangeEvent, Platform } from 'react-native';
 import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -9,9 +9,10 @@ interface Step9VoteProps {
   onVoteSubmit?: (vote: 'oui' | 'blanc' | 'non') => void;
   onCancel?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  onVoteSelect?: (vote: 'oui' | 'blanc' | 'non') => void;
 }
 
-const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout }) => {
+const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect }) => {
   console.log('🗳️ Step9Vote rendering');
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -20,7 +21,11 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
 
   const handleVoteSelect = (vote: 'oui' | 'blanc' | 'non') => {
     setSelectedVote(vote);
-    confirmationModalRef.current?.present();
+    if (Platform.OS === 'android' && onVoteSelect) {
+      onVoteSelect(vote);
+    } else {
+      confirmationModalRef.current?.present();
+    }
   };
 
   const handleConfirm = () => {
