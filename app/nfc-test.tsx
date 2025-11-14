@@ -34,16 +34,21 @@ export default function NFCTestScreen() {
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
+  const prevPermissionRef = React.useRef(hasPermission);
 
-  // Force camera reinit after permission granted
+  // Force camera reinit after permission granted (production build needs longer delay)
   React.useEffect(() => {
-    if (hasPermission && device) {
+    const didJustGetPermission = !prevPermissionRef.current && hasPermission;
+    prevPermissionRef.current = hasPermission;
+
+    if (didJustGetPermission) {
+      // Longer delay for production builds - device needs time to initialize
       const timer = setTimeout(() => {
         setCameraKey(prev => prev + 1);
-      }, 100);
+      }, 500);
       return () => clearTimeout(timer);
     }
-  }, [hasPermission, device]);
+  }, [hasPermission]);
 
   // Listen to EDocument scan events
   React.useEffect(() => {
