@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
@@ -14,8 +14,11 @@ import Step5 from '@/components/voting-modal/Step5';
 import Step6 from '@/components/voting-modal/Step6';
 import Step7 from '@/components/voting-modal/Step7';
 import Step8 from '@/components/voting-modal/Step8';
-import Step9Vote from '@/components/voting-modal/Step9Vote';
 import Step9Error from '@/components/voting-modal/Step9Error';
+import Step10 from '@/components/voting-modal/Step10';
+import Step11 from '@/components/voting-modal/Step11';
+import Step12Success from '@/components/voting-modal/Step12Success';
+import Step12Error from '@/components/voting-modal/Step12Error';
 import ManualMRZInput from '@/components/voting-modal/ManualMRZInput';
 import { createModalStyles } from '@/components/voting-modal/styles';
 import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
@@ -33,6 +36,7 @@ export default function VotingFlowScreen() {
   const [nfcData, setNFCData] = useState<any>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
+  const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non'>('oui');
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const progressOpacity1 = useRef(new Animated.Value(1)).current;
@@ -150,7 +154,8 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleVoteSuccess = useCallback(() => {
-    console.log('📝 Moving to vote selection screen (step 9)');
+    console.log('📝 Moving to confirmation screen with default vote OUI');
+    setSelectedVote('oui');
     setCurrentStep(9);
     Animated.timing(slideAnim, {
       toValue: -8 * containerWidth,
@@ -161,18 +166,49 @@ export default function VotingFlowScreen() {
     handleStepChange(9);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVoteSubmit = useCallback((vote: 'oui' | 'blanc' | 'non') => {
-    console.log('✅ Vote submitted:', vote);
-    setVoteSubmissionResult('success');
-    // Close after showing success
-    setTimeout(() => {
-      handleClose();
-    }, 2000);
-  }, []);
 
-  const handleVoteError = useCallback(() => {
+  const handleStep9Confirm = useCallback(() => {
+    console.log('✅ Vote confirmed:', selectedVote, '- Moving to Step 11 loading');
+    setCurrentStep(11);
+    Animated.timing(slideAnim, {
+      toValue: -10 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(11);
+  }, [selectedVote, slideAnim, containerWidth, handleStepChange]);
+
+  const handleStep9Cancel = useCallback(() => {
+    console.log('❌ Vote cancelled - Closing modal');
+    handleClose();
+  }, [handleClose]);
+
+  const handleStep11Success = useCallback(() => {
+    console.log('✅ Vote submission succeeded - Moving to Step 12 Success');
+    setVoteSubmissionResult('success');
+    setCurrentStep(12);
+    Animated.timing(slideAnim, {
+      toValue: -11 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(12);
+  }, [slideAnim, containerWidth, handleStepChange]);
+
+  const handleStep11Error = useCallback(() => {
+    console.log('❌ Vote submission failed - Moving to Step 12 Error');
     setVoteSubmissionResult('error');
-  }, []);
+    setCurrentStep(13);
+    Animated.timing(slideAnim, {
+      toValue: -12 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(13);
+  }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleClose = useCallback(() => {
     pauseAll();
@@ -239,13 +275,28 @@ export default function VotingFlowScreen() {
               verificationResult={verificationResult}
               voteSubmissionResult={voteSubmissionResult}
               onVoteSuccess={handleVoteSuccess}
-              onVoteError={handleVoteError}
               onClose={handleClose}
             />
-            <Step9Vote
+            <Step10
               containerWidth={containerWidth}
-              onVoteSubmit={handleVoteSubmit}
-              onCancel={handleClose}
+              player={player3}
+              selectedVote={selectedVote}
+              onCancel={handleStep9Cancel}
+              onConfirm={handleStep9Confirm}
+            />
+            <Step11
+              containerWidth={containerWidth}
+              isActive={currentStep === 11}
+              onSuccess={handleStep11Success}
+              onError={handleStep11Error}
+            />
+            <Step12Success
+              containerWidth={containerWidth}
+              onViewResults={handleClose}
+            />
+            <Step12Error
+              containerWidth={containerWidth}
+              onGoHome={handleClose}
             />
             {verificationResult === 'error' && (
               <Step9Error
