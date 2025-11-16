@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
+import { useCameraPermission } from 'react-native-vision-camera';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 
@@ -15,6 +16,28 @@ const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, 
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  const handleStartAnalysis = async () => {
+    console.log('🔘 Step4: Démarrer l\'analyse pressed, hasPermission:', hasPermission);
+
+    // Request camera permission before proceeding
+    if (!hasPermission) {
+      console.log('📸 Step4: Requesting camera permission...');
+      const granted = await requestPermission();
+      console.log('📸 Step4: Permission result:', granted);
+
+      if (!granted) {
+        // Permission denied - stay on this step
+        console.log('❌ Step4: Camera permission denied');
+        return;
+      }
+    }
+
+    // Permission granted or already had it - proceed to next step
+    console.log('✅ Step4: Permission OK, proceeding to Step 5');
+    onStartAnalysis?.();
+  };
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step4Container}>
@@ -42,7 +65,7 @@ const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, 
         <TouchableOpacity
           style={stepSpecificStyles.step4Button}
           activeOpacity={0.8}
-          onPress={onStartAnalysis || (() => console.log('Start analysis'))}
+          onPress={handleStartAnalysis}
         >
           <Text style={stepSpecificStyles.step4ButtonText}>Démarrer l'analyse</Text>
         </TouchableOpacity>

@@ -24,12 +24,15 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const device = useCameraDevice('back');
-  const { hasPermission } = useCameraPermission();
+  const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
 
+  console.log('📹 Step5 render:', { isActive, hasPermission, hasDevice: !!device });
+
   // Reset hasScanned when step becomes active
   useEffect(() => {
+    console.log('📹 Step5 isActive changed:', isActive);
     if (isActive) {
       setHasScanned(false);
     }
@@ -146,6 +149,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   }, [scanText, onMRZDetected, hasScanned]);
 
   if (!hasPermission) {
+    console.log('❌ Step5: Rendering NO PERMISSION screen');
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
@@ -168,6 +172,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   }
 
   if (!device) {
+    console.log('❌ Step5: Rendering NO DEVICE screen');
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
@@ -188,6 +193,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       </View>
     );
   }
+
+  console.log('✅ Step5: Rendering CAMERA');
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
