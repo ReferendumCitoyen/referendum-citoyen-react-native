@@ -30,25 +30,9 @@ export default function NFCTestScreen() {
 
   // Camera for MRZ scanning
   const [showCamera, setShowCamera] = React.useState(false);
-  const [cameraKey, setCameraKey] = React.useState(0);
   const device = useCameraDevice('back');
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
-  const prevPermissionRef = React.useRef(hasPermission);
-
-  // Force camera reinit after permission granted (production build needs longer delay)
-  React.useEffect(() => {
-    const didJustGetPermission = !prevPermissionRef.current && hasPermission;
-    prevPermissionRef.current = hasPermission;
-
-    if (didJustGetPermission) {
-      // Longer delay for production builds - device needs time to initialize
-      const timer = setTimeout(() => {
-        setCameraKey(prev => prev + 1);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasPermission]);
 
   // Listen to EDocument scan events
   React.useEffect(() => {
@@ -346,7 +330,6 @@ export default function NFCTestScreen() {
           {showCamera && device && (
             <View style={styles.cameraContainer}>
               <Camera
-                key={cameraKey}
                 style={styles.camera}
                 device={device}
                 isActive={showCamera}

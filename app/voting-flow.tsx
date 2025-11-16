@@ -10,7 +10,6 @@ import Step1 from '@/components/voting-modal/Step1';
 import Step2 from '@/components/voting-modal/Step2';
 import Step3 from '@/components/voting-modal/Step3';
 import Step4 from '@/components/voting-modal/Step4';
-import Step4b from '@/components/voting-modal/Step4b';
 import Step5 from '@/components/voting-modal/Step5';
 import Step6 from '@/components/voting-modal/Step6';
 import Step7 from '@/components/voting-modal/Step7';
@@ -106,7 +105,7 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleGoBackToMRZScan = useCallback(() => {
-    console.log("🔙 Going back to MRZ permission screen");
+    console.log("🔙 Going back to MRZ scan");
     setCurrentStep(5);
     setMRZData(null);
     Animated.timing(slideAnim, {
@@ -136,16 +135,16 @@ export default function VotingFlowScreen() {
   const handleVerificationSuccess = useCallback(() => {
     console.log('✅ Verification success - moving to voting screen');
     setVerificationResult('success');
-    // Move to step 9 (voting screen) after a brief delay
+    // Move to step 8 (voting screen) after a brief delay
     setTimeout(() => {
-      setCurrentStep(9);
+      setCurrentStep(8);
       Animated.timing(slideAnim, {
-        toValue: -8 * containerWidth,
+        toValue: -7 * containerWidth,
         duration: 300,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
-      handleStepChange(9);
+      handleStepChange(8);
     }, 1500);
   }, [slideAnim, containerWidth, handleStepChange]);
 
@@ -157,27 +156,27 @@ export default function VotingFlowScreen() {
   const handleVoteSuccess = useCallback(() => {
     console.log('📝 Moving to confirmation screen with default vote OUI');
     setSelectedVote('oui');
-    setCurrentStep(10);
+    setCurrentStep(9);
     Animated.timing(slideAnim, {
-      toValue: -9 * containerWidth,
+      toValue: -8 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-    handleStepChange(10);
+    handleStepChange(9);
   }, [slideAnim, containerWidth, handleStepChange]);
 
 
   const handleStep9Confirm = useCallback(() => {
-    console.log('✅ Vote confirmed:', selectedVote, '- Moving to Step 12 loading');
-    setCurrentStep(12);
+    console.log('✅ Vote confirmed:', selectedVote, '- Moving to Step 11 loading');
+    setCurrentStep(11);
     Animated.timing(slideAnim, {
-      toValue: -11 * containerWidth,
+      toValue: -10 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-    handleStepChange(12);
+    handleStepChange(11);
   }, [selectedVote, slideAnim, containerWidth, handleStepChange]);
 
   const handleStep9Cancel = useCallback(() => {
@@ -186,8 +185,21 @@ export default function VotingFlowScreen() {
   }, [handleClose]);
 
   const handleStep11Success = useCallback(() => {
-    console.log('✅ Vote submission succeeded - Moving to Step 13 Success');
+    console.log('✅ Vote submission succeeded - Moving to Step 12 Success');
     setVoteSubmissionResult('success');
+    setCurrentStep(12);
+    Animated.timing(slideAnim, {
+      toValue: -11 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(12);
+  }, [slideAnim, containerWidth, handleStepChange]);
+
+  const handleStep11Error = useCallback(() => {
+    console.log('❌ Vote submission failed - Moving to Step 12 Error');
+    setVoteSubmissionResult('error');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
       toValue: -12 * containerWidth,
@@ -196,19 +208,6 @@ export default function VotingFlowScreen() {
       useNativeDriver: true,
     }).start();
     handleStepChange(13);
-  }, [slideAnim, containerWidth, handleStepChange]);
-
-  const handleStep11Error = useCallback(() => {
-    console.log('❌ Vote submission failed - Moving to Step 14 Error');
-    setVoteSubmissionResult('error');
-    setCurrentStep(14);
-    Animated.timing(slideAnim, {
-      toValue: -13 * containerWidth,
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-    handleStepChange(14);
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleClose = useCallback(() => {
@@ -225,7 +224,7 @@ export default function VotingFlowScreen() {
         {/* Safe area spacer */}
         <View style={{ height: insets.top, backgroundColor: 'white' }} />
 
-        {/* Title Section - Hidden for Step 4 onwards during camera/NFC flow */}
+        {/* Title Section - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
           <View style={modalStyles.titleSection}>
             <Text style={modalStyles.title}>Processus de vote</Text>
@@ -250,14 +249,9 @@ export default function VotingFlowScreen() {
             <Step2 player={player2} containerWidth={containerWidth} />
             <Step3 player={player3} containerWidth={containerWidth} />
             <Step4 player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} />
-            <Step4b
-              containerWidth={containerWidth}
-              onContinueToCamera={handleNext}
-              onManualFill={handleManualFill}
-            />
             <Step5
               containerWidth={containerWidth}
-              isActive={currentStep === 6}
+              isActive={currentStep === 5}
               onMRZScanned={handleMRZScanned}
               onManualFill={handleManualFill}
             />
@@ -271,7 +265,7 @@ export default function VotingFlowScreen() {
             <Step7
               containerWidth={containerWidth}
               player={player5}
-              isActive={currentStep === 8}
+              isActive={currentStep === 7}
               nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
@@ -292,7 +286,7 @@ export default function VotingFlowScreen() {
             />
             <Step11
               containerWidth={containerWidth}
-              isActive={currentStep === 12}
+              isActive={currentStep === 11}
               onSuccess={handleStep11Success}
               onError={handleStep11Error}
             />
