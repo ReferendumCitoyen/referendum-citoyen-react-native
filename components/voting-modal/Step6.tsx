@@ -57,8 +57,8 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             setScanStatus("❌ Erreur de lecture");
           }),
         ];
-      } catch (error) {
-        console.warn("Failed to setup event listeners:", error);
+      } catch (_error) {
+        // Event listeners not available
       }
     };
 
@@ -77,7 +77,6 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
   const handleAnalyzePress = async () => {
     if (!mrzData) {
-      console.error("❌ No MRZ data available for NFC scan");
       setScanStatus("❌ Données MRZ manquantes. Scannez d'abord le MRZ.");
       return;
     }
@@ -87,26 +86,17 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       setIsScanning(true);
       setScanStatus("🔄 Initialisation...");
 
-      console.log("=== STARTING NFC SCAN IN VOTING MODAL ===");
-      console.log("Platform:", Platform.OS);
-      console.log("MRZ Data:", mrzData);
-
       const eDocModule = await import('@/modules/e-document');
-      console.log("✅ e-document module imported, keys:", Object.keys(eDocModule));
       const { scanDocument } = eDocModule;
-      console.log("✅ scanDocument:", typeof scanDocument);
 
       // Generate random challenge for Active Authentication
       const challenge = getRandomValues(new Uint8Array(32));
-      console.log("✅ Challenge generated, length:", challenge.length);
 
       // Small delay on Android to ensure NFC is ready
       if (Platform.OS === 'android') {
-        console.log("⏱️ Waiting 500ms for Android NFC...");
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      console.log("📡 Calling scanDocument...");
       setScanStatus("📱 Approchez votre carte maintenant...");
 
       // Add timeout for Android NFC (30 seconds)
@@ -122,13 +112,6 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
       const result = await Promise.race([scanPromise, timeoutPromise]);
 
-      console.log("✅ scanDocument returned");
-
-      console.log("=== NFC SCAN SUCCESS ===");
-      const pd = result.personDetails || {};
-      console.log(`${pd.firstName} ${pd.lastName} | ${pd.birthDate} | ${pd.nationality}`);
-      console.log("=====================");
-
       setScanStatus("✅ Scan terminé !");
       setIsScanning(false);
 
@@ -139,13 +122,6 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         }, 500);
       }
     } catch (error: any) {
-      console.error("❌ NFC Scan error:", error);
-      console.error("Error type:", typeof error);
-      console.error("Error keys:", error ? Object.keys(error) : 'null');
-      console.error("Error message:", error?.message);
-      console.error("Error code:", error?.code);
-      console.error("Error stack:", error?.stack);
-
       // If it's an invalid MRZ key error, go back to camera step
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
         setScanStatus("❌ Données MRZ invalides. Retour au scanner...");

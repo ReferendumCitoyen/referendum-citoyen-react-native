@@ -1,12 +1,23 @@
 {
   "name": "referendum-citoyen",
-  "main": "expo-router/entry",
   "version": "1.0.0",
+  "description": "Secure digital voting app with passport NFC verification and zero-knowledge proofs",
+  "main": "expo-router/entry",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ReferendumCitoyen/referendum-citoyen-react-native.git"
+  },
+  "author": "Referendum Citoyen",
+  "license": "MIT",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "postinstall": "patch-package",
     "eas-build-post-install": "node ./scripts/strip-bitcode.js"
   },
@@ -22,6 +33,7 @@
     "@peculiar/asn1-rsa": "^2.5.0",
     "@peculiar/asn1-schema": "^2.5.0",
     "@peculiar/x509": "^1.14.0",
+    "@rarimo/rarime-rn-sdk": "^0.2.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/hooks": "^100.1.0",
     "@react-native/js-polyfills": "^0.82.0",
@@ -45,6 +57,7 @@
     "expo-linking": "~8.0.8",
     "expo-localization": "^17.0.7",
     "expo-router": "~6.0.13",
+    "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-video": "~3.0.11",
@@ -60,6 +73,7 @@
     "react-i18next": "^16.2.3",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-get-random-values": "^2.0.0",
     "react-native-mmkv": "^4.0.0",
     "react-native-nfc-manager": "^3.17.1",
     "react-native-reanimated": "~4.1.1",
@@ -67,19 +81,29 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
+    "react-native-url-polyfill": "^3.0.0",
     "react-native-vision-camera": "^4.7.2",
     "react-native-vision-camera-text-recognition": "^3.1.1",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.5.1",
     "react-native-worklets-core": "^1.6.2",
+    "readable-stream": "^4.7.0",
     "superjson": "^2.2.2",
     "uniffi-bindgen-react-native": "^0.29.3-0"
   },
   "devDependencies": {
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
     "@types/react": "~19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.49.0",
+    "@typescript-eslint/parser": "^8.49.0",
+    "eslint": "^9.39.2",
+    "eslint-config-expo": "^10.0.0",
+    "jest": "^29.7.0",
+    "jest-expo": "^54.0.16",
     "patch-package": "^8.0.1",
+    "prettier": "^3.7.4",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
-  },
-  "private": true
+  }
 }

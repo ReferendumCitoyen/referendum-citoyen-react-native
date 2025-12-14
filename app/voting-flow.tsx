@@ -23,6 +23,21 @@ import ManualMRZInput from '@/components/voting-modal/ManualMRZInput';
 import { createModalStyles } from '@/components/voting-modal/styles';
 import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
 
+interface NFCScanResult {
+  personDetails?: {
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    nationality?: string;
+    documentNumber?: string;
+    dateOfExpiry?: string;
+  };
+  dg1Bytes?: string;
+  sodBytes?: string;
+  dg15Bytes?: string;
+  aaSignature?: string;
+}
+
 export default function VotingFlowScreen() {
   const router = useRouter();
   const colors = useColors();
@@ -33,7 +48,7 @@ export default function VotingFlowScreen() {
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const [mrzData, setMRZData] = useState<{ documentNumber: string; birthDate: string; expiryDate: string } | null>(null);
-  const [nfcData, setNFCData] = useState<any>(null);
+  const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
   const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non'>('oui');
@@ -71,7 +86,6 @@ export default function VotingFlowScreen() {
 
   const handleNext = useCallback(() => {
     const newStep = currentStep + 1;
-    console.log(`🔄 Moving from step ${currentStep} to step ${newStep}`);
     setCurrentStep(newStep);
 
     Animated.timing(slideAnim, {
@@ -93,19 +107,16 @@ export default function VotingFlowScreen() {
   }, [currentStep, slideAnim, containerWidth, handleStepChange, progressOpacity1, progressOpacity2, progressOpacity3]);
 
   const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("✅ MRZ Detected in voting flow:", data);
     setMRZData(data);
     handleNext();
   }, [handleNext]);
 
-  const handleNFCSuccess = useCallback((data: any) => {
-    console.log("✅ NFC Scan successful in voting flow");
+  const handleNFCSuccess = useCallback((data: NFCScanResult) => {
     setNFCData(data);
     handleNext();
   }, [handleNext]);
 
   const handleGoBackToMRZScan = useCallback(() => {
-    console.log("🔙 Going back to MRZ scan");
     setCurrentStep(5);
     setMRZData(null);
     Animated.timing(slideAnim, {
@@ -118,7 +129,6 @@ export default function VotingFlowScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleManualFill = useCallback(() => {
-    console.log("📝 Opening manual MRZ input");
     setIsManualInputVisible(true);
   }, []);
 
@@ -127,13 +137,11 @@ export default function VotingFlowScreen() {
   }, []);
 
   const handleManualInputSubmit = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("📝 Manual MRZ data submitted:", data);
     setIsManualInputVisible(false);
     handleMRZScanned(data);
   }, [handleMRZScanned]);
 
   const handleVerificationSuccess = useCallback(() => {
-    console.log('✅ Verification success - moving to voting screen');
     setVerificationResult('success');
     // Move to step 8 (voting screen) after a brief delay
     setTimeout(() => {
@@ -154,7 +162,6 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleVoteSuccess = useCallback(() => {
-    console.log('📝 Moving to confirmation screen with default vote OUI');
     setSelectedVote('oui');
     setCurrentStep(9);
     Animated.timing(slideAnim, {
@@ -168,7 +175,6 @@ export default function VotingFlowScreen() {
 
 
   const handleStep9Confirm = useCallback(() => {
-    console.log('✅ Vote confirmed:', selectedVote, '- Moving to Step 11 loading');
     setCurrentStep(11);
     Animated.timing(slideAnim, {
       toValue: -10 * containerWidth,
@@ -179,13 +185,16 @@ export default function VotingFlowScreen() {
     handleStepChange(11);
   }, [selectedVote, slideAnim, containerWidth, handleStepChange]);
 
+  const handleClose = useCallback(() => {
+    pauseAll();
+    router.back();
+  }, [router, pauseAll]);
+
   const handleStep9Cancel = useCallback(() => {
-    console.log('❌ Vote cancelled - Closing modal');
     handleClose();
   }, [handleClose]);
 
   const handleStep11Success = useCallback(() => {
-    console.log('✅ Vote submission succeeded - Moving to Step 12 Success');
     setVoteSubmissionResult('success');
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -198,7 +207,6 @@ export default function VotingFlowScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleStep11Error = useCallback(() => {
-    console.log('❌ Vote submission failed - Moving to Step 12 Error');
     setVoteSubmissionResult('error');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
@@ -209,13 +217,6 @@ export default function VotingFlowScreen() {
     }).start();
     handleStepChange(13);
   }, [slideAnim, containerWidth, handleStepChange]);
-
-  const handleClose = useCallback(() => {
-    pauseAll();
-    router.back();
-  }, [router, pauseAll]);
-
-  console.log('VotingFlow rendering - currentStep:', currentStep);
 
   return (
     <View style={styles.container}>

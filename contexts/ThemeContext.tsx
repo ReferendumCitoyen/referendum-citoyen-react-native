@@ -7,8 +7,8 @@ import { useColorScheme } from 'react-native';
 let storage: MMKV | null = null;
 try {
   storage = new MMKV();
-} catch (error) {
-  console.log('MMKV not available, using AsyncStorage');
+} catch (_error) {
+  // MMKV not available, will use AsyncStorage
 }
 
 type Theme = 'light' | 'dark';
@@ -117,8 +117,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (savedTheme === 'light' || savedTheme === 'dark') {
         setTheme(savedTheme);
       }
-    } catch (error) {
-      console.warn('Failed to load theme:', error);
+    } catch (_error) {
+      // Failed to load theme, using default
     } finally {
       setIsLoaded(true);
     }
@@ -135,8 +135,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // Fallback to AsyncStorage
         await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
       }
-    } catch (error) {
-      console.warn('Failed to save theme:', error);
+    } catch (_error) {
+      // Failed to save theme
     }
   };
 
