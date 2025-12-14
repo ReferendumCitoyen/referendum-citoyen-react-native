@@ -43,8 +43,8 @@ export default function NFCScanModal() {
             setScanStatus("❌ Erreur de lecture");
           }),
         ];
-      } catch (error) {
-        console.warn("Failed to setup event listeners:", error);
+      } catch (_error) {
+        // Event listeners not available
       }
     };
 
@@ -79,9 +79,6 @@ export default function NFCScanModal() {
       setError(null);
       setScanStatus("🔄 Initialisation...");
 
-      console.log("=== STARTING NFC SCAN (FULL SCREEN) ===");
-      console.log("MRZ Data:", mrzData);
-
       const { scanDocument } = await import('@/modules/e-document');
       const challenge = getRandomValues(new Uint8Array(32));
 
@@ -97,16 +94,10 @@ export default function NFCScanModal() {
         dateOfExpiry: mrzData.expiryDate,
       }, challenge);
 
-      console.log("=== NFC SCAN SUCCESS ===");
-      const pd = result.personDetails || {};
-      console.log(`${pd.firstName} ${pd.lastName} | ${pd.birthDate} | ${pd.nationality}`);
-
       // Navigate back with success
       router.back();
-      // TODO: Pass result back via event or global state
 
     } catch (error: any) {
-      console.error("❌ NFC Scan error:", error);
       setError(error.message || 'Erreur de lecture');
       setIsScanning(false);
     }

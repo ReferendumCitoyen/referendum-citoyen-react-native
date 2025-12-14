@@ -29,13 +29,10 @@ const Step8: React.FC<Step8Props> = ({
 
   // Navigate to voting screen when button is pressed
   const handleVote = () => {
-    console.log('Vote button pressed - navigating to vote selection');
     if (onVoteSuccess) {
       onVoteSuccess();
     }
   };
-
-  console.log('Step8 rendering - verificationResult:', verificationResult, 'voteSubmissionResult:', voteSubmissionResult);
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>

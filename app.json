@@ -55,6 +55,7 @@
     "plugins": [
       "expo-router",
       "expo-video",
+      "@rarimo/rarime-rn-sdk",
       [
         "./plugins/withNfc.plugin/build/index.js",
         {

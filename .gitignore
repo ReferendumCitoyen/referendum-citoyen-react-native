@@ -29,6 +29,15 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+Thumbs.db
+
+# Editor artifacts
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/extensions.json
+.idea/
 
 # local env files
 .env*.local
@@ -39,9 +48,3 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-
-# local todo
-TODO.md
-
-# documentation
-INTEGRATION_GUIDE.md
