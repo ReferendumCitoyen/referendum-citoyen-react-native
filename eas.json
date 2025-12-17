@@ -1,0 +1,62 @@
+{
+  "cli": {
+    "version": ">= 16.19.3",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development:simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "simulator": true,
+        "cocoapods": "1.15.2"
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "testflight": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2",
+        "buildConfiguration": "Release"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "image": "macos-sequoia-15.3-xcode-16.2",
+        "cocoapods": "1.15.2",
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
