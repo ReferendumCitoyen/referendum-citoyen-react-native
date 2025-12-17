@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "react-native-vision-camera": "^4.6.1",
+    "react-native-vision-camera-text-recognition": "^0.3.0",
+    "mrz": "^3.5.0",
+    "expo-modules-core": "^1.x.x",
+    "@react-native-community/hooks": "latest",
+    "react-native-worklets-core": "^1.x.x"
+  },
+  "devDependencies": {
+  },
+  "notes": {
+    "ios": "NFCPassportReader pod will be added automatically via the native module",
+    "android": "JMRTD and BouncyCastle dependencies are in modules/e-document/android/build.gradle"
+  }
+}
