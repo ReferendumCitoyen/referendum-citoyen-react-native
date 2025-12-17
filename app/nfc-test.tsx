@@ -33,7 +33,7 @@ const RARIME_TESTNET_CONFIG = {
   },
 };
 
-const PRIVATE_KEY_STORAGE_KEY = '@rarime_bjj_private_key';
+const PRIVATE_KEY_STORAGE_KEY = 'rarime_bjj_private_key';
 
 // Helper function to convert base64 to Uint8Array (React Native compatible)
 const base64ToUint8Array = (base64: string): Uint8Array => {
