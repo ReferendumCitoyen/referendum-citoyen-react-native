@@ -42,7 +42,7 @@ const base64ToUint8Array = (base64: string): Uint8Array => {
   return new Uint8Array(buffer);
 };
 
-export default function NFCTestScreen() {
+export default function PassportTestScreen() {
   const router = useRouter();
   const [tagData, setTagData] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -149,30 +149,30 @@ export default function NFCTestScreen() {
     };
   }, []);
 
-  // MRZ Parser for new French ID cards (TD1: 3 lines, 30 chars)
+  // MRZ Parser for passports (TD3: 2 lines, 44 chars)
   const parseMRZ = React.useCallback((lines: string[]) => {
-    if (lines.length < 3) return null;
+    if (lines.length < 2) return null;
 
     try {
-      // Take last 3 lines
-      const td1Lines = lines.slice(-3);
+      // Take last 2 lines for TD3 passport format
+      const td3Lines = lines.slice(-2);
 
-      // Normalize each line to exactly 30 chars
-      const sanitized = td1Lines.map(line => {
+      // Normalize each line to exactly 44 chars
+      const sanitized = td3Lines.map(line => {
         const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-        if (cleaned.length > 30) return cleaned.substring(0, 30);
-        return cleaned.padEnd(30, '<');
+        if (cleaned.length > 44) return cleaned.substring(0, 44);
+        return cleaned.padEnd(44, '<');
       });
 
-      console.log("Trying TD1 parse:", sanitized);
+      console.log("Trying TD3 parse:", sanitized);
 
       const result = parse(sanitized, { autocorrect: true });
-      if (result?.valid && result.format === 'TD1') {
-        console.log("✅ TD1 ID Card detected:", result.fields);
+      if (result?.valid && result.format === 'TD3') {
+        console.log("✅ TD3 Passport detected:", result.fields);
         return result;
       }
     } catch (err) {
-      console.log("TD1 parse error:", err);
+      console.log("TD3 parse error:", err);
     }
 
     return null;
@@ -546,7 +546,7 @@ export default function NFCTestScreen() {
               </TouchableOpacity>
               <View style={styles.cameraOverlay}>
                 <Text style={styles.cameraInstructions}>
-                  Scannez les 3 lignes MRZ au dos de la carte d'identité
+                  Scannez les 2 lignes MRZ en bas du passeport
                 </Text>
               </View>
             </View>
@@ -623,7 +623,7 @@ export default function NFCTestScreen() {
 
           {/* MRZ Input Section */}
           <View style={styles.mrzSection}>
-            <Text style={styles.sectionTitle}>Données MRZ (au dos du passeport)</Text>
+            <Text style={styles.sectionTitle}>Données MRZ (en bas du passeport)</Text>
 
             <TouchableOpacity
               style={styles.cameraButton}
@@ -637,7 +637,7 @@ export default function NFCTestScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Numéro de document (ex: 12AB34567)"
+              placeholder="Numéro de passeport (ex: 12AB34567)"
               value={documentNo}
               onChangeText={setDocumentNo}
               autoCapitalize="characters"
@@ -743,7 +743,7 @@ export default function NFCTestScreen() {
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>N° Document:</Text>
+                    <Text style={styles.infoLabel}>N° Passeport:</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.documentNumber || 'N/A'}</Text>
                   </View>
 
@@ -768,7 +768,7 @@ export default function NFCTestScreen() {
           {!error && !tagData && !isScanning && (
             <View style={styles.instructionContainer}>
               <Text style={styles.instructionText}>
-                Appuyez sur le bouton et approchez un tag NFC de votre appareil.
+                Appuyez sur le bouton et approchez votre passeport du téléphone.
               </Text>
             </View>
           )}
