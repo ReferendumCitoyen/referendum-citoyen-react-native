@@ -342,7 +342,7 @@ export default function IDTestScreen() {
         console.log("✅ MRZ Detected:", result.fields);
 
         // Auto-fill the form with dates in French format (DD/MM/YY)
-        setDocumentNo(result.fields.documentNumber || "");
+        setDocumentNo((result.fields.documentNumber || "").trim().toUpperCase());
         setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
         setExpiryDate(convertMRZDateToFrench(result.fields.expirationDate || ""));
 
@@ -781,7 +781,7 @@ export default function IDTestScreen() {
                 placeholder="12AB34567"
                 placeholderTextColor="#9CA3AF"
                 value={documentNo}
-                onChangeText={setDocumentNo}
+                onChangeText={(text) => setDocumentNo(text.trim().toUpperCase())}
                 autoCapitalize="characters"
               />
             </View>
@@ -830,6 +830,24 @@ export default function IDTestScreen() {
               </View>
             </View>
 
+            {/* Debug Log Button */}
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={() => {
+                console.log("=== DEBUG: Current Input Values ===");
+                console.log("Document Number:", documentNo);
+                console.log("Birth Date (Display):", birthDate);
+                console.log("Birth Date (YYMMDD):", convertFrenchDateToMRZ(birthDate));
+                console.log("Expiry Date (Display):", expiryDate);
+                console.log("Expiry Date (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
+                console.log("===================================");
+                alert(`Debug logged to console:\nDoc: ${documentNo}\nBirth: ${birthDate} → ${convertFrenchDateToMRZ(birthDate)}\nExpiry: ${expiryDate} → ${convertFrenchDateToMRZ(expiryDate)}`);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.debugButtonText}>🐛 Log Debug Info</Text>
+            </TouchableOpacity>
+
             {/* Birth Date Picker Modal */}
             {Platform.OS === 'ios' ? (
               <Modal
@@ -856,6 +874,8 @@ export default function IDTestScreen() {
                       maximumDate={new Date()}
                       style={styles.datePicker}
                       locale="fr-FR"
+                      textColor={Colors.primary}
+                      themeVariant="light"
                     />
                   </View>
                 </View>
@@ -898,6 +918,8 @@ export default function IDTestScreen() {
                       minimumDate={new Date()}
                       style={styles.datePicker}
                       locale="fr-FR"
+                      textColor={Colors.primary}
+                      themeVariant="light"
                     />
                   </View>
                 </View>
@@ -1166,6 +1188,19 @@ const styles = StyleSheet.create({
   calendarButtonText: {
     fontSize: 20,
   },
+  debugButton: {
+    backgroundColor: '#F59E0B',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  debugButtonText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: '#FFFFFF',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1176,6 +1211,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 40,
+    alignItems: 'center',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1184,6 +1220,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    width: '100%',
   },
   modalTitle: {
     fontSize: 18,
@@ -1204,6 +1241,7 @@ const styles = StyleSheet.create({
   datePicker: {
     width: '100%',
     height: 200,
+    alignSelf: 'center',
   },
   scanButton: {
     paddingVertical: Spacing.screen.gap,
