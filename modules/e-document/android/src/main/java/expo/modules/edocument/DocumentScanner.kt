@@ -7,6 +7,7 @@ import com.gemalto.jp2.JP2Decoder
 import net.sf.scuba.smartcards.CardService
 import org.bouncycastle.asn1.cms.SignedData
 import org.jmrtd.BACKey
+import org.jmrtd.PACEKeySpec
 import org.jmrtd.PassportService
 import org.jmrtd.lds.CardSecurityFile
 import org.jmrtd.lds.PACEInfo
@@ -216,7 +217,7 @@ class DocumentScanner(
 
       // Use CAN-based key if provided, otherwise use MRZ-based key
       val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        BACKey(bacKeyParameters.can)
+        PACEKeySpec(bacKeyParameters.can, PACEKeySpec.CAN_REF)
       } else {
         bacKey
       }
