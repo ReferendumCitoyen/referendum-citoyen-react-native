@@ -217,7 +217,7 @@ class DocumentScanner(
 
       // Use CAN-based key if provided, otherwise use MRZ-based key
       val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        PACEKeySpec(bacKeyParameters.can, PACEKeySpec.CAN_REF)
+        PACEKeySpec(bacKeyParameters.can.toByteArray(), 0x02.toByte())
       } else {
         bacKey
       }
