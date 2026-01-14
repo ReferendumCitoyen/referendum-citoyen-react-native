@@ -214,14 +214,21 @@ class DocumentScanner(
       val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
       val securityInfoCollection = cardSecurityFile.securityInfos
 
+      // Use CAN-based key if provided, otherwise use MRZ-based key
+      val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
+        BACKey(bacKeyParameters.can)
+      } else {
+        bacKey
+      }
+
       for (securityInfo in securityInfoCollection) {
         if (securityInfo is PACEInfo) {
           val paceInfo = securityInfo
           service.doPACE(
-            bacKey,
+            paceKey,
             paceInfo.objectIdentifier,
             PACEInfo.toParameterSpec(paceInfo.parameterId),
-            bacKeyParameters.can
+            null
           )
           paceSucceeded = true
         }
