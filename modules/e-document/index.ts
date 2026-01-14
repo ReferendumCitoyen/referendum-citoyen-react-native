@@ -39,6 +39,7 @@ export async function scanDocument(
     dateOfBirth: string
     dateOfExpiry: string
     documentNumber: string
+    can?: string
   },
   challenge: Uint8Array,
 ): Promise<PassportData> {

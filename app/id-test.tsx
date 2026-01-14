@@ -77,6 +77,7 @@ export default function IDTestScreen() {
   const [documentNo, setDocumentNo] = React.useState("");
   const [birthDate, setBirthDate] = React.useState(""); // JJ/MM/AA format for display
   const [expiryDate, setExpiryDate] = React.useState(""); // JJ/MM/AA format for display
+  const [can, setCan] = React.useState("");
 
   // Date picker state
   const [showBirthDatePicker, setShowBirthDatePicker] = React.useState(false);
@@ -532,12 +533,28 @@ export default function IDTestScreen() {
         documentNumber: documentNo,
         dateOfBirth: bacBirthDate,
         dateOfExpiry: bacExpiryDate,
+        can: can || undefined,
       }, challenge);
 
-      console.log("=== EDOCUMENT FULL RESULT ===");
-      console.log(JSON.stringify(result, null, 2));
-      console.log("=== EDOCUMENT PERSON DETAILS ===");
-      console.log(JSON.stringify(result.personDetails, null, 2));
+      // Helper to truncate long base64 strings for cleaner logs
+      const truncateBase64 = (obj: any): any => {
+        if (typeof obj === 'string' && obj.length > 100) {
+          return obj.substring(0, 50) + '...[' + obj.length + ' chars]...' + obj.substring(obj.length - 20);
+        }
+        if (typeof obj === 'object' && obj !== null) {
+          const truncated: any = Array.isArray(obj) ? [] : {};
+          for (const key in obj) {
+            truncated[key] = truncateBase64(obj[key]);
+          }
+          return truncated;
+        }
+        return obj;
+      };
+
+      console.log("=== EDOCUMENT RESULT (truncated) ===");
+      console.log(JSON.stringify(truncateBase64(result), null, 2));
+      console.log("=== PERSON DETAILS ===");
+      console.log(JSON.stringify(truncateBase64(result.personDetails), null, 2));
       console.log("=====================");
 
       console.log("✅ Scan completed successfully, updating UI...");
@@ -787,6 +804,19 @@ export default function IDTestScreen() {
             </View>
 
             <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>CAN (6 chiffres en bas à droite)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="123456"
+                placeholderTextColor="#9CA3AF"
+                value={can}
+                onChangeText={(text) => setCan(text.replace(/\D/g, '').substring(0, 6))}
+                keyboardType="numeric"
+                maxLength={6}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Date de naissance</Text>
               <View style={styles.dateInputRow}>
                 <TextInput
@@ -834,14 +864,37 @@ export default function IDTestScreen() {
             <TouchableOpacity
               style={styles.debugButton}
               onPress={() => {
+                // Parse date components for clearer display
+                const birthParts = birthDate.split('/');
+                const expiryParts = expiryDate.split('/');
+                const birthDay = birthParts[0] || '??';
+                const birthMonth = birthParts[1] || '??';
+                const birthYear = birthParts[2] || '??';
+                const expiryDay = expiryParts[0] || '??';
+                const expiryMonth = expiryParts[1] || '??';
+                const expiryYear = expiryParts[2] || '??';
+
                 console.log("=== DEBUG: Current Input Values ===");
                 console.log("Document Number:", documentNo);
-                console.log("Birth Date (Display):", birthDate);
-                console.log("Birth Date (YYMMDD):", convertFrenchDateToMRZ(birthDate));
-                console.log("Expiry Date (Display):", expiryDate);
-                console.log("Expiry Date (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
+                console.log("CAN:", can || "(non renseigné)");
+                console.log("Birth Date (DD/MM/YY):", birthDate);
+                console.log("  → Day:", birthDay, "Month:", birthMonth, "Year:", birthYear);
+                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(birthDate));
+                console.log("Expiry Date (DD/MM/YY):", expiryDate);
+                console.log("  → Day:", expiryDay, "Month:", expiryMonth, "Year:", expiryYear);
+                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
                 console.log("===================================");
-                alert(`Debug logged to console:\nDoc: ${documentNo}\nBirth: ${birthDate} → ${convertFrenchDateToMRZ(birthDate)}\nExpiry: ${expiryDate} → ${convertFrenchDateToMRZ(expiryDate)}`);
+                alert(
+                  `📋 VOS VALEURS:\n\n` +
+                  `📄 Document: ${documentNo}\n` +
+                  `🔑 CAN: ${can || "(non renseigné)"}\n\n` +
+                  `🎂 Naissance:\n` +
+                  `   Jour: ${birthDay} | Mois: ${birthMonth} | Année: ${birthYear}\n` +
+                  `   → MRZ: ${convertFrenchDateToMRZ(birthDate)}\n\n` +
+                  `📅 Expiration:\n` +
+                  `   Jour: ${expiryDay} | Mois: ${expiryMonth} | Année: ${expiryYear}\n` +
+                  `   → MRZ: ${convertFrenchDateToMRZ(expiryDate)}`
+                );
               }}
               activeOpacity={0.7}
             >
@@ -951,7 +1004,7 @@ export default function IDTestScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Basic NFC Test Buttons */}
+          {/* Basic NFC Test Buttons - Hidden for cleaner UI
           <Text style={styles.sectionTitle}>Tests NFC basiques:</Text>
 
           <TouchableOpacity
@@ -979,6 +1032,7 @@ export default function IDTestScreen() {
               {isScanning ? "Scan en cours..." : "Scanner IsoDep (Passport)"}
             </Text>
           </TouchableOpacity>
+          */}
 
           {scanStatus && isScanning && (
             <View style={styles.statusContainer}>
