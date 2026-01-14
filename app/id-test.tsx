@@ -1,5 +1,5 @@
 import { Colors, Spacing, Typography } from "@/constants/theme";
-import { useRouter } from "expo-router";
+import { useRouter, Stack } from "expo-router";
 import React from "react";
 import {
   ScrollView,
@@ -9,7 +9,10 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from "react-native";
+import DateTimePicker from '@react-native-community/datetimepicker';
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from "react-native-vision-camera";
 import { useTextRecognition } from "react-native-vision-camera-text-recognition";
@@ -70,10 +73,16 @@ export default function IDTestScreen() {
   const [isScanning, setIsScanning] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<string>("");
 
-  // MRZ data for passport reading
+  // MRZ data for ID card reading
   const [documentNo, setDocumentNo] = React.useState("");
-  const [birthDate, setBirthDate] = React.useState(""); // YYMMDD format
-  const [expiryDate, setExpiryDate] = React.useState(""); // YYMMDD format
+  const [birthDate, setBirthDate] = React.useState(""); // JJ/MM/AA format for display
+  const [expiryDate, setExpiryDate] = React.useState(""); // JJ/MM/AA format for display
+
+  // Date picker state
+  const [showBirthDatePicker, setShowBirthDatePicker] = React.useState(false);
+  const [showExpiryDatePicker, setShowExpiryDatePicker] = React.useState(false);
+  const [birthDateObj, setBirthDateObj] = React.useState(new Date(1990, 0, 1));
+  const [expiryDateObj, setExpiryDateObj] = React.useState(new Date(2030, 11, 31));
 
   // Camera for MRZ scanning
   const [showCamera, setShowCamera] = React.useState(false);
@@ -199,38 +208,130 @@ export default function IDTestScreen() {
     return null;
   }, []);
 
-  // Convert YYMMDD to YYYY-MM-DD
-  const convertMRZDate = (yymmdd: string): string => {
+  // Convert YYMMDD to DD/MM/YY (French format)
+  const convertMRZDateToFrench = (yymmdd: string): string => {
     if (!yymmdd || yymmdd.length !== 6) return yymmdd;
 
-    const yy = parseInt(yymmdd.substring(0, 2), 10);
+    const yy = yymmdd.substring(0, 2);
     const mm = yymmdd.substring(2, 4);
     const dd = yymmdd.substring(4, 6);
 
-    // If year >= 50, it's 19YY (1950-1999), otherwise 20YY (2000-2049)
-    const yyyy = yy >= 50 ? `19${yy}` : `20${yy}`;
-
-    return `${yyyy}-${mm}-${dd}`;
+    return `${dd}/${mm}/${yy}`;
   };
 
-  // Convert YYYY-MM-DD back to YYMMDD for BAC
-  const convertToMRZFormat = (date: string): string => {
-    if (!date) return date;
-    // If already in YYMMDD format, return as-is
-    if (date.length === 6 && !date.includes('-')) return date;
+  // Convert DD/MM/YY (French format) to YYMMDD for BAC
+  const convertFrenchDateToMRZ = (frenchDate: string): string => {
+    if (!frenchDate) return frenchDate;
 
-    // Parse YYYY-MM-DD format
-    const parts = date.split('-');
-    if (parts.length !== 3) return date;
+    // Remove any spaces
+    const cleaned = frenchDate.replace(/\s/g, '');
 
-    const yyyy = parts[0];
-    const mm = parts[1];
-    const dd = parts[2];
+    // If already in YYMMDD format (6 digits, no slashes), return as-is
+    if (cleaned.length === 6 && !cleaned.includes('/')) return cleaned;
 
-    // Get last 2 digits of year
-    const yy = yyyy.substring(2, 4);
+    // Parse DD/MM/YY format
+    const parts = cleaned.split('/');
+    if (parts.length !== 3) return frenchDate;
+
+    const dd = parts[0].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yy = parts[2].padStart(2, '0');
 
     return `${yy}${mm}${dd}`;
+  };
+
+  // Convert Date object to French format DD/MM/YY
+  const formatDateToFrench = (date: Date): string => {
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yy = String(date.getFullYear()).substring(2);
+    return `${dd}/${mm}/${yy}`;
+  };
+
+  // Handle date picker changes
+  const onBirthDateChange = (_event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowBirthDatePicker(false);
+    }
+    if (selectedDate) {
+      setBirthDateObj(selectedDate);
+      setBirthDate(formatDateToFrench(selectedDate));
+    }
+  };
+
+  const onExpiryDateChange = (_event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowExpiryDatePicker(false);
+    }
+    if (selectedDate) {
+      setExpiryDateObj(selectedDate);
+      setExpiryDate(formatDateToFrench(selectedDate));
+    }
+  };
+
+  const closeBirthDatePicker = () => {
+    setShowBirthDatePicker(false);
+  };
+
+  const closeExpiryDatePicker = () => {
+    setShowExpiryDatePicker(false);
+  };
+
+  // Smart date input formatter with validation
+  const formatDateInput = (text: string): string => {
+    // Remove all non-digits
+    const digits = text.replace(/\D/g, '');
+
+    // Limit to 6 digits
+    const limited = digits.substring(0, 6);
+
+    if (limited.length === 0) return '';
+
+    // Extract day, month, year
+    let day = limited.substring(0, 2);
+    let month = limited.substring(2, 4);
+    let year = limited.substring(4, 6);
+
+    // Validate and constrain day (01-31)
+    if (day.length === 2) {
+      const dayNum = parseInt(day, 10);
+      if (dayNum === 0) day = '01';
+      if (dayNum > 31) day = '31';
+    } else if (day.length === 1) {
+      const dayNum = parseInt(day, 10);
+      // If first digit is > 3, prepend 0
+      if (dayNum > 3) day = '0' + day;
+    }
+
+    // Validate and constrain month (01-12)
+    if (month.length === 2) {
+      const monthNum = parseInt(month, 10);
+      if (monthNum === 0) month = '01';
+      if (monthNum > 12) month = '12';
+    } else if (month.length === 1) {
+      const monthNum = parseInt(month, 10);
+      // If first digit is > 1, prepend 0
+      if (monthNum > 1) month = '0' + month;
+    }
+
+    // Format with slashes
+    if (limited.length <= 2) {
+      return day;
+    } else if (limited.length <= 4) {
+      return `${day}/${month}`;
+    } else {
+      return `${day}/${month}/${year}`;
+    }
+  };
+
+  const handleBirthDateChange = (text: string) => {
+    const formatted = formatDateInput(text);
+    setBirthDate(formatted);
+  };
+
+  const handleExpiryDateChange = (text: string) => {
+    const formatted = formatDateInput(text);
+    setExpiryDate(formatted);
   };
 
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
@@ -240,10 +341,10 @@ export default function IDTestScreen() {
       if (result?.valid) {
         console.log("✅ MRZ Detected:", result.fields);
 
-        // Auto-fill the form with converted dates
+        // Auto-fill the form with dates in French format (DD/MM/YY)
         setDocumentNo(result.fields.documentNumber || "");
-        setBirthDate(convertMRZDate(result.fields.birthDate || ""));
-        setExpiryDate(convertMRZDate(result.fields.expirationDate || ""));
+        setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
+        setExpiryDate(convertMRZDateToFrench(result.fields.expirationDate || ""));
 
         // Close camera
         setShowCamera(false);
@@ -411,8 +512,8 @@ export default function IDTestScreen() {
 
       console.log("=== STARTING EDOCUMENT READER ===");
       console.log("Document No:", documentNo);
-      console.log("Birth Date:", birthDate);
-      console.log("Expiry Date:", expiryDate);
+      console.log("Birth Date (input):", birthDate);
+      console.log("Expiry Date (input):", expiryDate);
 
       const { scanDocument } = await import('@/modules/e-document');
 
@@ -420,14 +521,14 @@ export default function IDTestScreen() {
       const challenge = getRandomValues(new Uint8Array(32));
       challengeRef.current = challenge; // Store for RarimePassport
 
-      // Convert dates to YYMMDD format for BAC
-      const bacBirthDate = convertToMRZFormat(birthDate);
-      const bacExpiryDate = convertToMRZFormat(expiryDate);
+      // Convert dates from French format (DD/MM/YY) to YYMMDD format for BAC
+      const bacBirthDate = convertFrenchDateToMRZ(birthDate);
+      const bacExpiryDate = convertFrenchDateToMRZ(expiryDate);
 
-      console.log("BAC Birth Date:", bacBirthDate);
-      console.log("BAC Expiry Date:", bacExpiryDate);
+      console.log("BAC Birth Date (YYMMDD):", bacBirthDate);
+      console.log("BAC Expiry Date (YYMMDD):", bacExpiryDate);
 
-      const result = await scanDocument('P', {
+      const result = await scanDocument('I', {
         documentNumber: documentNo,
         dateOfBirth: bacBirthDate,
         dateOfExpiry: bacExpiryDate,
@@ -543,11 +644,28 @@ export default function IDTestScreen() {
   }
 
   return (
-    <View style={styles.screenContainer}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
-      >
+    <>
+      <Stack.Screen
+        options={{
+          title: "Test Carte d'Identité",
+          headerShown: true,
+          headerBackTitle: "Retour",
+          headerTintColor: Colors.primary,
+          headerStyle: {
+            backgroundColor: Colors.white,
+          },
+          headerTitleStyle: {
+            fontFamily: Typography.fontFamily.bold,
+            fontSize: Typography.fontSize.h3,
+            color: Colors.primary,
+          },
+        }}
+      />
+      <View style={styles.screenContainer}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+        >
         {/* Content */}
         <View style={styles.content}>
           {/* Camera Scanner */}
@@ -656,29 +774,145 @@ export default function IDTestScreen() {
 
             <Text style={styles.orText}>ou saisir manuellement:</Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Numéro de document (ex: 12AB34567)"
-              value={documentNo}
-              onChangeText={setDocumentNo}
-              autoCapitalize="characters"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Date de naissance (AAMMJJ)"
-              value={birthDate}
-              onChangeText={setBirthDate}
-              keyboardType="number-pad"
-              maxLength={6}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Date d'expiration (AAMMJJ)"
-              value={expiryDate}
-              onChangeText={setExpiryDate}
-              keyboardType="number-pad"
-              maxLength={6}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Numéro de document</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="12AB34567"
+                placeholderTextColor="#9CA3AF"
+                value={documentNo}
+                onChangeText={setDocumentNo}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Date de naissance</Text>
+              <View style={styles.dateInputRow}>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  placeholder="JJ/MM/AA"
+                  placeholderTextColor="#9CA3AF"
+                  value={birthDate}
+                  onChangeText={handleBirthDateChange}
+                  keyboardType="numeric"
+                  maxLength={8}
+                />
+                <TouchableOpacity
+                  style={styles.calendarButton}
+                  onPress={() => setShowBirthDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.calendarButtonText}>📅</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Date d'expiration</Text>
+              <View style={styles.dateInputRow}>
+                <TextInput
+                  style={[styles.input, styles.dateInput]}
+                  placeholder="JJ/MM/AA"
+                  placeholderTextColor="#9CA3AF"
+                  value={expiryDate}
+                  onChangeText={handleExpiryDateChange}
+                  keyboardType="numeric"
+                  maxLength={8}
+                />
+                <TouchableOpacity
+                  style={styles.calendarButton}
+                  onPress={() => setShowExpiryDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.calendarButtonText}>📅</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Birth Date Picker Modal */}
+            {Platform.OS === 'ios' ? (
+              <Modal
+                visible={showBirthDatePicker}
+                transparent={true}
+                animationType="slide"
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Date de naissance</Text>
+                      <TouchableOpacity
+                        onPress={closeBirthDatePicker}
+                        style={styles.modalCloseButton}
+                      >
+                        <Text style={styles.modalCloseText}>Fermer</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={birthDateObj}
+                      mode="date"
+                      display="spinner"
+                      onChange={onBirthDateChange}
+                      maximumDate={new Date()}
+                      style={styles.datePicker}
+                      locale="fr-FR"
+                    />
+                  </View>
+                </View>
+              </Modal>
+            ) : (
+              showBirthDatePicker && (
+                <DateTimePicker
+                  value={birthDateObj}
+                  mode="date"
+                  display="default"
+                  onChange={onBirthDateChange}
+                  maximumDate={new Date()}
+                />
+              )
+            )}
+
+            {/* Expiry Date Picker Modal */}
+            {Platform.OS === 'ios' ? (
+              <Modal
+                visible={showExpiryDatePicker}
+                transparent={true}
+                animationType="slide"
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Date d'expiration</Text>
+                      <TouchableOpacity
+                        onPress={closeExpiryDatePicker}
+                        style={styles.modalCloseButton}
+                      >
+                        <Text style={styles.modalCloseText}>Fermer</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={expiryDateObj}
+                      mode="date"
+                      display="spinner"
+                      onChange={onExpiryDateChange}
+                      minimumDate={new Date()}
+                      style={styles.datePicker}
+                      locale="fr-FR"
+                    />
+                  </View>
+                </View>
+              </Modal>
+            ) : (
+              showExpiryDatePicker && (
+                <DateTimePicker
+                  value={expiryDateObj}
+                  mode="date"
+                  display="default"
+                  onChange={onExpiryDateChange}
+                  minimumDate={new Date()}
+                />
+              )
+            )}
           </View>
 
           {/* ID Card Reading Buttons */}
@@ -802,6 +1036,7 @@ export default function IDTestScreen() {
         </View>
       </ScrollView>
     </View>
+    </>
   );
 }
 
@@ -891,14 +1126,84 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.6,
   },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.small,
+    color: Colors.primary,
+    marginBottom: 4,
+  },
   input: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.body,
     color: Colors.primary,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateInput: {
+    flex: 1,
+  },
+  calendarButton: {
+    backgroundColor: "#3B82F6",
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+    height: 44,
+  },
+  calendarButtonText: {
+    fontSize: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.primary,
+  },
+  modalCloseButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#3B82F6',
+    borderRadius: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    fontFamily: Typography.fontFamily.bold,
+    color: '#FFFFFF',
+  },
+  datePicker: {
+    width: '100%',
+    height: 200,
   },
   scanButton: {
     paddingVertical: Spacing.screen.gap,
