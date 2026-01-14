@@ -13,6 +13,7 @@ struct BacKeyParameters: Codable {
     var documentNumber: String
     var dateOfBirth: String
     var dateOfExpiry: String
+    var can: String?
 }
 
 struct PersonDetails : Codable {

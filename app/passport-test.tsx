@@ -513,10 +513,25 @@ export default function PassportTestScreen() {
         dateOfExpiry: bacExpiryDate,
       }, challenge);
 
-      console.log("=== EDOCUMENT FULL RESULT ===");
-      console.log(JSON.stringify(result, null, 2));
-      console.log("=== EDOCUMENT PERSON DETAILS ===");
-      console.log(JSON.stringify(result.personDetails, null, 2));
+      // Helper to truncate long base64 strings for cleaner logs
+      const truncateBase64 = (obj: any): any => {
+        if (typeof obj === 'string' && obj.length > 100) {
+          return obj.substring(0, 50) + '...[' + obj.length + ' chars]...' + obj.substring(obj.length - 20);
+        }
+        if (typeof obj === 'object' && obj !== null) {
+          const truncated: any = Array.isArray(obj) ? [] : {};
+          for (const key in obj) {
+            truncated[key] = truncateBase64(obj[key]);
+          }
+          return truncated;
+        }
+        return obj;
+      };
+
+      console.log("=== EDOCUMENT RESULT (truncated) ===");
+      console.log(JSON.stringify(truncateBase64(result), null, 2));
+      console.log("=== PERSON DETAILS ===");
+      console.log(JSON.stringify(truncateBase64(result.personDetails), null, 2));
       console.log("=====================");
 
       console.log("✅ Scan completed successfully, updating UI...");
@@ -813,14 +828,35 @@ export default function PassportTestScreen() {
             <TouchableOpacity
               style={styles.debugButton}
               onPress={() => {
+                // Parse date components for clearer display
+                const birthParts = birthDate.split('/');
+                const expiryParts = expiryDate.split('/');
+                const birthDay = birthParts[0] || '??';
+                const birthMonth = birthParts[1] || '??';
+                const birthYear = birthParts[2] || '??';
+                const expiryDay = expiryParts[0] || '??';
+                const expiryMonth = expiryParts[1] || '??';
+                const expiryYear = expiryParts[2] || '??';
+
                 console.log("=== DEBUG: Current Input Values ===");
                 console.log("Document Number:", documentNo);
-                console.log("Birth Date (Display):", birthDate);
-                console.log("Birth Date (YYMMDD):", convertFrenchDateToMRZ(birthDate));
-                console.log("Expiry Date (Display):", expiryDate);
-                console.log("Expiry Date (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
+                console.log("Birth Date (DD/MM/YY):", birthDate);
+                console.log("  → Day:", birthDay, "Month:", birthMonth, "Year:", birthYear);
+                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(birthDate));
+                console.log("Expiry Date (DD/MM/YY):", expiryDate);
+                console.log("  → Day:", expiryDay, "Month:", expiryMonth, "Year:", expiryYear);
+                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
                 console.log("===================================");
-                alert(`Debug logged to console:\nDoc: ${documentNo}\nBirth: ${birthDate} → ${convertFrenchDateToMRZ(birthDate)}\nExpiry: ${expiryDate} → ${convertFrenchDateToMRZ(expiryDate)}`);
+                alert(
+                  `📋 VOS VALEURS:\n\n` +
+                  `📄 Document: ${documentNo}\n\n` +
+                  `🎂 Naissance:\n` +
+                  `   Jour: ${birthDay} | Mois: ${birthMonth} | Année: ${birthYear}\n` +
+                  `   → MRZ: ${convertFrenchDateToMRZ(birthDate)}\n\n` +
+                  `📅 Expiration:\n` +
+                  `   Jour: ${expiryDay} | Mois: ${expiryMonth} | Année: ${expiryYear}\n` +
+                  `   → MRZ: ${convertFrenchDateToMRZ(expiryDate)}`
+                );
               }}
               activeOpacity={0.7}
             >
@@ -930,7 +966,7 @@ export default function PassportTestScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Basic NFC Test Buttons */}
+          {/* Basic NFC Test Buttons - Hidden for cleaner UI
           <Text style={styles.sectionTitle}>Tests NFC basiques:</Text>
 
           <TouchableOpacity
@@ -958,6 +994,7 @@ export default function PassportTestScreen() {
               {isScanning ? "Scan en cours..." : "Scanner IsoDep (Passport)"}
             </Text>
           </TouchableOpacity>
+          */}
 
           {scanStatus && isScanning && (
             <View style={styles.statusContainer}>

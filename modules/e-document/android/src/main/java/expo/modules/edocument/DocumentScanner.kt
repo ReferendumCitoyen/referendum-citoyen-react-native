@@ -121,6 +121,7 @@ data class BacKeyParameters(
   val dateOfBirth: String,
   val dateOfExpiry: String,
   val documentNumber: String,
+  val can: String? = null,
 )
 
 data class NFCDocumentModel(
@@ -220,7 +221,7 @@ class DocumentScanner(
             bacKey,
             paceInfo.objectIdentifier,
             PACEInfo.toParameterSpec(paceInfo.parameterId),
-            null
+            bacKeyParameters.can
           )
           paceSucceeded = true
         }
