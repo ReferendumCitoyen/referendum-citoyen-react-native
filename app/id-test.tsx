@@ -38,13 +38,6 @@ const RARIME_TESTNET_CONFIG = {
 
 const PRIVATE_KEY_STORAGE_KEY = 'rarime_bjj_private_key';
 
-// Helper function to convert base64 to Uint8Array (React Native compatible)
-const base64ToUint8Array = (base64: string): Uint8Array => {
-  // Use Buffer which is polyfilled for React Native
-  const buffer = Buffer.from(base64, 'base64');
-  return new Uint8Array(buffer);
-};
-
 // Helper function to shorten long values for display
 const shortenValue = (value: any, maxLength = 50): string => {
   if (value === null || value === undefined) return 'N/A';
@@ -568,10 +561,10 @@ export default function IDTestScreen() {
       console.log('\n=== RARIME SDK INTEGRATION (TESTNET) ===');
       console.log('Step 1: Converting NFC data to Uint8Array...');
 
-      const dg1 = base64ToUint8Array(result.dg1Bytes);
-      const sod = base64ToUint8Array(result.sodBytes);
-      const dg15 = result.dg15Bytes ? base64ToUint8Array(result.dg15Bytes) : undefined;
-      const aaSignature = result.aaSignature ? base64ToUint8Array(result.aaSignature) : undefined;
+      const dg1 = new Uint8Array(result.dg1Bytes);
+      const sod = new Uint8Array(result.sodBytes);
+      const dg15 = result.dg15Bytes?.length ? new Uint8Array(result.dg15Bytes) : undefined;
+      const aaSignature = result.aaSignature?.length ? new Uint8Array(result.aaSignature) : undefined;
 
       console.log('Step 2: Creating RarimePassport instance...');
       console.log(`  - DG1 length: ${dg1.length} bytes`);

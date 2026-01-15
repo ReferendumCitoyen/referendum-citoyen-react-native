@@ -21,7 +21,6 @@ import { parse } from "mrz";
 import { getRandomValues } from "expo-crypto";
 import { Rarime, RarimePassport, RarimeUtils, DocumentStatus } from "@rarimo/rarime-rn-sdk";
 import * as SecureStore from "expo-secure-store";
-import { Buffer } from "buffer";
 
 // Rarime Testnet Configuration
 const RARIME_TESTNET_CONFIG = {
@@ -38,11 +37,15 @@ const RARIME_TESTNET_CONFIG = {
 
 const PRIVATE_KEY_STORAGE_KEY = 'rarime_bjj_private_key';
 
-// Helper function to convert base64 to Uint8Array (React Native compatible)
-const base64ToUint8Array = (base64: string): Uint8Array => {
-  // Use Buffer which is polyfilled for React Native
-  const buffer = Buffer.from(base64, 'base64');
-  return new Uint8Array(buffer);
+// Format MRZ date (YYMMDD) to human-readable (DD/MM/YYYY)
+const formatMRZDate = (mrzDate: string | null): string => {
+  if (!mrzDate || mrzDate.length !== 6) return mrzDate || 'N/A';
+  const yy = parseInt(mrzDate.substring(0, 2), 10);
+  const mm = mrzDate.substring(2, 4);
+  const dd = mrzDate.substring(4, 6);
+  // Assume 00-30 is 2000s, 31-99 is 1900s
+  const yyyy = yy <= 30 ? 2000 + yy : 1900 + yy;
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 export default function PassportTestScreen() {
@@ -545,10 +548,10 @@ export default function PassportTestScreen() {
       console.log('\n=== RARIME SDK INTEGRATION (TESTNET) ===');
       console.log('Step 1: Converting NFC data to Uint8Array...');
 
-      const dg1 = base64ToUint8Array(result.dg1Bytes);
-      const sod = base64ToUint8Array(result.sodBytes);
-      const dg15 = result.dg15Bytes ? base64ToUint8Array(result.dg15Bytes) : undefined;
-      const aaSignature = result.aaSignature ? base64ToUint8Array(result.aaSignature) : undefined;
+      const dg1 = new Uint8Array(result.dg1Bytes);
+      const sod = new Uint8Array(result.sodBytes);
+      const dg15 = result.dg15Bytes?.length ? new Uint8Array(result.dg15Bytes) : undefined;
+      const aaSignature = result.aaSignature?.length ? new Uint8Array(result.aaSignature) : undefined;
 
       console.log('Step 2: Creating RarimePassport instance...');
       console.log(`  - DG1 length: ${dg1.length} bytes`);
@@ -1027,7 +1030,7 @@ export default function PassportTestScreen() {
 
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Date de naissance:</Text>
-                    <Text style={styles.infoValue}>{tagData.personDetails?.dateOfBirth || 'N/A'}</Text>
+                    <Text style={styles.infoValue}>{formatMRZDate(tagData.personDetails?.birthDate)}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
@@ -1042,7 +1045,7 @@ export default function PassportTestScreen() {
 
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Date d'expiration:</Text>
-                    <Text style={styles.infoValue}>{tagData.personDetails?.dateOfExpiry || 'N/A'}</Text>
+                    <Text style={styles.infoValue}>{formatMRZDate(tagData.personDetails?.expiryDate)}</Text>
                   </View>
                 </>
               ) : (
