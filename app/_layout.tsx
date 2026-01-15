@@ -14,6 +14,8 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
 
 
 export {
@@ -79,11 +81,13 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <CustomThemeProvider>
-        <RootLayoutNav />
-      </CustomThemeProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <CustomThemeProvider>
+          <RootLayoutNav />
+        </CustomThemeProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 
@@ -93,7 +97,10 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
       <BottomSheetModalProvider>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar
+          style={theme === 'dark' ? 'light' : 'dark'}
+          translucent={Platform.OS === 'ios'}
+        />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
