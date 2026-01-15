@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
-  StatusBar,
 } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
@@ -64,6 +63,9 @@ export default function PassportTestScreen() {
   const [scanStatus, setScanStatus] = React.useState<string>("");
   const [scanProgress, setScanProgress] = React.useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
   const [detectedLines, setDetectedLines] = React.useState(0);
+  const [nfcProgress, setNfcProgress] = React.useState(0); // 0-100 for Android NFC progress bar
+  const progressQueueRef = React.useRef<number[]>([]);
+  const isProcessingProgressRef = React.useRef(false);
 
   // Android MRZ consecutive match tracking (for noisy OCR)
   const [lastMRZKey, setLastMRZKey] = React.useState<string | null>(null);
@@ -129,6 +131,43 @@ export default function PassportTestScreen() {
     initPrivateKey();
   }, []);
 
+  // Track progress changes
+  React.useEffect(() => {
+    if (Platform.OS === 'android') {
+      console.log(`📊 Progress bar updated: ${nfcProgress}%`);
+    }
+  }, [nfcProgress]);
+
+  // Process progress queue with minimum display time
+  const queueProgressUpdate = React.useCallback((newProgress: number) => {
+    if (Platform.OS !== 'android') return;
+
+    console.log(`📥 Queuing progress update: ${newProgress}%`);
+    progressQueueRef.current.push(newProgress);
+
+    if (!isProcessingProgressRef.current) {
+      processProgressQueue();
+    }
+  }, []);
+
+  const processProgressQueue = React.useCallback(() => {
+    if (progressQueueRef.current.length === 0) {
+      isProcessingProgressRef.current = false;
+      return;
+    }
+
+    isProcessingProgressRef.current = true;
+    const nextProgress = progressQueueRef.current.shift()!;
+
+    console.log(`⏳ Displaying progress: ${nextProgress}%`);
+    setNfcProgress(nextProgress);
+
+    // Wait 400ms before processing next update (enough time to see it)
+    setTimeout(() => {
+      processProgressQueue();
+    }, 400);
+  }, []);
+
   // Listen to EDocument scan events
   React.useEffect(() => {
     let listeners: any[] = [];
@@ -139,22 +178,36 @@ export default function PassportTestScreen() {
 
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
+            console.log('🔵 NFC Event: RequestPresentPassport - Setting progress to 10%');
             setScanStatus("📱 Approchez votre passeport du téléphone");
+            queueProgressUpdate(10);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
+            console.log('🔵 NFC Event: AuthenticatingWithPassport - Setting progress to 25%');
             setScanStatus("🔐 Authentification avec le passeport...");
+            queueProgressUpdate(25);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
+            console.log('🔵 NFC Event: ReadingDataGroupProgress - Setting progress to 60%');
             setScanStatus("📖 Lecture des données du passeport...");
+            queueProgressUpdate(60);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
+            console.log('🔵 NFC Event: ActiveAuthentication - Setting progress to 85%');
             setScanStatus("✅ Authentification active...");
+            queueProgressUpdate(85);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
+            console.log('🔵 NFC Event: SuccessfulRead - Setting progress to 100%');
             setScanStatus("✅ Lecture réussie !");
+            queueProgressUpdate(100);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
+            console.log('🔵 NFC Event: ScanError - Resetting progress to 0%');
             setScanStatus("❌ Erreur de lecture");
+            progressQueueRef.current = []; // Clear queue on error
+            isProcessingProgressRef.current = false;
+            setNfcProgress(0);
           }),
         ];
       } catch (error) {
@@ -564,6 +617,11 @@ export default function PassportTestScreen() {
       setError(null);
       setTagData(null);
       setScanStatus("");
+      if (Platform.OS === 'android') {
+        progressQueueRef.current = []; // Clear any pending progress updates
+        isProcessingProgressRef.current = false;
+        setNfcProgress(0);
+      }
 
       if (!documentNo || !birthDate || !expiryDate) {
         setError("Veuillez remplir tous les champs MRZ");
@@ -728,7 +786,6 @@ export default function PassportTestScreen() {
           headerShown: true,
           headerBackTitle: "Retour",
           headerTintColor: Colors.primary,
-          headerStatusBarHeight: Platform.OS === 'android' ? StatusBar.currentHeight : undefined,
           headerStyle: {
             backgroundColor: Colors.white,
           },
@@ -1060,6 +1117,18 @@ export default function PassportTestScreen() {
           {/* Passport Reading Buttons */}
           <Text style={styles.sectionTitle}>Lecture complète du passeport:</Text>
 
+          {scanStatus && (
+            <View style={styles.statusContainer}>
+              <Text style={styles.statusText}>{scanStatus}</Text>
+              {Platform.OS === 'android' && nfcProgress > 0 && (
+                <View style={styles.progressBarContainer}>
+                  <View style={[styles.progressBarFill, { width: `${nfcProgress}%` }]} />
+                  <Text style={styles.progressText}>{nfcProgress}%</Text>
+                </View>
+              )}
+            </View>
+          )}
+
           <TouchableOpacity
             style={[styles.scanButton, styles.scanButtonSecondary, isScanning && styles.scanButtonDisabled]}
             onPress={readPassportWithEDocument}
@@ -1100,12 +1169,6 @@ export default function PassportTestScreen() {
             </Text>
           </TouchableOpacity>
           */}
-
-          {scanStatus && isScanning && (
-            <View style={styles.statusContainer}>
-              <Text style={styles.statusText}>{scanStatus}</Text>
-            </View>
-          )}
 
           {error && (
             <View style={styles.errorContainer}>
@@ -1367,7 +1430,7 @@ const styles = StyleSheet.create({
     height: 44,
   },
   calendarButtonText: {
-    fontSize: 20,
+    fontSize: 16,
   },
   debugButton: {
     backgroundColor: '#F59E0B',
@@ -1458,6 +1521,30 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.body,
     color: "#1E40AF",
     textAlign: 'center',
+  },
+  progressBarContainer: {
+    marginTop: 12,
+    height: 24,
+    backgroundColor: '#93C5FD',
+    borderRadius: 6,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  progressBarFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#1E40AF',
+    borderRadius: 6,
+  },
+  progressText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.small,
+    color: '#1E40AF',
+    textAlign: 'center',
+    zIndex: 1,
   },
   errorContainer: {
     backgroundColor: "#FEE2E2",
