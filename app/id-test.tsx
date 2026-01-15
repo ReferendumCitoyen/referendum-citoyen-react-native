@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  StatusBar,
 } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
@@ -661,6 +662,7 @@ export default function IDTestScreen() {
           headerShown: true,
           headerBackTitle: "Retour",
           headerTintColor: Colors.primary,
+          headerStatusBarHeight: Platform.OS === 'android' ? StatusBar.currentHeight : undefined,
           headerStyle: {
             backgroundColor: Colors.white,
           },

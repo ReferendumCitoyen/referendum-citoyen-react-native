@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  StatusBar,
 } from "react-native";
 import DateTimePicker from '@react-native-community/datetimepicker';
 import NfcManager, { NfcTech } from "react-native-nfc-manager";
@@ -63,6 +64,10 @@ export default function PassportTestScreen() {
   const [scanStatus, setScanStatus] = React.useState<string>("");
   const [scanProgress, setScanProgress] = React.useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
   const [detectedLines, setDetectedLines] = React.useState(0);
+
+  // Android MRZ consecutive match tracking (for noisy OCR)
+  const [lastMRZKey, setLastMRZKey] = React.useState<string | null>(null);
+  const consecutiveMatchRef = React.useRef(0);
 
   // MRZ data for passport reading
   const [documentNo, setDocumentNo] = React.useState("");
@@ -201,9 +206,23 @@ export default function PassportTestScreen() {
       console.log("Trying TD3 parse:", sanitized);
 
       const result = parse(sanitized, { autocorrect: true });
+      console.log("MRZ parse result - valid:", result?.valid, "format:", result?.format);
+
       if (result?.valid && result.format === 'TD3') {
         console.log("✅ TD3 Passport detected:", result.fields);
         return { valid: true, linesFound: 2, fields: result.fields };
+      }
+
+      // Android fallback: accept if only composite check digit is invalid
+      // (OCR often misses the final digit at position 44)
+      if (Platform.OS === 'android' && result?.format === 'TD3' && result?.fields) {
+        const details = result.details || [];
+        const invalidFields = details.filter((d: any) => !d.valid);
+
+        if (invalidFields.length === 1 && invalidFields[0].field === 'compositeCheckDigit') {
+          console.log("✅ Android: Accepting MRZ with composite check digit OCR error");
+          return { valid: true, linesFound: 2, fields: result.fields };
+        }
       }
     } catch (err) {
       console.log("TD3 parse error:", err);
@@ -343,6 +362,27 @@ export default function PassportTestScreen() {
       const result = parseMRZ(lines);
 
       if (result?.valid && result.fields) {
+        // Create a key from the MRZ fields for comparison
+        const mrzKey = `${result.fields.documentNumber}-${result.fields.birthDate}-${result.fields.expirationDate}`;
+
+        // On Android, require 2 consecutive identical reads (OCR is noisy)
+        if (Platform.OS === 'android') {
+          if (mrzKey === lastMRZKey) {
+            consecutiveMatchRef.current += 1;
+          } else {
+            consecutiveMatchRef.current = 1;
+            setLastMRZKey(mrzKey);
+          }
+
+          if (consecutiveMatchRef.current < 2) {
+            console.log(`🔄 Android: MRZ match ${consecutiveMatchRef.current}/2 - ${mrzKey}`);
+            setScanProgress('partial');
+            setDetectedLines(2);
+            return;
+          }
+          console.log("✅ Android: MRZ confirmed after 2 matches");
+        }
+
         console.log("✅ MRZ Detected:", result.fields);
         setScanProgress('success');
 
@@ -350,6 +390,10 @@ export default function PassportTestScreen() {
         setDocumentNo((result.fields.documentNumber || "").trim().toUpperCase());
         setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
         setExpiryDate(convertMRZDateToFrench(result.fields.expirationDate || ""));
+
+        // Reset consecutive match tracking
+        consecutiveMatchRef.current = 0;
+        setLastMRZKey(null);
 
         // Close camera after brief delay to show success
         setTimeout(() => {
@@ -368,10 +412,13 @@ export default function PassportTestScreen() {
     }
   });
 
+  // Lower FPS on Android for better OCR accuracy (noisy on Android)
+  const scanFps = Platform.OS === 'android' ? 1 : 2;
+
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
 
-    runAtTargetFps(2, () => {
+    runAtTargetFps(scanFps, () => {
       'worklet';
 
       const data = scanText(frame);
@@ -681,6 +728,7 @@ export default function PassportTestScreen() {
           headerShown: true,
           headerBackTitle: "Retour",
           headerTintColor: Colors.primary,
+          headerStatusBarHeight: Platform.OS === 'android' ? StatusBar.currentHeight : undefined,
           headerStyle: {
             backgroundColor: Colors.white,
           },
