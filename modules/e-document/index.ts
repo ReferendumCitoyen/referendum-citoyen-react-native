@@ -10,6 +10,12 @@ import EDocumentModule from './src/EDocumentModule'
 import type { EDocumentModuleEvents } from './src/enums'
 import get from 'lodash/get'
 
+// Helper to clean MRZ name fields (remove < filler characters)
+const cleanMRZName = (name: string | null): string | null => {
+  if (!name) return null;
+  return name.replace(/<+/g, ' ').trim();
+};
+
 // Simplified interface without crypto dependencies
 export type PersonDetails = {
   firstName: string | null
@@ -74,8 +80,9 @@ export async function scanDocument(
     return {
       docCode: documentCode,
       personDetails: {
-        firstName: get(eDocumentJson, 'personDetails.primaryIdentifier', null),
-        lastName: get(eDocumentJson, 'personDetails.secondaryIdentifier', null),
+        // primaryIdentifier = surname (lastName), secondaryIdentifier = given names (firstName)
+        firstName: cleanMRZName(get(eDocumentJson, 'personDetails.secondaryIdentifier', null)),
+        lastName: cleanMRZName(get(eDocumentJson, 'personDetails.primaryIdentifier', null)),
         gender: get(eDocumentJson, 'personDetails.gender', null),
         birthDate: get(eDocumentJson, 'personDetails.dateOfBirth', null),
         expiryDate: get(eDocumentJson, 'personDetails.dateOfExpiry', null),
