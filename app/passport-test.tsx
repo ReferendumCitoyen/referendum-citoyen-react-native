@@ -38,13 +38,20 @@ const RARIME_TESTNET_CONFIG = {
 const PRIVATE_KEY_STORAGE_KEY = 'rarime_bjj_private_key';
 
 // Format MRZ date (YYMMDD) to human-readable (DD/MM/YYYY)
-const formatMRZDate = (mrzDate: string | null): string => {
+const formatMRZDate = (mrzDate: string | null, isExpiry: boolean = false): string => {
   if (!mrzDate || mrzDate.length !== 6) return mrzDate || 'N/A';
   const yy = parseInt(mrzDate.substring(0, 2), 10);
   const mm = mrzDate.substring(2, 4);
   const dd = mrzDate.substring(4, 6);
-  // Assume 00-30 is 2000s, 31-99 is 1900s
-  const yyyy = yy <= 30 ? 2000 + yy : 1900 + yy;
+
+  let yyyy: number;
+  if (isExpiry) {
+    // Expiration dates are always in 2000s (passports don't expire 100+ years ago)
+    yyyy = 2000 + yy;
+  } else {
+    // Birth dates: 00-30 = 2000s, 31-99 = 1900s
+    yyyy = yy <= 30 ? 2000 + yy : 1900 + yy;
+  }
   return `${dd}/${mm}/${yyyy}`;
 };
 
@@ -54,6 +61,8 @@ export default function PassportTestScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState<string>("");
+  const [scanProgress, setScanProgress] = React.useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
+  const [detectedLines, setDetectedLines] = React.useState(0);
 
   // MRZ data for passport reading
   const [documentNo, setDocumentNo] = React.useState("");
@@ -161,9 +170,22 @@ export default function PassportTestScreen() {
     };
   }, []);
 
+  // Check if a line looks like MRZ (contains << or starts with P<, has mostly valid chars)
+  const isMRZLike = (line: string): boolean => {
+    const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+    const hasMRZPattern = cleaned.includes('<<') || cleaned.startsWith('P<');
+    const validChars = cleaned.replace(/[A-Z0-9<]/g, '').length < 5; // Allow few OCR errors
+    const goodLength = cleaned.length >= 30; // MRZ lines are 44 chars, allow some tolerance
+    return hasMRZPattern && validChars && goodLength;
+  };
+
   // MRZ Parser for passports (TD3: 2 lines, 44 chars)
-  const parseMRZ = React.useCallback((lines: string[]) => {
-    if (lines.length < 2) return null;
+  const parseMRZ = React.useCallback((lines: string[]): { valid: boolean; linesFound: number; fields?: any } | null => {
+    // Count MRZ-like lines
+    const mrzLikeLines = lines.filter(isMRZLike);
+    const linesFound = Math.min(mrzLikeLines.length, 2);
+
+    if (lines.length < 2) return { valid: false, linesFound };
 
     try {
       // Take last 2 lines for TD3 passport format
@@ -181,13 +203,13 @@ export default function PassportTestScreen() {
       const result = parse(sanitized, { autocorrect: true });
       if (result?.valid && result.format === 'TD3') {
         console.log("✅ TD3 Passport detected:", result.fields);
-        return result;
+        return { valid: true, linesFound: 2, fields: result.fields };
       }
     } catch (err) {
       console.log("TD3 parse error:", err);
     }
 
-    return null;
+    return { valid: false, linesFound };
   }, []);
 
   // Convert YYMMDD to DD/MM/YY (French format)
@@ -320,20 +342,29 @@ export default function PassportTestScreen() {
     try {
       const result = parseMRZ(lines);
 
-      if (result?.valid) {
+      if (result?.valid && result.fields) {
         console.log("✅ MRZ Detected:", result.fields);
+        setScanProgress('success');
 
         // Auto-fill the form with dates in French format (DD/MM/YY)
         setDocumentNo((result.fields.documentNumber || "").trim().toUpperCase());
         setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
         setExpiryDate(convertMRZDateToFrench(result.fields.expirationDate || ""));
 
-        // Close camera
-        setShowCamera(false);
-        setError(null);
+        // Close camera after brief delay to show success
+        setTimeout(() => {
+          setShowCamera(false);
+          setError(null);
+        }, 500);
+      } else if (result && result.linesFound > 0) {
+        setScanProgress('partial');
+        setDetectedLines(result.linesFound);
+      } else {
+        setScanProgress('scanning');
       }
     } catch (err) {
       console.log("MRZ detection error:", err);
+      setScanProgress('scanning');
     }
   });
 
@@ -373,6 +404,8 @@ export default function PassportTestScreen() {
         return;
       }
     }
+    setScanProgress('scanning');
+    setDetectedLines(0);
     setShowCamera(true);
     setError(null);
   }
@@ -674,6 +707,25 @@ export default function PassportTestScreen() {
                 isActive={showCamera}
                 frameProcessor={frameProcessor}
               />
+              {/* Passport overlay guide */}
+              <View style={styles.passportOverlay}>
+                <View style={[
+                  styles.passportFrame,
+                  scanProgress === 'partial' && styles.passportFramePartial,
+                  scanProgress === 'success' && styles.passportFrameSuccess,
+                ]}>
+                  <View style={styles.passportTop}>
+                    <View style={styles.photoPlaceholder}>
+                      <Text style={styles.photoIcon}>👤</Text>
+                    </View>
+                    <Text style={styles.passportLabel}>PASSEPORT</Text>
+                  </View>
+                  <View style={styles.mrzZone}>
+                    <Text style={styles.mrzLine}>P&lt;XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</Text>
+                    <Text style={styles.mrzLine}>XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</Text>
+                  </View>
+                </View>
+              </View>
               <TouchableOpacity
                 style={styles.closeCameraButton}
                 onPress={() => setShowCamera(false)}
@@ -682,7 +734,9 @@ export default function PassportTestScreen() {
               </TouchableOpacity>
               <View style={styles.cameraOverlay}>
                 <Text style={styles.cameraInstructions}>
-                  Scannez les 2 lignes MRZ en bas du passeport
+                  {scanProgress === 'scanning' && "Recherche du MRZ..."}
+                  {scanProgress === 'partial' && `Trouvé ${detectedLines}/2 lignes MRZ`}
+                  {scanProgress === 'success' && "✅ MRZ détecté !"}
                 </Text>
               </View>
             </View>
@@ -1045,7 +1099,7 @@ export default function PassportTestScreen() {
 
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Date d'expiration:</Text>
-                    <Text style={styles.infoValue}>{formatMRZDate(tagData.personDetails?.expiryDate)}</Text>
+                    <Text style={styles.infoValue}>{formatMRZDate(tagData.personDetails?.expiryDate, true)}</Text>
                   </View>
                 </>
               ) : (
@@ -1129,6 +1183,72 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.body,
     textAlign: 'center',
+  },
+  passportOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  passportFrame: {
+    width: '85%',
+    aspectRatio: 1.42,
+    borderWidth: 3,
+    borderColor: '#00FF00',
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  passportFramePartial: {
+    borderColor: '#FBBF24',
+    borderWidth: 4,
+  },
+  passportFrameSuccess: {
+    borderColor: '#10B981',
+    borderWidth: 5,
+    backgroundColor: 'rgba(16,185,129,0.2)',
+  },
+  passportTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  passportLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontFamily: Typography.fontFamily.bold,
+    letterSpacing: 2,
+  },
+  photoPlaceholder: {
+    width: 60,
+    height: 75,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoIcon: {
+    fontSize: 30,
+    opacity: 0.5,
+  },
+  mrzZone: {
+    backgroundColor: 'rgba(0,255,0,0.2)',
+    borderWidth: 2,
+    borderColor: '#00FF00',
+    borderRadius: 4,
+    padding: 8,
+  },
+  mrzLine: {
+    color: '#00FF00',
+    fontSize: 9,
+    fontFamily: Typography.fontFamily.medium,
+    letterSpacing: 1,
+    opacity: 0.8,
   },
   mrzSection: {
     backgroundColor: Colors.white,
