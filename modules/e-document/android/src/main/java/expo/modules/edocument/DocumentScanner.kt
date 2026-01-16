@@ -343,13 +343,17 @@ class DocumentScanner(
     )
     service.open()
 
-    // CRITICAL: Select the eMRTD application BEFORE accessing EF_CARD_SECURITY
-    service.sendSelectApplet(false)
-
     // -- PACE (REQUIRED for French ID cards) -- //
     var paceSucceeded = false
     try {
-      val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+      // Try to read EF_CARD_SECURITY - some cards need app selected first, others don't
+      val cardSecurityFile = try {
+        CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+      } catch (e: Exception) {
+        // If file not found, try selecting application first
+        service.sendSelectApplet(false)
+        CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+      }
       val securityInfoCollection = cardSecurityFile.securityInfos
 
       // CRITICAL: Use ASCII encoding for CAN, not UTF-8
@@ -385,7 +389,7 @@ class DocumentScanner(
       )
     }
 
-    // Re-select applet with PACE secure channel established
+    // Select/re-select applet with PACE secure channel established
     service.sendSelectApplet(true)
 
     onReadingDataGroupProgress()
