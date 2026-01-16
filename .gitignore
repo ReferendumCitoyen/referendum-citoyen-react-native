@@ -48,3 +48,7 @@ Thumbs.db
 # generated native folders
 /ios
 /android
+
+# export folders (reference implementations from other projects)
+/french-id-scan-export
+/passport-scan-export

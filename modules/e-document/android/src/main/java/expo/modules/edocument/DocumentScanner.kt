@@ -217,7 +217,9 @@ class DocumentScanner(
 
       // Use CAN-based key if provided, otherwise use MRZ-based key
       val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        PACEKeySpec(bacKeyParameters.can.toByteArray(), 0x02.toByte())
+        // CRITICAL: Use ASCII encoding for CAN, not UTF-8
+        val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
+        PACEKeySpec(canBytes, 0x02.toByte())
       } else {
         bacKey
       }
@@ -246,6 +248,145 @@ class DocumentScanner(
         service.doBAC(bacKey)
       }
     }
+
+    onReadingDataGroupProgress()
+    // -- DG1 -- //
+    val dg1File = try { DG1File(service.getInputStream(PassportService.EF_DG1)) } catch(e: Exception) { null }
+    val mrzInfo = dg1File?.mrzInfo
+
+    // -- SOD -- //
+    val sodIn1 = service.getInputStream(PassportService.EF_SOD)
+    val byteArray = ByteArray(1024 * 1024)
+    val byteLen = sodIn1.read(byteArray)
+    val sod = cropByteArray(byteArray, byteLen)
+    val sodFile = SODFile(service.getInputStream(PassportService.EF_SOD))
+
+    // -- Face Image -- //
+    val dg2In = service.getInputStream(PassportService.EF_DG2)
+    val dg2File = DG2File(dg2In)
+
+    val faceInfos = dg2File.faceInfos
+    val allFaceImageInfos: MutableList<FaceImageInfo> = ArrayList()
+    for (faceInfo in faceInfos) {
+      allFaceImageInfos.addAll(faceInfo.faceImageInfos)
+    }
+    val passportImageRaw = if (allFaceImageInfos.isNotEmpty()) {
+      val faceImageInfo = allFaceImageInfos.iterator().next()
+      faceImageInfo.toBase64Image()
+    } else { null }
+
+    // -- DG11 -- //
+    val dg11File = try {
+      val dg11In = service.getInputStream(PassportService.EF_DG11)
+      DG11File(dg11In)
+    } catch (e: Exception) { null }
+
+    // -- DG15 -- //
+    val dg15File = try {
+      val dG15File = service.getInputStream(PassportService.EF_DG15)
+      DG15File(dG15File)
+    } catch (e: Exception) {
+      null
+    }
+
+    onActiveAuthentication()
+    // -- Active Authentication -- //
+    val aaSignature = try {
+      val response = service.doAA(
+        dg15File?.publicKey,
+        sodFile.digestAlgorithm,
+        sodFile.signerInfoDigestAlgorithm,
+        challenge
+      )
+      response.response
+    } catch (e: Exception) {
+      null
+    }
+
+    onSuccessfulRead()
+    return NFCDocumentModel(
+      mrzInfo = mrzInfo,
+      passportImageRaw = passportImageRaw,
+
+      dg1 = dg1File?.encoded,
+      dg11 = dg11File?.encoded,
+      dg15 = dg15File?.encoded,
+      sod = sodFile.encoded,
+      activeAuthenticationSignature = aaSignature,
+    )
+  }
+
+  fun scanIDCard(
+    onAuthenticatingWithPassport: () -> Unit = {},
+    onReadingDataGroupProgress: () -> Unit = {},
+    onActiveAuthentication: () -> Unit = {},
+    onSuccessfulRead: () -> Unit = {},
+  ): NFCDocumentModel {
+    // French ID cards REQUIRE CAN for PACE authentication
+    if (bacKeyParameters.can.isNullOrEmpty()) {
+      throw IllegalArgumentException(
+        "CAN is required for French ID card authentication. " +
+        "The CAN (Card Access Number) is a 6-digit number found on the back of the card."
+      )
+    }
+
+    onAuthenticatingWithPassport()
+    // Open the card service connection
+    val cardService = CardService.getInstance(isoDep)
+    cardService.open()
+    val service = PassportService(
+      cardService,
+      PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
+      PassportService.DEFAULT_MAX_BLOCKSIZE,
+      true,
+      false
+    )
+    service.open()
+
+    // CRITICAL: Select the eMRTD application BEFORE accessing EF_CARD_SECURITY
+    service.sendSelectApplet(false)
+
+    // -- PACE (REQUIRED for French ID cards) -- //
+    var paceSucceeded = false
+    try {
+      val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+      val securityInfoCollection = cardSecurityFile.securityInfos
+
+      // CRITICAL: Use ASCII encoding for CAN, not UTF-8
+      val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
+      val paceKey = PACEKeySpec(canBytes, 0x02.toByte())
+
+      for (securityInfo in securityInfoCollection) {
+        if (securityInfo is PACEInfo) {
+          val paceInfo = securityInfo
+          service.doPACE(
+            paceKey,
+            paceInfo.objectIdentifier,
+            PACEInfo.toParameterSpec(paceInfo.parameterId),
+            null
+          )
+          paceSucceeded = true
+        }
+      }
+    } catch (e: Exception) {
+      e.printStackTrace()
+      throw IllegalStateException(
+        "PACE authentication failed for ID card. " +
+        "Verify that the CAN (6 digits) is correct and the card is valid. " +
+        "Original error: ${e.message}",
+        e
+      )
+    }
+
+    if (!paceSucceeded) {
+      throw IllegalStateException(
+        "PACE authentication is required for French ID cards but was not successful. " +
+        "Verify that your card supports NFC and the CAN is correct."
+      )
+    }
+
+    // Re-select applet with PACE secure channel established
+    service.sendSelectApplet(true)
 
     onReadingDataGroupProgress()
     // -- DG1 -- //

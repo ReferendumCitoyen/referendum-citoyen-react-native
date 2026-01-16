@@ -62,6 +62,7 @@ class EDocumentModule : Module() {
 
   private var scanPromise: Promise? = null
 
+  private var documentType: String? = null
   private var bacKeyParameters: BacKeyParameters? = null
   private var scanChallenge: ByteArray? = null
 
@@ -79,7 +80,7 @@ class EDocumentModule : Module() {
 
     Name("EDocument")
 
-    AsyncFunction("scanDocument") { bacKeyParametersJson: String, challenge: ByteArray, promise: Promise ->
+    AsyncFunction("scanDocument") { docType: String, bacKeyParametersJson: String, challenge: ByteArray, promise: Promise ->
       val activity = appContext.reactContext ?: run {
         throw IllegalStateException("No current activity found")
       }
@@ -97,6 +98,7 @@ class EDocumentModule : Module() {
         throw IllegalStateException("No current activity found")
       }
 
+      documentType = docType
       bacKeyParameters = Gson().fromJson(bacKeyParametersJson, BacKeyParameters::class.java)
       scanChallenge = challenge
 
@@ -138,20 +140,46 @@ class EDocumentModule : Module() {
     )
 
     try {
-      val nfcDocument = docScanner.scanPassport(
-        onAuthenticatingWithPassport = {
-          sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
-        },
-        onReadingDataGroupProgress = {
-          sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
-        },
-        onActiveAuthentication = {
-          sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
-        },
-        onSuccessfulRead = {
-          sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
-        },
-      )
+      // Route to appropriate scanner based on document type
+      val nfcDocument = when (documentType) {
+        "I", "ID" -> {
+          // French ID card - requires PACE with CAN
+          docScanner.scanIDCard(
+            onAuthenticatingWithPassport = {
+              sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
+            },
+            onReadingDataGroupProgress = {
+              sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
+            },
+            onActiveAuthentication = {
+              sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
+            },
+            onSuccessfulRead = {
+              sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
+            },
+          )
+        }
+        "P", "PASSPORT" -> {
+          // Passport - may use PACE or BAC
+          docScanner.scanPassport(
+            onAuthenticatingWithPassport = {
+              sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
+            },
+            onReadingDataGroupProgress = {
+              sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
+            },
+            onActiveAuthentication = {
+              sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
+            },
+            onSuccessfulRead = {
+              sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
+            },
+          )
+        }
+        else -> {
+          throw IllegalArgumentException("Invalid document type: '$documentType'. Use 'P' for passport or 'I' for ID card.")
+        }
+      }
 
       val eDocument = EDocument.fromNfcDocumentModel(nfcDocument)
 
