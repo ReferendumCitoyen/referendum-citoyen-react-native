@@ -40,7 +40,11 @@ public class EDocumentModule: Module {
 
         // Defines a JavaScript function that always returns a Promise and whose native code
         // is by default dispatched on the different thread than the JavaScript runtime runs on.
-        AsyncFunction("scanDocument") { (bacKeyParametersJson: String, challenge: Data) in
+        AsyncFunction("scanDocument") { (documentType: String, bacKeyParametersJson: String, challenge: Data) in
+            // Note: documentType parameter added for consistency with Android
+            // iOS NFCPassportReader currently only supports passports, not ID cards
+            // For ID cards ('I'), we'll attempt to read but may encounter limitations
+
             let bacKeyParameters = try JSONDecoder().decode(BacKeyParameters.self, from: bacKeyParametersJson.data(using: .utf8)!)
 
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)

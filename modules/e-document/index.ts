@@ -40,7 +40,7 @@ export interface PassportData {
 }
 
 export async function scanDocument(
-  documentCode: string,
+  documentType: 'P' | 'I',  // 'P' = Passport, 'I' = ID card
   bacKeyParameters: {
     dateOfBirth: string
     dateOfExpiry: string
@@ -49,16 +49,18 @@ export async function scanDocument(
   },
   challenge: Uint8Array,
 ): Promise<PassportData> {
-  const eDocumentString = await EDocumentModule.scanDocument(
-    JSON.stringify(bacKeyParameters),
-    new Uint8Array(challenge),
-  )
+  try {
+    const eDocumentString = await EDocumentModule.scanDocument(
+      documentType,
+      JSON.stringify(bacKeyParameters),
+      new Uint8Array(challenge),
+    )
 
-  const eDocumentJson = JSON.parse(eDocumentString)
+    const eDocumentJson = JSON.parse(eDocumentString)
 
-  if (Platform.OS === 'ios') {
-    return {
-      docCode: documentCode,
+    if (Platform.OS === 'ios') {
+      return {
+        docCode: documentType,
       personDetails: {
         firstName: get(eDocumentJson, 'personDetails.firstName', null),
         lastName: get(eDocumentJson, 'personDetails.lastName', null),
@@ -77,29 +79,72 @@ export async function scanDocument(
       aaSignature: Buffer.from(get(eDocumentJson, 'signature', ''), 'base64'),
     }
   } else if (Platform.OS === 'android') {
-    return {
-      docCode: documentCode,
-      personDetails: {
-        // primaryIdentifier = surname (lastName), secondaryIdentifier = given names (firstName)
-        firstName: cleanMRZName(get(eDocumentJson, 'personDetails.secondaryIdentifier', null)),
-        lastName: cleanMRZName(get(eDocumentJson, 'personDetails.primaryIdentifier', null)),
-        gender: get(eDocumentJson, 'personDetails.gender', null),
-        birthDate: get(eDocumentJson, 'personDetails.dateOfBirth', null),
-        expiryDate: get(eDocumentJson, 'personDetails.dateOfExpiry', null),
-        documentNumber: get(eDocumentJson, 'personDetails.documentNumber', null),
-        nationality: get(eDocumentJson, 'personDetails.nationality', null),
-        issuingAuthority: get(eDocumentJson, 'personDetails.issuingState', null),
-        passportImageRaw: get(eDocumentJson, 'personDetails.passportImageRaw', null),
-      },
-      sodBytes: Buffer.from(get(eDocumentJson, 'sod', ''), 'base64'),
-      dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', ''), 'base64'),
-      dg15Bytes: Buffer.from(get(eDocumentJson, 'dg15', ''), 'base64'),
-      dg11Bytes: Buffer.from(get(eDocumentJson, 'dg11', ''), 'base64'),
-      aaSignature: Buffer.from(get(eDocumentJson, 'signature', ''), 'base64'),
+      return {
+        docCode: documentType,
+        personDetails: {
+          // primaryIdentifier = surname (lastName), secondaryIdentifier = given names (firstName)
+          firstName: cleanMRZName(get(eDocumentJson, 'personDetails.secondaryIdentifier', null)),
+          lastName: cleanMRZName(get(eDocumentJson, 'personDetails.primaryIdentifier', null)),
+          gender: get(eDocumentJson, 'personDetails.gender', null),
+          birthDate: get(eDocumentJson, 'personDetails.dateOfBirth', null),
+          expiryDate: get(eDocumentJson, 'personDetails.dateOfExpiry', null),
+          documentNumber: get(eDocumentJson, 'personDetails.documentNumber', null),
+          nationality: get(eDocumentJson, 'personDetails.nationality', null),
+          issuingAuthority: get(eDocumentJson, 'personDetails.issuingState', null),
+          passportImageRaw: get(eDocumentJson, 'personDetails.passportImageRaw', null),
+        },
+        sodBytes: Buffer.from(get(eDocumentJson, 'sod', ''), 'base64'),
+        dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', ''), 'base64'),
+        dg15Bytes: Buffer.from(get(eDocumentJson, 'dg15', ''), 'base64'),
+        dg11Bytes: Buffer.from(get(eDocumentJson, 'dg11', ''), 'base64'),
+        aaSignature: Buffer.from(get(eDocumentJson, 'signature', ''), 'base64'),
+      }
     }
-  }
 
-  throw new TypeError('Unsupported platform')
+    throw new TypeError('Unsupported platform')
+  } catch (error: any) {
+    // Enhanced error messages for French users
+    let errorMessage = error.message || 'Unknown error during document scan'
+
+    // Check for common error patterns and provide French translations
+    if (errorMessage.includes('6982') || errorMessage.includes('SECURITY STATUS')) {
+      if (documentType === 'I') {
+        errorMessage =
+          "❌ Erreur d'authentification de la carte d'identité\n\n" +
+          "Les cartes d'identité françaises nécessitent le numéro CAN (6 chiffres) " +
+          "pour l'authentification PACE.\n\n" +
+          "📍 Trouvez le CAN en bas à droite au dos de votre carte.\n\n" +
+          "Vérifiez également que :\n" +
+          "• Le CAN est correct (6 chiffres)\n" +
+          "• La date de naissance est au format JJ/MM/AA\n" +
+          "• La date d'expiration est au format JJ/MM/AA\n" +
+          "• Le numéro de document est correct"
+      } else {
+        errorMessage =
+          "❌ Erreur d'authentification du passeport\n\n" +
+          "Vérifiez que :\n" +
+          "• La date de naissance est au format JJ/MM/AA\n" +
+          "• La date d'expiration est au format JJ/MM/AA\n" +
+          "• Le numéro de passeport est correct\n\n" +
+          "Pour les passeports récents, essayez d'ajouter le numéro CAN si disponible."
+      }
+    } else if (errorMessage.toLowerCase().includes('can') && errorMessage.toLowerCase().includes('required')) {
+      errorMessage =
+        "❌ CAN obligatoire\n\n" +
+        "Les cartes d'identité françaises nécessitent le CAN (6 chiffres) " +
+        "pour l'authentification PACE.\n\n" +
+        "📍 Trouvez le CAN en bas à droite au dos de votre carte."
+    } else if (errorMessage.includes('NFC')) {
+      errorMessage =
+        "❌ Erreur NFC\n\n" +
+        "Assurez-vous que :\n" +
+        "• Le NFC est activé sur votre téléphone\n" +
+        "• Vous maintenez le document contre le téléphone pendant toute la lecture\n" +
+        "• Le document est bien positionné sur le lecteur NFC"
+    }
+
+    throw new Error(errorMessage)
+  }
 }
 
 const EDocumentModuleEmitter = new EventEmitter(EDocumentModule)

@@ -557,6 +557,14 @@ export default function IDTestScreen() {
         return;
       }
 
+      // French ID cards REQUIRE a valid 6-digit CAN
+      if (!can || can.length !== 6) {
+        setError("Le CAN (6 chiffres) est obligatoire pour les cartes d'identité françaises. Trouvez-le en bas à droite au dos de votre carte.");
+        setIsScanning(false);
+        setScanStatus("");
+        return;
+      }
+
       console.log("=== STARTING EDOCUMENT READER ===");
       console.log("Document No:", documentNo);
       console.log("Birth Date (input):", birthDate);
@@ -850,9 +858,23 @@ export default function IDTestScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>CAN (6 chiffres en bas à droite)</Text>
+              <View style={styles.labelWithValidation}>
+                <Text style={styles.inputLabel}>CAN (6 chiffres en bas à droite) *</Text>
+                {can.length > 0 && (
+                  <Text style={[
+                    styles.validationIndicator,
+                    can.length === 6 ? styles.validationComplete : styles.validationIncomplete
+                  ]}>
+                    {can.length === 6 ? '✓' : `${can.length}/6`}
+                  </Text>
+                )}
+              </View>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  can.length === 6 && styles.inputValid,
+                  can.length > 0 && can.length < 6 && styles.inputInvalid
+                ]}
                 placeholder="123456"
                 placeholderTextColor="#9CA3AF"
                 value={can}
@@ -860,6 +882,11 @@ export default function IDTestScreen() {
                 keyboardType="numeric"
                 maxLength={6}
               />
+              {can.length > 0 && can.length < 6 && (
+                <Text style={styles.validationError}>
+                  Le CAN doit contenir exactement 6 chiffres
+                </Text>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -1263,6 +1290,28 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: 4,
   },
+  labelWithValidation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  validationIndicator: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.small,
+  },
+  validationComplete: {
+    color: '#10B981', // Green
+  },
+  validationIncomplete: {
+    color: '#F59E0B', // Orange
+  },
+  validationError: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    color: '#EF4444', // Red
+    marginTop: 4,
+  },
   input: {
     backgroundColor: "#FFFFFF",
     paddingVertical: 12,
@@ -1273,6 +1322,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     borderWidth: 1,
     borderColor: "#E5E7EB",
+  },
+  inputValid: {
+    borderColor: '#10B981',
+    borderWidth: 2,
+  },
+  inputInvalid: {
+    borderColor: '#F59E0B',
+    borderWidth: 2,
   },
   dateInputRow: {
     flexDirection: 'row',
