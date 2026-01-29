@@ -10,6 +10,7 @@ import org.jmrtd.BACKey
 import org.jmrtd.PACEKeySpec
 import org.jmrtd.PassportService
 import org.jmrtd.lds.CardAccessFile
+import org.jmrtd.lds.CardSecurityFile
 import org.jmrtd.lds.PACEInfo
 import org.jmrtd.lds.SODFile
 import org.jmrtd.lds.icao.DG11File
@@ -222,13 +223,12 @@ class DocumentScanner(
         bacKey
       }
 
-      for (securityInfo in securityInfoCollection) {
+      for (securityInfo in securityInfoCollection.toList()) {
         if (securityInfo is PACEInfo) {
-          val paceInfo = securityInfo
           service.doPACE(
             paceKey,
-            paceInfo.objectIdentifier,
-            PACEInfo.toParameterSpec(paceInfo.parameterId),
+            securityInfo.objectIdentifier,
+            PACEInfo.toParameterSpec(securityInfo.parameterId),
             null
           )
           paceSucceeded = true
@@ -355,13 +355,12 @@ class DocumentScanner(
       val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
       val paceKey = PACEKeySpec(canBytes, 0x02.toByte())
 
-      for (securityInfo in securityInfoCollection) {
+      for (securityInfo in securityInfoCollection.toList()) {
         if (securityInfo is PACEInfo) {
-          val paceInfo = securityInfo
           service.doPACE(
             paceKey,
-            paceInfo.objectIdentifier,
-            PACEInfo.toParameterSpec(paceInfo.parameterId),
+            securityInfo.objectIdentifier,
+            PACEInfo.toParameterSpec(securityInfo.parameterId),
             null
           )
           paceSucceeded = true
