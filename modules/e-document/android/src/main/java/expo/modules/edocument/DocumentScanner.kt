@@ -9,7 +9,7 @@ import org.bouncycastle.asn1.cms.SignedData
 import org.jmrtd.BACKey
 import org.jmrtd.PACEKeySpec
 import org.jmrtd.PassportService
-import org.jmrtd.lds.CardSecurityFile
+import org.jmrtd.lds.CardAccessFile
 import org.jmrtd.lds.PACEInfo
 import org.jmrtd.lds.SODFile
 import org.jmrtd.lds.icao.DG11File
@@ -215,9 +215,7 @@ class DocumentScanner(
       val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
       val securityInfoCollection = cardSecurityFile.securityInfos
 
-      // Use CAN-based key if provided, otherwise use MRZ-based key
       val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        // CRITICAL: Use ASCII encoding for CAN, not UTF-8
         val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
         PACEKeySpec(canBytes, 0x02.toByte())
       } else {
@@ -346,17 +344,14 @@ class DocumentScanner(
     // -- PACE (REQUIRED for French ID cards) -- //
     var paceSucceeded = false
     try {
-      // Try to read EF_CARD_SECURITY - some cards need app selected first, others don't
-      val cardSecurityFile = try {
-        CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+      val cardAccessFile = try {
+        CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
       } catch (e: Exception) {
-        // If file not found, try selecting application first
         service.sendSelectApplet(false)
-        CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
+        CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
       }
-      val securityInfoCollection = cardSecurityFile.securityInfos
+      val securityInfoCollection = cardAccessFile.securityInfos
 
-      // CRITICAL: Use ASCII encoding for CAN, not UTF-8
       val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
       val paceKey = PACEKeySpec(canBytes, 0x02.toByte())
 
@@ -389,7 +384,6 @@ class DocumentScanner(
       )
     }
 
-    // Select/re-select applet with PACE secure channel established
     service.sendSelectApplet(true)
 
     onReadingDataGroupProgress()
