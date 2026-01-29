@@ -383,7 +383,7 @@ class DocumentScanner(
       )
     }
 
-    service.sendSelectApplet(true)
+    service.sendSelectApplet(false)
 
     onReadingDataGroupProgress()
     // -- DG1 -- //
