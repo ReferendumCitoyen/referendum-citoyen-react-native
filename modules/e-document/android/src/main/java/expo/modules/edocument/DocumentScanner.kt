@@ -383,8 +383,6 @@ class DocumentScanner(
       )
     }
 
-    service.sendSelectApplet(false)
-
     onReadingDataGroupProgress()
     // -- DG1 -- //
     val dg1File = try { DG1File(service.getInputStream(PassportService.EF_DG1)) } catch(e: Exception) { null }
