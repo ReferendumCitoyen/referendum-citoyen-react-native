@@ -196,11 +196,16 @@ class DocumentScanner(
     onReadingDataGroupProgress: () -> Unit = {},
     onActiveAuthentication: () -> Unit = {},
     onSuccessfulRead: () -> Unit = {},
+    onDebugLog: (String) -> Unit = {},
   ): NFCDocumentModel {
     onAuthenticatingWithPassport()
-    // Open the card service connection
-    val cardService = CardService.getInstance(isoDep)
-    cardService.open()
+    onDebugLog("=== Starting Passport Scan ===")
+
+    // Open the card service connection with logging wrapper
+    val rawCardService = CardService.getInstance(isoDep)
+    rawCardService.open()
+    val cardService = LoggingCardService(rawCardService, onDebugLog)
+
     val service = PassportService(
       cardService,
       PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
@@ -213,18 +218,25 @@ class DocumentScanner(
     // -- PACE -- //
     var paceSucceeded = false
     try {
+      onDebugLog("=== Trying PACE Authentication ===")
+      onDebugLog("Reading EF_CARD_SECURITY...")
       val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
       val securityInfoCollection = cardSecurityFile.securityInfos
+      onDebugLog("Found ${securityInfoCollection.size} security infos")
 
       val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
+        onDebugLog("Using CAN for PACE: ${bacKeyParameters.can}")
+        val canBytes = bacKeyParameters.can!!.toByteArray(Charsets.US_ASCII)
         PACEKeySpec(canBytes, 0x02.toByte())
       } else {
+        onDebugLog("Using MRZ-derived key for PACE")
         bacKey
       }
 
       for (securityInfo in securityInfoCollection.toList()) {
         if (securityInfo is PACEInfo) {
+          onDebugLog("PACE OID: ${securityInfo.objectIdentifier}")
+          onDebugLog("PACE paramId: ${securityInfo.parameterId}")
           service.doPACE(
             paceKey,
             securityInfo.objectIdentifier,
@@ -232,36 +244,54 @@ class DocumentScanner(
             null
           )
           paceSucceeded = true
+          onDebugLog("=== PACE SUCCEEDED ===")
         }
       }
     } catch (e: Exception) {
+      onDebugLog("[ERROR] PACE failed: ${e.message}")
       e.printStackTrace()
     }
     service.sendSelectApplet(paceSucceeded)
     if (!paceSucceeded) {
+      onDebugLog("=== Trying BAC Authentication ===")
       try {
         service.getInputStream(PassportService.EF_COM).read()
+        onDebugLog("Direct access OK")
       } catch (e: Exception) {
+        onDebugLog("Direct access failed, trying BAC...")
         e.printStackTrace()
         service.doBAC(bacKey)
+        onDebugLog("BAC succeeded")
       }
     }
 
     onReadingDataGroupProgress()
     // -- DG1 -- //
-    val dg1File = try { DG1File(service.getInputStream(PassportService.EF_DG1)) } catch(e: Exception) { null }
+    onDebugLog("Reading DG1...")
+    val dg1File = try {
+      val result = DG1File(service.getInputStream(PassportService.EF_DG1))
+      onDebugLog("DG1 read OK")
+      result
+    } catch(e: Exception) {
+      onDebugLog("[ERROR] DG1 failed: ${e.message}")
+      null
+    }
     val mrzInfo = dg1File?.mrzInfo
 
     // -- SOD -- //
+    onDebugLog("Reading SOD...")
     val sodIn1 = service.getInputStream(PassportService.EF_SOD)
     val byteArray = ByteArray(1024 * 1024)
     val byteLen = sodIn1.read(byteArray)
     val sod = cropByteArray(byteArray, byteLen)
     val sodFile = SODFile(service.getInputStream(PassportService.EF_SOD))
+    onDebugLog("SOD read OK (${byteLen} bytes)")
 
     // -- Face Image -- //
+    onDebugLog("Reading DG2 (face image)...")
     val dg2In = service.getInputStream(PassportService.EF_DG2)
     val dg2File = DG2File(dg2In)
+    onDebugLog("DG2 read OK")
 
     val faceInfos = dg2File.faceInfos
     val allFaceImageInfos: MutableList<FaceImageInfo> = ArrayList()
@@ -274,30 +304,44 @@ class DocumentScanner(
     } else { null }
 
     // -- DG11 -- //
+    onDebugLog("Reading DG11 (additional personal details)...")
     val dg11File = try {
       val dg11In = service.getInputStream(PassportService.EF_DG11)
-      DG11File(dg11In)
-    } catch (e: Exception) { null }
+      val result = DG11File(dg11In)
+      onDebugLog("DG11 read OK")
+      result
+    } catch (e: Exception) {
+      onDebugLog("DG11 not available: ${e.message}")
+      null
+    }
 
     // -- DG15 -- //
+    onDebugLog("Reading DG15 (public key)...")
     val dg15File = try {
       val dG15File = service.getInputStream(PassportService.EF_DG15)
-      DG15File(dG15File)
+      val result = DG15File(dG15File)
+      onDebugLog("DG15 read OK")
+      result
     } catch (e: Exception) {
+      onDebugLog("DG15 not available: ${e.message}")
       null
     }
 
     onActiveAuthentication()
     // -- Active Authentication -- //
-    val aaSignature = try {
+    onDebugLog("=== Active Authentication ===")
+    val aaSignature: ByteArray? = try {
+      onDebugLog("Challenge: ${challenge.joinToString("") { "%02X".format(it) }}")
       val response = service.doAA(
         dg15File?.publicKey,
         sodFile.digestAlgorithm,
         sodFile.signerInfoDigestAlgorithm,
         challenge
       )
+      onDebugLog("AA succeeded")
       response.response
     } catch (e: Exception) {
+      onDebugLog("[ERROR] AA failed: ${e.message}")
       null
     }
 
@@ -319,21 +363,16 @@ class DocumentScanner(
     onReadingDataGroupProgress: () -> Unit = {},
     onActiveAuthentication: () -> Unit = {},
     onSuccessfulRead: () -> Unit = {},
+    onDebugLog: (String) -> Unit = {},
   ): NFCDocumentModel {
-    // French ID cards REQUIRE CAN for PACE authentication
-    if (bacKeyParameters.can.isNullOrEmpty()) {
-      throw IllegalArgumentException(
-        "CAN is required for French ID card authentication. " +
-        "The CAN (Card Access Number) is a 6-digit number found on the back of the card."
-      )
-    }
-
     onAuthenticatingWithPassport()
-    // Open the card service connection
-    val cardService = CardService.getInstance(isoDep)
-    cardService.open()
+    // Open the card service connection with logging wrapper
+    val rawCardService = CardService.getInstance(isoDep)
+    rawCardService.open()
+    val loggingCardService = LoggingCardService(rawCardService, onDebugLog)
+
     val service = PassportService(
-      cardService,
+      loggingCardService,
       PassportService.NORMAL_MAX_TRANCEIVE_LENGTH,
       PassportService.DEFAULT_MAX_BLOCKSIZE,
       true,
@@ -341,80 +380,103 @@ class DocumentScanner(
     )
     service.open()
 
-    // -- PACE (REQUIRED for French ID cards) -- //
+    // -- PACE (for French ID cards) -- //
     var paceSucceeded = false
-    try {
-      android.util.Log.d("IDCard", "Reading EF_CARD_ACCESS...")
-      val cardAccessFile = try {
-        CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
-      } catch (e: Exception) {
-        android.util.Log.d("IDCard", "First attempt failed, selecting applet: ${e.message}")
-        service.sendSelectApplet(false)
-        CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
-      }
-      val securityInfoCollection = cardAccessFile.securityInfos
-      android.util.Log.d("IDCard", "Found ${securityInfoCollection.size} security infos")
 
-      val canBytes = bacKeyParameters.can.toByteArray(Charsets.US_ASCII)
-      val paceKey = PACEKeySpec(canBytes, 0x02.toByte())
+    if (!bacKeyParameters.can.isNullOrEmpty()) {
+      try {
+        onDebugLog("=== PACE Authentication Starting ===")
+        onDebugLog("CAN: ${bacKeyParameters.can}")
 
-      for (securityInfo in securityInfoCollection.toList()) {
-        if (securityInfo is PACEInfo) {
-          android.util.Log.d("IDCard", "PACE OID: ${securityInfo.objectIdentifier}, paramId: ${securityInfo.parameterId}")
-          service.doPACE(
-            paceKey,
-            securityInfo.objectIdentifier,
-            PACEInfo.toParameterSpec(securityInfo.parameterId),
-            null
-          )
-          paceSucceeded = true
-          android.util.Log.d("IDCard", "PACE succeeded!")
+        val canBytes = bacKeyParameters.can!!.toByteArray(Charsets.US_ASCII)
+        onDebugLog("CAN hex: ${canBytes.joinToString("") { "%02X".format(it) }}")
+
+        onDebugLog("Reading EF_CARD_ACCESS...")
+        val cardAccessFile = CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
+        val securityInfoCollection = cardAccessFile.securityInfos
+        onDebugLog("Found ${securityInfoCollection.size} security infos")
+
+        val paceKey = PACEKeySpec(canBytes, 0x02.toByte())
+        onDebugLog("PACE Key Type: CAN (0x02)")
+
+        for (securityInfo in securityInfoCollection.toList()) {
+          if (securityInfo is PACEInfo) {
+            onDebugLog("PACE OID: ${securityInfo.objectIdentifier}")
+            onDebugLog("PACE paramId: ${securityInfo.parameterId}")
+            onDebugLog("Starting PACE handshake...")
+            service.doPACE(
+              paceKey,
+              securityInfo.objectIdentifier,
+              PACEInfo.toParameterSpec(securityInfo.parameterId),
+              null
+            )
+            paceSucceeded = true
+            onDebugLog("=== PACE SUCCEEDED ===")
+          }
         }
+      } catch (e: Exception) {
+        onDebugLog("[ERROR] PACE failed: ${e.message}")
+        e.printStackTrace()
+        // Continue to try without PACE or with BAC
       }
-    } catch (e: Exception) {
-      android.util.Log.e("IDCard", "PACE failed: ${e.message}", e)
-      throw IllegalStateException(
-        "PACE authentication failed for ID card. " +
-        "Verify that the CAN (6 digits) is correct and the card is valid. " +
-        "Original error: ${e.message}",
-        e
-      )
+    } else {
+      onDebugLog("=== No CAN provided, skipping PACE ===")
     }
 
+    // If PACE failed or was skipped, try BAC or direct access
     if (!paceSucceeded) {
-      throw IllegalStateException(
-        "PACE authentication is required for French ID cards but was not successful. " +
-        "Verify that your card supports NFC and the CAN is correct."
-      )
+      onDebugLog("=== Trying without PACE (BAC fallback) ===")
+      try {
+        service.sendSelectApplet(false)
+        // Try to read EF_COM to check if we can access without auth
+        try {
+          service.getInputStream(PassportService.EF_COM).read()
+          onDebugLog("Direct access OK (no auth required)")
+        } catch (e: Exception) {
+          onDebugLog("Direct access failed, trying BAC...")
+          service.doBAC(bacKey)
+          onDebugLog("BAC succeeded")
+        }
+      } catch (e: Exception) {
+        onDebugLog("[ERROR] BAC also failed: ${e.message}")
+        throw IllegalStateException(
+          "Authentication failed for ID card. " +
+          "Try providing the CAN (6 digits) from the back of the card. " +
+          "Original error: ${e.message}",
+          e
+        )
+      }
+    } else {
+      service.sendSelectApplet(true)
     }
 
     onReadingDataGroupProgress()
     // -- DG1 -- //
-    android.util.Log.d("IDCard", "Reading DG1...")
+    onDebugLog( "Reading DG1...")
     val dg1File = try {
       val result = DG1File(service.getInputStream(PassportService.EF_DG1))
-      android.util.Log.d("IDCard", "DG1 read OK")
+      onDebugLog( "DG1 read OK")
       result
     } catch(e: Exception) {
-      android.util.Log.e("IDCard", "DG1 failed: ${e.message}", e)
+      onDebugLog("[ERROR] DG1 failed: ${e.message}")
       null
     }
     val mrzInfo = dg1File?.mrzInfo
 
     // -- SOD -- //
-    android.util.Log.d("IDCard", "Reading SOD...")
+    onDebugLog( "Reading SOD...")
     val sodIn1 = service.getInputStream(PassportService.EF_SOD)
     val byteArray = ByteArray(1024 * 1024)
     val byteLen = sodIn1.read(byteArray)
     val sod = cropByteArray(byteArray, byteLen)
     val sodFile = SODFile(service.getInputStream(PassportService.EF_SOD))
-    android.util.Log.d("IDCard", "SOD read OK, $byteLen bytes")
+    onDebugLog( "SOD read OK, $byteLen bytes")
 
     // -- Face Image -- //
-    android.util.Log.d("IDCard", "Reading DG2 (face image)...")
+    onDebugLog( "Reading DG2 (face image)...")
     val dg2In = service.getInputStream(PassportService.EF_DG2)
     val dg2File = DG2File(dg2In)
-    android.util.Log.d("IDCard", "DG2 read OK, ${dg2File.faceInfos.size} faces found")
+    onDebugLog( "DG2 read OK, ${dg2File.faceInfos.size} faces found")
 
     val faceInfos = dg2File.faceInfos
     val allFaceImageInfos: MutableList<FaceImageInfo> = ArrayList()
@@ -427,32 +489,32 @@ class DocumentScanner(
     } else { null }
 
     // -- DG11 -- //
-    android.util.Log.d("IDCard", "Reading DG11...")
+    onDebugLog( "Reading DG11...")
     val dg11File = try {
       val dg11In = service.getInputStream(PassportService.EF_DG11)
       val result = DG11File(dg11In)
-      android.util.Log.d("IDCard", "DG11 read OK")
+      onDebugLog( "DG11 read OK")
       result
     } catch (e: Exception) {
-      android.util.Log.d("IDCard", "DG11 not available: ${e.message}")
+      onDebugLog( "DG11 not available: ${e.message}")
       null
     }
 
     // -- DG15 -- //
-    android.util.Log.d("IDCard", "Reading DG15...")
+    onDebugLog( "Reading DG15...")
     val dg15File = try {
       val dG15File = service.getInputStream(PassportService.EF_DG15)
       val result = DG15File(dG15File)
-      android.util.Log.d("IDCard", "DG15 read OK")
+      onDebugLog( "DG15 read OK")
       result
     } catch (e: Exception) {
-      android.util.Log.d("IDCard", "DG15 not available: ${e.message}")
+      onDebugLog( "DG15 not available: ${e.message}")
       null
     }
 
     onActiveAuthentication()
     // -- Active Authentication -- //
-    android.util.Log.d("IDCard", "Starting Active Authentication...")
+    onDebugLog( "Starting Active Authentication...")
     val aaSignature = try {
       val response = service.doAA(
         dg15File?.publicKey,
@@ -460,14 +522,14 @@ class DocumentScanner(
         sodFile.signerInfoDigestAlgorithm,
         challenge
       )
-      android.util.Log.d("IDCard", "AA succeeded")
+      onDebugLog( "AA succeeded")
       response.response
     } catch (e: Exception) {
-      android.util.Log.d("IDCard", "AA failed: ${e.message}")
+      onDebugLog( "AA failed: ${e.message}")
       null
     }
 
-    android.util.Log.d("IDCard", "ID Card scan complete!")
+    onDebugLog( "ID Card scan complete!")
     onSuccessfulRead()
     return NFCDocumentModel(
       mrzInfo = mrzInfo,

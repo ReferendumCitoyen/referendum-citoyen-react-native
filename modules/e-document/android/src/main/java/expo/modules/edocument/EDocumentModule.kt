@@ -53,6 +53,7 @@ enum class DocumentScanEvents(val value: String) {
   ACTIVE_AUTHENTICATION("ACTIVE_AUTHENTICATION"),
   SUCCESSFUL_READ("SUCCESSFUL_READ"),
   SCAN_ERROR("SCAN_ERROR"),
+  DEBUG_LOG("DEBUG_LOG"),
 
   SCAN_STOPPED("SCAN_STOPPED"),
 }
@@ -75,6 +76,7 @@ class EDocumentModule : Module() {
       DocumentScanEvents.ACTIVE_AUTHENTICATION.value,
       DocumentScanEvents.SUCCESSFUL_READ.value,
       DocumentScanEvents.SCAN_ERROR.value,
+      DocumentScanEvents.DEBUG_LOG.value,
       DocumentScanEvents.SCAN_STOPPED.value,
     )
 
@@ -157,6 +159,9 @@ class EDocumentModule : Module() {
             onSuccessfulRead = {
               sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
             },
+            onDebugLog = { message ->
+              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+            },
           )
         }
         "P", "PASSPORT" -> {
@@ -173,6 +178,9 @@ class EDocumentModule : Module() {
             },
             onSuccessfulRead = {
               sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
+            },
+            onDebugLog = { message ->
+              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
             },
           )
         }

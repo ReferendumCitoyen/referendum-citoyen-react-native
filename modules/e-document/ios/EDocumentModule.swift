@@ -10,6 +10,7 @@ enum DocumentScanEvents: String {
     case activeAuthentication = "ACTIVE_AUTHENTICATION"
     case successfulRead = "SUCCESSFUL_READ"
     case scanError = "SCAN_ERROR"
+    case debugLog = "DEBUG_LOG"
 
     case scanStopped = "SCAN_STOPPED"
 }
@@ -29,6 +30,7 @@ public class EDocumentModule: Module {
             DocumentScanEvents.activeAuthentication.rawValue,
             DocumentScanEvents.successfulRead.rawValue,
             DocumentScanEvents.scanError.rawValue,
+            DocumentScanEvents.debugLog.rawValue,
 
             DocumentScanEvents.scanStopped.rawValue
         )
@@ -47,9 +49,23 @@ public class EDocumentModule: Module {
 
             let bacKeyParameters = try JSONDecoder().decode(BacKeyParameters.self, from: bacKeyParametersJson.data(using: .utf8)!)
 
+            // Debug log helper
+            let debugLog: (String) -> Void = { message in
+                self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": message])
+            }
+
+            debugLog("=== iOS NFC Scan Starting ===")
+            debugLog("Document Type: \(documentType)")
+            debugLog("Document Number: \(bacKeyParameters.documentNumber)")
+            if let can = bacKeyParameters.can {
+                debugLog("CAN: \(can)")
+            }
+
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
+            debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
 
             do {
+                debugLog("Starting PassportReader...")
                 let nfcPassport = try await PassportReader()
                     .readPassport(
                         mrzKey: mrzKey,
@@ -98,12 +114,19 @@ public class EDocumentModule: Module {
                         }
                     )
 
+                debugLog("=== NFC Read Complete ===")
                 let passport = Passport.fromNFCPassportModel(nfcPassport)
+                debugLog("DG1 size: \(passport.dg1.count) chars")
+                debugLog("DG15 size: \(passport.dg15.count) chars")
+                debugLog("SOD size: \(passport.sod.count) chars")
+                debugLog("Signature size: \(passport.signature.count) chars")
 
                 let passportJsonBytes = try passport.serialize()
+                debugLog("=== iOS NFC Scan SUCCESS ===")
 
                 return String(data: passportJsonBytes, encoding: .utf8)!
             } catch {
+                debugLog("[ERROR] \(error.localizedDescription)")
                 self.sendEvent(DocumentScanEvents.scanError.rawValue)
                 throw DocumentScannerError(error.localizedDescription)
             }

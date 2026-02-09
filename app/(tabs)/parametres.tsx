@@ -108,6 +108,19 @@ export default function ParametresScreen() {
               <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
+
+          {/* CAN Scan Row */}
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>Scan CAN (ID)</Text>
+            <TouchableOpacity
+              style={styles.settingValueContainer}
+              activeOpacity={0.7}
+              onPress={() => router.push('/can-scan')}
+            >
+              <Text style={styles.settingValue}>Ouvrir</Text>
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Version Text */}

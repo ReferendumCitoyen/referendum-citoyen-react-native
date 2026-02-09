@@ -75,6 +75,10 @@ export default function IDTestScreen() {
   const [expiryDate, setExpiryDate] = React.useState(""); // JJ/MM/AA format for display
   const [can, setCan] = React.useState("");
 
+  // NFC Debug logs state
+  const [nfcLogs, setNfcLogs] = React.useState<string[]>([]);
+  const [showLogs, setShowLogs] = React.useState(true);
+
   // Date picker state
   const [showBirthDatePicker, setShowBirthDatePicker] = React.useState(false);
   const [showExpiryDatePicker, setShowExpiryDatePicker] = React.useState(false);
@@ -201,6 +205,12 @@ export default function IDTestScreen() {
             progressQueueRef.current = []; // Clear queue on error
             isProcessingProgressRef.current = false;
             setNfcProgress(0);
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.DebugLog, (event: unknown) => {
+            const { message } = event as { message: string };
+            console.log("[NFC]", message);
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+            setNfcLogs(prev => [...prev, `${timestamp} ${message}`]);
           }),
         ];
       } catch (error) {
@@ -557,9 +567,9 @@ export default function IDTestScreen() {
         return;
       }
 
-      // French ID cards REQUIRE a valid 6-digit CAN
-      if (!can || can.length !== 6) {
-        setError("Le CAN (6 chiffres) est obligatoire pour les cartes d'identité françaises. Trouvez-le en bas à droite au dos de votre carte.");
+      // CAN is optional but recommended for French ID cards (6 digits)
+      if (can && can.length > 0 && can.length !== 6) {
+        setError("Le CAN doit contenir 6 chiffres (ou être vide pour tenter sans)");
         setIsScanning(false);
         setScanStatus("");
         return;
@@ -1119,6 +1129,52 @@ export default function IDTestScreen() {
           </TouchableOpacity>
           */}
 
+          {/* NFC Debug Logs Section */}
+          <View style={styles.logsSection}>
+            <TouchableOpacity
+              style={styles.logsHeader}
+              onPress={() => setShowLogs(!showLogs)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.logsTitle}>
+                {showLogs ? '▼' : '▶'} NFC Debug Logs ({nfcLogs.length})
+              </Text>
+              <TouchableOpacity
+                onPress={() => setNfcLogs([])}
+                style={styles.clearLogsButton}
+              >
+                <Text style={styles.clearLogsText}>Clear</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+
+            {showLogs && (
+              <ScrollView
+                style={styles.logsContainer}
+                nestedScrollEnabled
+                contentContainerStyle={styles.logsContentContainer}
+              >
+                {nfcLogs.length === 0 ? (
+                  <Text style={styles.logLine}>No logs yet. Start a scan to see NFC debug output.</Text>
+                ) : (
+                  nfcLogs.map((log, idx) => (
+                    <Text
+                      key={idx}
+                      style={[
+                        styles.logLine,
+                        log.includes('[TX]') && styles.logTx,
+                        log.includes('[RX]') && styles.logRx,
+                        log.includes('[ERROR]') && styles.logError,
+                        log.includes('===') && styles.logHeader,
+                      ]}
+                    >
+                      {log}
+                    </Text>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorTitle}>Erreur:</Text>
@@ -1649,5 +1705,60 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.small,
     color: '#6B7280',
+  },
+  // NFC Debug Logs styles
+  logsSection: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  logsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#374151',
+  },
+  logsTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: '#F9FAFB',
+  },
+  clearLogsButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    backgroundColor: '#4B5563',
+    borderRadius: 6,
+  },
+  clearLogsText: {
+    color: '#EF4444',
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+  },
+  logsContainer: {
+    maxHeight: 300,
+  },
+  logsContentContainer: {
+    padding: 12,
+  },
+  logLine: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 11,
+    color: '#D1D5DB',
+    marginBottom: 2,
+    lineHeight: 16,
+  },
+  logTx: {
+    color: '#60A5FA', // Blue for sent commands
+  },
+  logRx: {
+    color: '#34D399', // Green for responses
+  },
+  logError: {
+    color: '#EF4444', // Red for errors
+  },
+  logHeader: {
+    color: '#FBBF24', // Yellow for section headers
+    fontFamily: Typography.fontFamily.bold,
   },
 });
