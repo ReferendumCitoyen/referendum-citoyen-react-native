@@ -6,5 +6,6 @@ export enum EDocumentModuleEvents {
   ActiveAuthentication = 'ACTIVE_AUTHENTICATION',
   SuccessfulRead = 'SUCCESSFUL_READ',
   ScanError = 'SCAN_ERROR',
+  DebugLog = 'DEBUG_LOG',
   ScanStopped = 'SCAN_STOPPED',
 }

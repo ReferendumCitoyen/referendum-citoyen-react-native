@@ -1,4 +1,4 @@
-import { ExpoConfig, ConfigContext } from '@expo/config';
+import { ConfigContext, ExpoConfig } from '@expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   // Toggle between accounts: false = referendum-citoyen (organization), true = eklchan (personal)
@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'referendum-citoyen',
     slug: 'referendum-citoyen',
-    version: '1.0',
+    version: '1.1',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
