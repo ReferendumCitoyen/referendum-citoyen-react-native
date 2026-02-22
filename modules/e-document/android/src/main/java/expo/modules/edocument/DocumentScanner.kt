@@ -218,37 +218,25 @@ class DocumentScanner(
     // -- PACE -- //
     var paceSucceeded = false
     try {
-      onDebugLog("=== Trying PACE Authentication ===")
-      onDebugLog("Reading EF_CARD_SECURITY...")
-      val cardSecurityFile = CardSecurityFile(service.getInputStream(PassportService.EF_CARD_SECURITY))
-      val securityInfoCollection = cardSecurityFile.securityInfos
-      onDebugLog("Found ${securityInfoCollection.size} security infos")
+      android.util.Log.d("DocumentScanner", "=== Trying PACE Authentication ===")
+      android.util.Log.d("DocumentScanner", "Reading EF_CARD_ACCESS...")
+      val cardAccessFile = CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
 
-      val paceKey = if (!bacKeyParameters.can.isNullOrEmpty()) {
-        onDebugLog("Using CAN for PACE: ${bacKeyParameters.can}")
-        val canBytes = bacKeyParameters.can!!.toByteArray(Charsets.US_ASCII)
-        PACEKeySpec(canBytes, 0x02.toByte())
-      } else {
-        onDebugLog("Using MRZ-derived key for PACE")
-        bacKey
-      }
+      val paceKey = PACEKeySpec.createMRZKey(bacKey)
 
-      for (securityInfo in securityInfoCollection.toList()) {
-        if (securityInfo is PACEInfo) {
-          onDebugLog("PACE OID: ${securityInfo.objectIdentifier}")
-          onDebugLog("PACE paramId: ${securityInfo.parameterId}")
-          service.doPACE(
-            paceKey,
-            securityInfo.objectIdentifier,
-            PACEInfo.toParameterSpec(securityInfo.parameterId),
-            null
-          )
-          paceSucceeded = true
-          onDebugLog("=== PACE SUCCEEDED ===")
-        }
-      }
+      val paceInfo = cardAccessFile.securityInfos.filterIsInstance<PACEInfo>().first()
+      android.util.Log.d("DocumentScanner", "PACE OID: ${paceInfo.objectIdentifier}")
+      android.util.Log.d("DocumentScanner", "PACE paramId: ${paceInfo.parameterId}")
+      service.doPACE(
+        paceKey,
+        paceInfo.objectIdentifier,
+        PACEInfo.toParameterSpec(paceInfo.parameterId),
+        null
+      )
+      paceSucceeded = true
+      android.util.Log.d("DocumentScanner", "=== PACE SUCCEEDED ===")
     } catch (e: Exception) {
-      onDebugLog("[ERROR] PACE failed: ${e.message}")
+      android.util.Log.d("DocumentScanner", "[ERROR] PACE failed: ${e.message}")
       e.printStackTrace()
     }
     service.sendSelectApplet(paceSucceeded)
@@ -316,34 +304,36 @@ class DocumentScanner(
     }
 
     // -- DG15 -- //
-    onDebugLog("Reading DG15 (public key)...")
-    val dg15File = try {
-      val dG15File = service.getInputStream(PassportService.EF_DG15)
-      val result = DG15File(dG15File)
-      onDebugLog("DG15 read OK")
-      result
-    } catch (e: Exception) {
-      onDebugLog("DG15 not available: ${e.message}")
-      null
-    }
+    val dg15File = null
+    // onDebugLog("Reading DG15 (public key)...")
+    // val dg15File = try {
+    //   val dG15File = service.getInputStream(PassportService.EF_DG15)
+    //   val result = DG15File(dG15File)
+    //   onDebugLog("DG15 read OK")
+    //   result
+    // } catch (e: Exception) {
+    //   onDebugLog("DG15 not available: ${e.message}")
+    //   null
+    // }
 
     onActiveAuthentication()
     // -- Active Authentication -- //
-    onDebugLog("=== Active Authentication ===")
-    val aaSignature: ByteArray? = try {
-      onDebugLog("Challenge: ${challenge.joinToString("") { "%02X".format(it) }}")
-      val response = service.doAA(
-        dg15File?.publicKey,
-        sodFile.digestAlgorithm,
-        sodFile.signerInfoDigestAlgorithm,
-        challenge
-      )
-      onDebugLog("AA succeeded")
-      response.response
-    } catch (e: Exception) {
-      onDebugLog("[ERROR] AA failed: ${e.message}")
-      null
-    }
+    val aaSignature: ByteArray? = null
+    // onDebugLog("=== Active Authentication ===")
+    // val aaSignature: ByteArray? = try {
+    //   onDebugLog("Challenge: ${challenge.joinToString("") { "%02X".format(it) }}")
+    //   val response = service.doAA(
+    //     dg15File?.publicKey,
+    //     sodFile.digestAlgorithm,
+    //     sodFile.signerInfoDigestAlgorithm,
+    //     challenge
+    //   )
+    //   onDebugLog("AA succeeded")
+    //   response.response
+    // } catch (e: Exception) {
+    //   onDebugLog("[ERROR] AA failed: ${e.message}")
+    //   null
+    // }
 
     onSuccessfulRead()
     return NFCDocumentModel(
@@ -352,7 +342,7 @@ class DocumentScanner(
 
       dg1 = dg1File?.encoded,
       dg11 = dg11File?.encoded,
-      dg15 = dg15File?.encoded,
+      dg15 = null,
       sod = sodFile.encoded,
       activeAuthenticationSignature = aaSignature,
     )
