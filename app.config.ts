@@ -47,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         NSLocationWhenInUseUsageDescription: "Cette application a besoin d'accéder à votre localisation.",
         'com.apple.developer.nfc.readersession.iso7816.select-identifiers': [
           'A0000002471001',
+          'A0000001510000',
           '00000000000000',
           'D4100000030001'
         ]
