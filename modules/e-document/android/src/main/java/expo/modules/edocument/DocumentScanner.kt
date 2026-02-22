@@ -500,34 +500,12 @@ class DocumentScanner(
       null
     }
 
-    // -- DG15 -- //
-    onDebugLog( "Reading DG15...")
-    val dg15File = try {
-      val dG15File = service.getInputStream(PassportService.EF_DG15)
-      val result = DG15File(dG15File)
-      onDebugLog( "DG15 read OK")
-      result
-    } catch (e: Exception) {
-      onDebugLog( "DG15 not available: ${e.message}")
-      null
-    }
-
+    // French ID cards do NOT have DG15 or Active Authentication.
+    // They use Chip Authentication via PACE-CAM instead.
+    onDebugLog("Skipping DG15 and Active Authentication (not present on ID cards)")
+    val dg15File: DG15File? = null
+    val aaSignature: ByteArray? = null
     onActiveAuthentication()
-    // -- Active Authentication -- //
-    onDebugLog( "Starting Active Authentication...")
-    val aaSignature = try {
-      val response = service.doAA(
-        dg15File?.publicKey,
-        sodFile.digestAlgorithm,
-        sodFile.signerInfoDigestAlgorithm,
-        challenge
-      )
-      onDebugLog( "AA succeeded")
-      response.response
-    } catch (e: Exception) {
-      onDebugLog( "AA failed: ${e.message}")
-      null
-    }
 
     onDebugLog( "ID Card scan complete!")
     onSuccessfulRead()
