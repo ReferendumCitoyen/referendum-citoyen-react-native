@@ -161,6 +161,51 @@ export async function scanDocument(
   }
 }
 
+// --- NFC Diagnostic (iOS only) ---
+
+export interface NfcDiagnosticTag {
+  index: number
+  type: string
+  identifier?: string
+  initialSelectedAID?: string
+  historicalBytes?: string
+  applicationData?: string
+}
+
+export interface NfcDiagnosticAidProbe {
+  name: string
+  sw: string
+  success: boolean
+  responseData?: string
+  error?: string
+}
+
+export interface NfcDiagnosticCardAccessProbe {
+  success: boolean
+  step: string
+  sw?: string
+  dataLength?: number
+  dataHex?: string
+  error?: string
+}
+
+export interface NfcDiagnosticResult {
+  tagDetected: boolean
+  tags: NfcDiagnosticTag[]
+  aidProbeResults: NfcDiagnosticAidProbe[]
+  cardAccessProbe?: NfcDiagnosticCardAccessProbe
+  logs: string[]
+}
+
+export async function testNfcDetection(timeoutSeconds: number = 30): Promise<NfcDiagnosticResult> {
+  if (Platform.OS !== 'ios') {
+    throw new Error('testNfcDetection is only available on iOS')
+  }
+
+  const resultJson = await EDocumentModule.testNfcDetection(timeoutSeconds)
+  return JSON.parse(resultJson) as NfcDiagnosticResult
+}
+
 const EDocumentModuleEmitter = new EventEmitter(EDocumentModule)
 
 export function EDocumentModuleListener(
