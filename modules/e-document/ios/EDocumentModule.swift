@@ -146,5 +146,26 @@ public class EDocumentModule: Module {
             sendEvent(DocumentScanEvents.scanStopped.rawValue)
             throw DocumentScannerError("Not implemented")
         }
+
+        AsyncFunction("testNfcDetection") { (timeoutSeconds: Double) -> String in
+            let debugLog: (String) -> Void = { message in
+                self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG] \(message)"])
+            }
+
+            debugLog("Starting NFC diagnostic (timeout: \(timeoutSeconds)s)")
+
+            let diagnostic = NfcDiagnostic()
+            let result = try await diagnostic.run(timeoutSeconds: timeoutSeconds)
+
+            // Forward diagnostic logs via DEBUG_LOG events
+            if let logs = result["logs"] as? [String] {
+                for logLine in logs {
+                    debugLog(logLine)
+                }
+            }
+
+            let jsonData = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
+            return String(data: jsonData, encoding: .utf8) ?? "{}"
+        }
     }
 }

@@ -169,6 +169,10 @@ export default function FrenchIDTestScreen() {
   const [nfcLogs, setNfcLogs] = React.useState<string[]>([]);
   const [showLogs, setShowLogs] = React.useState(true);
 
+  // NFC Diagnostic
+  const [isDiagnosticRunning, setIsDiagnosticRunning] = React.useState(false);
+  const [diagnosticResult, setDiagnosticResult] = React.useState<any>(null);
+
   // Date pickers
   const [showBirthDatePicker, setShowBirthDatePicker] = React.useState(false);
   const [showExpiryDatePicker, setShowExpiryDatePicker] = React.useState(false);
@@ -531,6 +535,23 @@ export default function FrenchIDTestScreen() {
     setRegistrationTxHash(null);
   };
 
+  const handleNfcDiagnostic = async () => {
+    setIsDiagnosticRunning(true);
+    setDiagnosticResult(null);
+    setError(null);
+    setNfcLogs([]);
+
+    try {
+      const { testNfcDetection } = await import("@/modules/e-document");
+      const result = await testNfcDetection(30);
+      setDiagnosticResult(result);
+    } catch (ex: any) {
+      setError("Diagnostic: " + (ex?.message || "Erreur inconnue"));
+    } finally {
+      setIsDiagnosticRunning(false);
+    }
+  };
+
   // --- Render ---
 
   return (
@@ -562,6 +583,146 @@ export default function FrenchIDTestScreen() {
               pour une authentification optimale. La lecture peut etre plus lente
               que sur Android.
             </Text>
+          </View>
+        )}
+
+        {/* NFC Diagnostic (iOS only) */}
+        {Platform.OS === "ios" && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Diagnostic NFC</Text>
+            <Text style={styles.diagnosticHelpText}>
+              Teste la detection NFC brute sans PassportReader. Permet de
+              verifier si le tag est detecte et quels AID sont disponibles.
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.diagnosticButton,
+                isDiagnosticRunning && styles.buttonDisabled,
+              ]}
+              onPress={handleNfcDiagnostic}
+              disabled={isDiagnosticRunning}
+            >
+              {isDiagnosticRunning ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.diagnosticButtonText}>
+                    Detection en cours...
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.diagnosticButtonText}>
+                  Tester la detection NFC
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {diagnosticResult && (
+              <View style={styles.diagnosticResults}>
+                {/* Tag detected? */}
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>Tag detecte:</Text>
+                  <Text
+                    style={[
+                      styles.resultValue,
+                      {
+                        color: diagnosticResult.tagDetected
+                          ? "#10B981"
+                          : "#EF4444",
+                      },
+                    ]}
+                  >
+                    {diagnosticResult.tagDetected ? "OUI" : "NON"}
+                  </Text>
+                </View>
+
+                {/* Tag info */}
+                {diagnosticResult.tags?.map((tag: any, idx: number) => (
+                  <View key={idx}>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.resultLabel}>Type:</Text>
+                      <Text style={styles.resultValue}>{tag.type}</Text>
+                    </View>
+                    {tag.identifier && (
+                      <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>UID:</Text>
+                        <Text style={styles.resultValue}>
+                          {tag.identifier}
+                        </Text>
+                      </View>
+                    )}
+                    {tag.initialSelectedAID !== undefined && (
+                      <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>AID initial:</Text>
+                        <Text style={styles.resultValue}>
+                          {tag.initialSelectedAID || "(vide)"}
+                        </Text>
+                      </View>
+                    )}
+                    {tag.historicalBytes && (
+                      <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>Hist. bytes:</Text>
+                        <Text style={styles.resultValue}>
+                          {tag.historicalBytes}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+
+                {/* AID Probes */}
+                {diagnosticResult.aidProbeResults?.length > 0 && (
+                  <>
+                    <Text style={styles.sectionSubtitle}>SELECT AID:</Text>
+                    {diagnosticResult.aidProbeResults.map(
+                      (probe: any, idx: number) => (
+                        <View style={styles.resultRow} key={idx}>
+                          <Text style={styles.resultLabel}>
+                            {probe.name.split("(")[0].trim()}:
+                          </Text>
+                          <Text
+                            style={[
+                              styles.resultValue,
+                              {
+                                color: probe.success ? "#10B981" : "#EF4444",
+                              },
+                            ]}
+                          >
+                            {probe.success ? "OK" : "FAIL"} (SW={probe.sw})
+                          </Text>
+                        </View>
+                      )
+                    )}
+                  </>
+                )}
+
+                {/* CardAccess */}
+                {diagnosticResult.cardAccessProbe && (
+                  <>
+                    <Text style={styles.sectionSubtitle}>
+                      EF.CardAccess:
+                    </Text>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.resultLabel}>Status:</Text>
+                      <Text
+                        style={[
+                          styles.resultValue,
+                          {
+                            color: diagnosticResult.cardAccessProbe.success
+                              ? "#10B981"
+                              : "#EF4444",
+                          },
+                        ]}
+                      >
+                        {diagnosticResult.cardAccessProbe.success
+                          ? `OK (${diagnosticResult.cardAccessProbe.dataLength} bytes)`
+                          : `FAIL at ${diagnosticResult.cardAccessProbe.step}`}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -1104,6 +1265,31 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 14,
       color: "#1E40AF",
       lineHeight: 20,
+    },
+
+    // NFC Diagnostic
+    diagnosticHelpText: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    diagnosticButton: {
+      backgroundColor: "#7C3AED",
+      paddingVertical: 14,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    diagnosticButtonText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 16,
+      color: "#FFFFFF",
+    },
+    diagnosticResults: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 12,
+      gap: 2,
     },
 
     // Cards
