@@ -1,0 +1,72 @@
+--- a/Sources/NFCPassportReader/PassportReader.swift	2026-02-22 13:07:21
++++ b/Sources/NFCPassportReader/PassportReader.swift	2026-02-22 12:59:29
+@@ -34,6 +34,7 @@
+     private var caHandler : ChipAuthenticationHandler?
+     private var paceHandler : PACEHandler?
+     private var mrzKey : String = ""
++    private var canKey : String? = nil
+     private var dataAmountToReadOverride : Int? = nil
+     public var activeAuthenticationChallenge: [UInt8]? = nil
+     
+@@ -64,10 +65,11 @@
+         dataAmountToReadOverride = amount
+     }
+     
+-    public func readPassport(mrzKey : String, tags : [DataGroupId] = [], skipSecureElements : Bool = true, skipCA : Bool = false, skipPACE : Bool = false, useExtendedMode : Bool = false, customDisplayMessage : ((NFCViewDisplayMessage) -> String?)? = nil, activeAuthenticationChallenge: [UInt8]? = nil) async throws -> NFCPassportModel {
+-        
++    public func readPassport(mrzKey : String, can : String? = nil, tags : [DataGroupId] = [], skipSecureElements : Bool = true, skipCA : Bool = false, skipPACE : Bool = false, useExtendedMode : Bool = false, customDisplayMessage : ((NFCViewDisplayMessage) -> String?)? = nil, activeAuthenticationChallenge: [UInt8]? = nil) async throws -> NFCPassportModel {
++
+         self.passport = NFCPassportModel()
+         self.mrzKey = mrzKey
++        self.canKey = can
+         self.skipCA = skipCA
+         self.skipPACE = skipPACE
+         self.useExtendedMode = useExtendedMode
+@@ -229,7 +231,7 @@
+                 Logger.passportReader.info( "Starting Password Authenticated Connection Establishment (PACE)" )
+                  
+                 let paceHandler = try PACEHandler( cardAccess: cardAccess, tagReader: tagReader )
+-                try await paceHandler.doPACE(mrzKey: mrzKey )
++                try await paceHandler.doPACE(mrzKey: mrzKey, can: self.canKey )
+                 passport.PACEStatus = .success
+                 Logger.passportReader.debug( "PACE Succeeded" )
+             } catch {
+--- a/Sources/NFCPassportReader/PACEHandler.swift	2026-02-22 13:07:23
++++ b/Sources/NFCPassportReader/PACEHandler.swift	2026-02-22 12:59:40
+@@ -72,24 +72,30 @@
+         isPACESupported = true
+     }
+     
+-    public func doPACE( mrzKey : String ) async throws {
++    public func doPACE( mrzKey : String, can : String? = nil ) async throws {
+         guard isPACESupported else {
+             throw NFCPassportReaderError.NotYetSupported( "PACE not supported" )
+         }
+-        
++
+         Logger.pace.info( "Performing PACE with \(self.paceInfo.getProtocolOIDString())" )
+-        
++
+         paceOID = paceInfo.getObjectIdentifier()
+         parameterSpec = try paceInfo.getParameterSpec()
+-        
++
+         mappingType = try paceInfo.getMappingType()  // Either GM, CAM, or IM.
+         agreementAlg = try paceInfo.getKeyAgreementAlgorithm()  // Either DH or ECDH.
+         cipherAlg  = try paceInfo.getCipherAlgorithm()  // Either DESede or AES.
+         digestAlg = try paceInfo.getDigestAlgorithm()  // Either SHA-1 or SHA-256.
+         keyLength = try paceInfo.getKeyLength()  // Get key length  the enc cipher. Either 128, 192, or 256.
+ 
+-        paceKeyType = PACEHandler.MRZ_PACE_KEY_REFERENCE
+-        paceKey = try createPaceKey( from: mrzKey )
++        if let can = can, !can.isEmpty {
++            Logger.pace.info( "Using CAN for PACE authentication" )
++            paceKeyType = PACEHandler.CAN_PACE_KEY_REFERENCE
++            paceKey = try createPaceKey( from: can )
++        } else {
++            paceKeyType = PACEHandler.MRZ_PACE_KEY_REFERENCE
++            paceKey = try createPaceKey( from: mrzKey )
++        }
+         
+         // Temporary logging
+         Logger.pace.debug("doPace - inpit parameters" )

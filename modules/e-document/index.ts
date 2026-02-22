@@ -58,6 +58,13 @@ export async function scanDocument(
 
     const eDocumentJson = JSON.parse(eDocumentString)
 
+    // Helper: safely decode base64 field, returning undefined if absent/null
+    const decodeBase64 = (path: string): Uint8Array | undefined => {
+      const val = get(eDocumentJson, path, null)
+      if (!val) return undefined
+      return Buffer.from(val, 'base64')
+    }
+
     if (Platform.OS === 'ios') {
       return {
         docCode: documentType,
@@ -72,11 +79,11 @@ export async function scanDocument(
         issuingAuthority: get(eDocumentJson, 'personDetails.issuingAuthority', null),
         passportImageRaw: get(eDocumentJson, 'personDetails.passportImageRaw', null),
       },
-      sodBytes: Buffer.from(get(eDocumentJson, 'sod', ''), 'base64'),
-      dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', ''), 'base64'),
-      dg15Bytes: Buffer.from(get(eDocumentJson, 'dg15', ''), 'base64'),
-      dg11Bytes: Buffer.from(get(eDocumentJson, 'dg11', ''), 'base64'),
-      aaSignature: Buffer.from(get(eDocumentJson, 'signature', ''), 'base64'),
+      sodBytes: Buffer.from(get(eDocumentJson, 'sod', '') || '', 'base64'),
+      dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', '') || '', 'base64'),
+      dg15Bytes: decodeBase64('dg15'),
+      dg11Bytes: decodeBase64('dg11'),
+      aaSignature: decodeBase64('signature'),
     }
   } else if (Platform.OS === 'android') {
       return {
@@ -93,11 +100,11 @@ export async function scanDocument(
           issuingAuthority: get(eDocumentJson, 'personDetails.issuingState', null),
           passportImageRaw: get(eDocumentJson, 'personDetails.passportImageRaw', null),
         },
-        sodBytes: Buffer.from(get(eDocumentJson, 'sod', ''), 'base64'),
-        dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', ''), 'base64'),
-        dg15Bytes: Buffer.from(get(eDocumentJson, 'dg15', ''), 'base64'),
-        dg11Bytes: Buffer.from(get(eDocumentJson, 'dg11', ''), 'base64'),
-        aaSignature: Buffer.from(get(eDocumentJson, 'signature', ''), 'base64'),
+        sodBytes: Buffer.from(get(eDocumentJson, 'sod', '') || '', 'base64'),
+        dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', '') || '', 'base64'),
+        dg15Bytes: decodeBase64('dg15'),
+        dg11Bytes: decodeBase64('dg11'),
+        aaSignature: decodeBase64('signature'),
       }
     }
 
@@ -134,6 +141,13 @@ export async function scanDocument(
         "Les cartes d'identité françaises nécessitent le CAN (6 chiffres) " +
         "pour l'authentification PACE.\n\n" +
         "📍 Trouvez le CAN en bas à droite au dos de votre carte."
+    } else if (errorMessage.includes('IM not yet implemented') || errorMessage.includes('Step2IM')) {
+      errorMessage =
+        "❌ Méthode PACE non supportée\n\n" +
+        "Cette carte utilise le mode PACE-IM (Integrated Mapping) " +
+        "qui n'est pas encore implémenté dans le lecteur NFC.\n\n" +
+        "Il s'agit d'un problème connu avec certaines cartes d'identité européennes. " +
+        "Une mise à jour sera nécessaire pour supporter cette carte."
     } else if (errorMessage.includes('NFC')) {
       errorMessage =
         "❌ Erreur NFC\n\n" +

@@ -111,8 +111,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             extraPods: [
               {
                 name: 'NFCPassportReader',
-                git: 'https://github.com/rarimo/NFCPassportReader.git',
-                commit: '4c463a687f59eb6cc5c7955af854c7d41295d54f'
+                git: 'https://github.com/eklchan/NFCPassportReader.git',
+                commit: 'd0260a1f435922c5f09b2d817defa60606f95590'
               }
             ]
           }

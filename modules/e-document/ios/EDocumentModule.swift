@@ -76,7 +76,7 @@ public class EDocumentModule: Module {
                 let nfcPassport = try await PassportReader()
                     .readPassport(
                         mrzKey: mrzKey,
-                        canKey: canKey,
+                        can: canKey,
                         tags: tagsToRead,
                         customDisplayMessage: { displayMessage in
                             // Forked from NFCViewDisplayMessage
@@ -125,9 +125,10 @@ public class EDocumentModule: Module {
                 debugLog("=== NFC Read Complete ===")
                 let passport = Passport.fromNFCPassportModel(nfcPassport)
                 debugLog("DG1 size: \(passport.dg1.count) chars")
-                debugLog("DG15 size: \(passport.dg15.count) chars")
+                debugLog("DG11 size: \(passport.dg11?.count ?? 0) chars")
+                debugLog("DG15 size: \(passport.dg15?.count ?? 0) chars")
                 debugLog("SOD size: \(passport.sod.count) chars")
-                debugLog("Signature size: \(passport.signature.count) chars")
+                debugLog("Signature size: \(passport.signature?.count ?? 0) chars")
 
                 let passportJsonBytes = try passport.serialize()
                 debugLog("=== iOS NFC Scan SUCCESS ===")
