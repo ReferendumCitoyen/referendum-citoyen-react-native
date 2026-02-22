@@ -648,9 +648,9 @@ export default function IDTestScreen() {
         const rarimePassport = new RarimePassport({
           dataGroup1: dg1,
           sod: sod,
-          dataGroup15: dg15,
-          aaSignature: aaSignature,
-          aaChallenge: challengeRef.current || undefined,
+          //dataGroup15: dg15,
+          //aaSignature: aaSignature,
+          //aaChallenge: challengeRef.current || undefined,
         });
 
         // Store passport reference for registration
