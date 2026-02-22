@@ -57,19 +57,27 @@ public class EDocumentModule: Module {
             debugLog("=== iOS NFC Scan Starting ===")
             debugLog("Document Type: \(documentType)")
             debugLog("Document Number: \(bacKeyParameters.documentNumber)")
-            if let can = bacKeyParameters.can {
-                debugLog("CAN: \(can)")
-            }
 
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
             debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
+
+            let canKey = bacKeyParameters.can
+            if let can = canKey {
+                debugLog("CAN provided: \(can)")
+            }
+
+            // For ID cards, skip DG15 (not present on French CNIe)
+            let tagsToRead: [DataGroupId] = documentType == "I"
+                ? [.DG1, .DG2, .DG11, .SOD]
+                : [.DG1, .DG2, .DG11, .DG15, .SOD]
 
             do {
                 debugLog("Starting PassportReader...")
                 let nfcPassport = try await PassportReader()
                     .readPassport(
                         mrzKey: mrzKey,
-                        tags: [.DG1, .DG2, .DG11, .DG15, .SOD],
+                        canKey: canKey,
+                        tags: tagsToRead,
                         customDisplayMessage: { displayMessage in
                             // Forked from NFCViewDisplayMessage
                             func drawProgressBar(_ progress: Int) -> String {

@@ -83,6 +83,19 @@ export default function ParametresScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* French ID Test Row */}
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>Test French ID</Text>
+            <TouchableOpacity
+              style={styles.settingValueContainer}
+              activeOpacity={0.7}
+              onPress={() => router.push('/french-id-test')}
+            >
+              <Text style={styles.settingValue}>Ouvrir</Text>
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+            </TouchableOpacity>
+          </View>
+
           {/* ID Test Row */}
           <View style={styles.settingRow}>
             <Text style={styles.settingLabel}>Test ID</Text>

@@ -82,7 +82,7 @@ export default function CanScanScreen() {
             queueProgressUpdate(60);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
-            setScanStatus("✅ Authentification active...");
+            setScanStatus("✅ Verification du chip...");
             queueProgressUpdate(85);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
