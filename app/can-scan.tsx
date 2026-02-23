@@ -132,13 +132,7 @@ export default function CanScanScreen() {
       const { scanDocument } = await import('@/modules/e-document');
       const challenge = getRandomValues(new Uint8Array(32));
 
-      // Only CAN matters for PACE - dummy values for unused MRZ fields
-      const scanResult = await scanDocument('I', {
-        documentNumber: '000000000',
-        dateOfBirth: '000000',
-        dateOfExpiry: '000000',
-        can: can,
-      }, challenge);
+      const scanResult = await scanDocument('I', { can }, challenge);
 
       console.log("=== CAN SCAN RESULT ===");
       console.log("Person:", scanResult.personDetails);
