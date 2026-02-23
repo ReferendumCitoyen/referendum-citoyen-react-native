@@ -42,17 +42,24 @@ export interface PassportData {
 export async function scanDocument(
   documentType: 'P' | 'I',  // 'P' = Passport, 'I' = ID card
   bacKeyParameters: {
-    dateOfBirth: string
-    dateOfExpiry: string
-    documentNumber: string
+    dateOfBirth?: string
+    dateOfExpiry?: string
+    documentNumber?: string
     can?: string
   },
   challenge: Uint8Array,
 ): Promise<PassportData> {
   try {
+    const params = {
+      documentNumber: bacKeyParameters.documentNumber || '000000000',
+      dateOfBirth: bacKeyParameters.dateOfBirth || '000000',
+      dateOfExpiry: bacKeyParameters.dateOfExpiry || '000000',
+      can: bacKeyParameters.can,
+    }
+
     const eDocumentString = await EDocumentModule.scanDocument(
       documentType,
-      JSON.stringify(bacKeyParameters),
+      JSON.stringify(params),
       new Uint8Array(challenge),
     )
 
