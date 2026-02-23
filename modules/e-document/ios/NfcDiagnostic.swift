@@ -35,14 +35,18 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
                 return
             }
 
+            var pollingOptions: NFCTagReaderSession.PollingOption = [.iso14443]
+            if #available(iOS 16.0, *) {
+                pollingOptions.insert(.pace)
+            }
             self.session = NFCTagReaderSession(
-                pollingOption: [.iso14443],
+                pollingOption: pollingOptions,
                 delegate: self,
                 queue: DispatchQueue.global(qos: .userInitiated)
             )
             self.session?.alertMessage = "Approchez votre carte d'identite pour le diagnostic NFC..."
             self.session?.begin()
-            self.log("Session started, polling .iso14443")
+            self.log("Session started, polling \(pollingOptions)")
 
             // Timeout
             DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds) { [weak self] in
