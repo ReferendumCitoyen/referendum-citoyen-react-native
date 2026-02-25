@@ -73,7 +73,7 @@ export default function IDTestScreen() {
   const [documentNo, setDocumentNo] = React.useState("");
   const [birthDate, setBirthDate] = React.useState(""); // JJ/MM/AA format for display
   const [expiryDate, setExpiryDate] = React.useState(""); // JJ/MM/AA format for display
-  const [can, setCan] = React.useState("");
+  const [can] = React.useState(""); // CAN disabled — causes scan failures on iOS
 
   // NFC Debug logs state
   const [nfcLogs, setNfcLogs] = React.useState<string[]>([]);
@@ -567,13 +567,6 @@ export default function IDTestScreen() {
         return;
       }
 
-      // CAN is optional but recommended for French ID cards (6 digits)
-      if (can && can.length > 0 && can.length !== 6) {
-        setError("Le CAN doit contenir 6 chiffres (ou être vide pour tenter sans)");
-        setIsScanning(false);
-        setScanStatus("");
-        return;
-      }
 
       console.log("=== STARTING EDOCUMENT READER ===");
       console.log("Document No:", documentNo);
@@ -597,7 +590,6 @@ export default function IDTestScreen() {
         documentNumber: documentNo,
         dateOfBirth: bacBirthDate,
         dateOfExpiry: bacExpiryDate,
-        can: can || undefined,
       }, challenge);
 
       // Helper to truncate long base64 strings for cleaner logs
@@ -868,38 +860,6 @@ export default function IDTestScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <View style={styles.labelWithValidation}>
-                <Text style={styles.inputLabel}>CAN (6 chiffres en bas à droite) *</Text>
-                {can.length > 0 && (
-                  <Text style={[
-                    styles.validationIndicator,
-                    can.length === 6 ? styles.validationComplete : styles.validationIncomplete
-                  ]}>
-                    {can.length === 6 ? '✓' : `${can.length}/6`}
-                  </Text>
-                )}
-              </View>
-              <TextInput
-                style={[
-                  styles.input,
-                  can.length === 6 && styles.inputValid,
-                  can.length > 0 && can.length < 6 && styles.inputInvalid
-                ]}
-                placeholder="123456"
-                placeholderTextColor="#9CA3AF"
-                value={can}
-                onChangeText={(text) => setCan(text.replace(/\D/g, '').substring(0, 6))}
-                keyboardType="numeric"
-                maxLength={6}
-              />
-              {can.length > 0 && can.length < 6 && (
-                <Text style={styles.validationError}>
-                  Le CAN doit contenir exactement 6 chiffres
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Date de naissance</Text>
               <View style={styles.dateInputRow}>
                 <TextInput
@@ -959,7 +919,7 @@ export default function IDTestScreen() {
 
                 console.log("=== DEBUG: Current Input Values ===");
                 console.log("Document Number:", documentNo);
-                console.log("CAN:", can || "(non renseigné)");
+
                 console.log("Birth Date (DD/MM/YY):", birthDate);
                 console.log("  → Day:", birthDay, "Month:", birthMonth, "Year:", birthYear);
                 console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(birthDate));
@@ -970,7 +930,6 @@ export default function IDTestScreen() {
                 alert(
                   `📋 VOS VALEURS:\n\n` +
                   `📄 Document: ${documentNo}\n` +
-                  `🔑 CAN: ${can || "(non renseigné)"}\n\n` +
                   `🎂 Naissance:\n` +
                   `   Jour: ${birthDay} | Mois: ${birthMonth} | Année: ${birthYear}\n` +
                   `   → MRZ: ${convertFrenchDateToMRZ(birthDate)}\n\n` +

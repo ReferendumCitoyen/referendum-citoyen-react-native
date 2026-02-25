@@ -155,7 +155,7 @@ export default function FrenchIDTestScreen() {
   const [documentNo, setDocumentNo] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
   const [expiryDate, setExpiryDate] = React.useState("");
-  const [can, setCan] = React.useState("");
+  const [can] = React.useState(""); // CAN disabled — causes scan failures on iOS
 
   const [isScanning, setIsScanning] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState("");
@@ -414,13 +414,6 @@ export default function FrenchIDTestScreen() {
       setError("Veuillez remplir tous les champs MRZ");
       return;
     }
-    if (can && can.length > 0 && can.length !== 6) {
-      setError(
-        "Le CAN doit contenir 6 chiffres (ou etre vide pour tenter sans)"
-      );
-      return;
-    }
-
     setIsScanning(true);
     setError(null);
     setTagData(null);
@@ -443,13 +436,14 @@ export default function FrenchIDTestScreen() {
           documentNumber: documentNo,
           dateOfBirth: bacBirthDate,
           dateOfExpiry: bacExpiryDate,
-          can: can || undefined,
         },
         challenge
       );
 
       console.log("=== FRENCH ID SCAN RESULT ===");
-      console.log("Person:", result.personDetails);
+      const { passportImageRaw, ...personSummary } = result.personDetails;
+      console.log("Person:", personSummary);
+      console.log("Image:", passportImageRaw ? `${passportImageRaw.length} chars` : "none");
 
       // --- Rarime SDK integration ---
       const dg1 = new Uint8Array(result.dg1Bytes);
@@ -579,9 +573,7 @@ export default function FrenchIDTestScreen() {
             </Text>
             <Text style={styles.iosNoticeText}>
               La lecture NFC des cartes d'identite francaises est supportee.
-              Assurez-vous de fournir le CAN (6 chiffres au recto de la carte)
-              pour une authentification optimale. La lecture peut etre plus lente
-              que sur Android.
+              La lecture peut etre plus lente que sur Android.
             </Text>
           </View>
         )}
@@ -869,43 +861,6 @@ export default function FrenchIDTestScreen() {
               value={documentNo}
               onChangeText={(t) => setDocumentNo(t.trim().toUpperCase())}
               autoCapitalize="characters"
-              editable={!isScanning}
-            />
-          </View>
-
-          {/* CAN */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={styles.inputLabel}>
-                CAN (6 chiffres, optionnel)
-              </Text>
-              {can.length > 0 && (
-                <Text
-                  style={[
-                    styles.validationIndicator,
-                    can.length === 6
-                      ? styles.validationOk
-                      : styles.validationPending,
-                  ]}
-                >
-                  {can.length === 6 ? "OK" : `${can.length}/6`}
-                </Text>
-              )}
-            </View>
-            <TextInput
-              style={[
-                styles.input,
-                can.length === 6 && styles.inputValid,
-                can.length > 0 && can.length < 6 && styles.inputWarning,
-              ]}
-              placeholder="123456"
-              placeholderTextColor={colors.textSecondary}
-              value={can}
-              onChangeText={(t) =>
-                setCan(t.replace(/\D/g, "").substring(0, 6))
-              }
-              keyboardType="numeric"
-              maxLength={6}
               editable={!isScanning}
             />
           </View>
