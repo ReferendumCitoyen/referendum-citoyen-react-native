@@ -30,27 +30,19 @@ import {
   RarimePassport,
   RarimeUtils,
   DocumentStatus,
+  FreedomTool,
 } from "@rarimo/rarime-rn-sdk";
+import type { ProposalInfo } from "@rarimo/rarime-rn-sdk";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
 import { Svg, Path } from "react-native-svg";
-
-// --- Constants ---
-
-const RARIME_TESTNET_CONFIG = {
-  contractsConfiguration: {
-    stateKeeperAddress: "0x12883d5F530AF7EC2adD7cEC29Cf84215efCf4D8",
-    registerSimpleContractAddress:
-      "0x1b6ae4b80F0f26DC53731D1d7aA31fc3996B513B",
-    poseidonSmtAddress: "0xb8bAac4C443097d697F87CC35C5d6B06dDe64D60",
-  },
-  apiConfiguration: {
-    jsonRpcEvmUrl: "https://rpc.qtestnet.org",
-    rarimeApiUrl: "https://api.orgs.app.stage.rarime.com",
-  },
-};
-
-const PRIVATE_KEY_STORAGE_KEY = "rarime_bjj_private_key";
+import {
+  RARIME_TESTNET_CONFIG,
+  FREEDOM_TOOL_CONFIG,
+  PRIVATE_KEY_STORAGE_KEY,
+  withRetry,
+  formatRpcError,
+} from "@/constants/rarime-config";
 
 // --- Icons ---
 
@@ -201,6 +193,17 @@ export default function FrenchIDTestScreen() {
   const challengeRef = React.useRef<Uint8Array | null>(null);
   const rarimePassportRef = React.useRef<RarimePassport | null>(null);
 
+  // Freedom Tool voting
+  const [proposalId, setProposalId] = React.useState("236");
+  const [proposalInfo, setProposalInfo] = React.useState<ProposalInfo | null>(null);
+  const [isLoadingProposal, setIsLoadingProposal] = React.useState(false);
+  const [isEligible, setIsEligible] = React.useState<boolean | null>(null);
+  const [hasVoted, setHasVoted] = React.useState<boolean | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = React.useState<number | null>(null);
+  const [isSubmittingVote, setIsSubmittingVote] = React.useState(false);
+  const [voteTxHash, setVoteTxHash] = React.useState<string | null>(null);
+  const [voteError, setVoteError] = React.useState<string | null>(null);
+
   // --- Effects ---
 
   // Init BJJ private key
@@ -208,12 +211,19 @@ export default function FrenchIDTestScreen() {
     (async () => {
       try {
         let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
-        if (!storedKey) {
+        // Validate key: must be 64 hex chars (no 0x prefix) to work with the SDK
+        const rawKey = storedKey?.startsWith("0x") ? storedKey.slice(2) : storedKey;
+        if (!rawKey || rawKey.length !== 64) {
+          console.log("[Init] Invalid or missing key, generating new one");
           storedKey = RarimeUtils.generateBJJPrivateKey();
           await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
         }
-        setPrivateKey(storedKey);
-        setProfileKey(RarimeUtils.getProfileKey(storedKey));
+        setPrivateKey(storedKey!);
+        try {
+          setProfileKey(RarimeUtils.getProfileKey(storedKey!));
+        } catch {
+          setProfileKey(storedKey!);
+        }
       } catch (err) {
         console.error("Failed to initialize private key:", err);
       }
@@ -462,13 +472,18 @@ export default function FrenchIDTestScreen() {
           setIsCheckingStatus(true);
           setDocumentStatus(null);
           try {
+            console.log("[Rarime] Checking document status...");
+            let currentKey = privateKey;
             const rarime = new Rarime({
               ...RARIME_TESTNET_CONFIG,
-              userConfiguration: { userPrivateKey: privateKey },
+              userConfiguration: { userPrivateKey: currentKey },
             });
             const status = await rarime.getDocumentStatus(rarimePassport);
+            console.log("[Rarime] Document status:", status);
+
             setDocumentStatus(status);
           } catch (statusErr) {
+            console.error("[Rarime] getDocumentStatus error:", statusErr);
             setDocumentStatus(
               "ERROR: " + (statusErr as Error).message
             );
@@ -494,7 +509,8 @@ export default function FrenchIDTestScreen() {
   };
 
   const registerIdentity = async () => {
-    if (!privateKey || !rarimePassportRef.current) {
+    const currentKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+    if (!currentKey || !rarimePassportRef.current) {
       setError(
         "Carte d'identite non scannee ou cle privee non disponible"
       );
@@ -503,16 +519,52 @@ export default function FrenchIDTestScreen() {
     setIsRegistering(true);
     setRegistrationTxHash(null);
     try {
+      console.log("[Rarime] Starting registration...");
       const rarime = new Rarime({
         ...RARIME_TESTNET_CONFIG,
-        userConfiguration: { userPrivateKey: privateKey },
+        userConfiguration: { userPrivateKey: currentKey },
       });
-      const txHash = await rarime.registerIdentity(
-        rarimePassportRef.current
-      );
-      setRegistrationTxHash(txHash.toString());
+      const passport = rarimePassportRef.current;
+      const status = await rarime.getDocumentStatus(passport);
+      console.log("[Rarime] Status before register:", status);
+
+      if (status === DocumentStatus.RegisteredWithThisPk) {
+        console.log("[Rarime] Already registered with this key");
+        setDocumentStatus(DocumentStatus.RegisteredWithThisPk);
+        return;
+      }
+
+      // Bypass SDK guard for RegisteredWithOtherPk — call internal methods directly.
+      // The smart contract's registerSimpleViaNoir will overwrite the old bond.
+      const r = rarime as any;
+      const hashAlgoOID = passport.extractDGHashAlgo();
+      const oidToLength: Record<string, number> = {
+        "1.3.14.3.2.26": 160, "1.2.840.113549.1.1.5": 160,             // SHA1
+        "2.16.840.1.101.3.4.2.4": 224, "1.2.840.113549.1.1.14": 224,   // SHA224
+        "2.16.840.1.101.3.4.2.1": 256, "1.2.840.113549.1.1.11": 256,   // SHA256
+        "1.2.840.10045.4.3.2": 256,                                     // ECDSA-SHA256
+        "2.16.840.1.101.3.4.2.2": 384, "1.2.840.113549.1.1.12": 384,   // SHA384
+        "2.16.840.1.101.3.4.2.3": 512, "1.2.840.113549.1.1.13": 512,   // SHA512
+      };
+      const hashLength = oidToLength[hashAlgoOID];
+      if (!hashLength) throw new Error(`Unsupported hash OID: ${hashAlgoOID}`);
+      console.log("[Rarime] Generating registration proof...");
+      const proof = await r.generateLiteRegisterProof(hashLength, passport);
+      console.log("[Rarime] Verifying SOD...");
+      const verifySodResponse = await r.verifySodRequest(passport, proof);
+      const verifySodParsed = await verifySodResponse.json();
+      console.log("[Rarime] Building calldata...");
+      const txCallData = r.buildLiteRegisterCalldata(verifySodParsed, proof, passport);
+      console.log("[Rarime] Sending registration TX...");
+      const regResponse = await r.sendRegisterLiteTransaction(txCallData);
+      const regParsed = await regResponse.json();
+      const txHash = regParsed.data.id;
+
+      console.log("[Rarime] Registration txHash:", txHash);
+      setRegistrationTxHash(txHash);
       setDocumentStatus(DocumentStatus.RegisteredWithThisPk);
     } catch (regErr) {
+      console.error("[Rarime] registerIdentity error:", regErr);
       setError("Registration failed: " + (regErr as Error).message);
     } finally {
       setIsRegistering(false);
@@ -527,6 +579,192 @@ export default function FrenchIDTestScreen() {
     setProfileKey(RarimeUtils.getProfileKey(newKey));
     setDocumentStatus(null);
     setRegistrationTxHash(null);
+  };
+
+  // --- Freedom Tool Voting ---
+
+  // Decode bigint-encoded citizenship back to 3-letter ISO country code
+  const decodeCitizenship = (code: bigint): string => {
+    const hex = code.toString(16);
+    let result = '';
+    for (let i = 0; i < hex.length; i += 2) {
+      result += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+    }
+    return result;
+  };
+
+  const loadProposal = async () => {
+    setIsLoadingProposal(true);
+    setProposalInfo(null);
+    setIsEligible(null);
+    setHasVoted(null);
+    setSelectedAnswer(null);
+    setVoteTxHash(null);
+    setVoteError(null);
+    try {
+      console.log(`[FreedomTool] Loading proposal ${proposalId}...`);
+      const ft = new FreedomTool(FREEDOM_TOOL_CONFIG);
+      const info = await ft.getProposalInfo(proposalId);
+      console.log("[FreedomTool] Proposal loaded:", info.title);
+      const whitelistedCountries = info.criteria.citizenshipWhitelist.map(decodeCitizenship);
+      console.log("[FreedomTool] Whitelisted citizenships:", whitelistedCountries);
+      if (whitelistedCountries.length > 0 && !whitelistedCountries.includes("FRA")) {
+        console.warn("[FreedomTool] WARNING: France (FRA) is NOT in the whitelist!");
+      }
+      setProposalInfo(info);
+    } catch (err) {
+      console.error("[FreedomTool] getProposalInfo error:", err);
+      setVoteError("Failed to load proposal: " + (err as Error).message);
+    } finally {
+      setIsLoadingProposal(false);
+    }
+  };
+
+  const checkEligibility = async () => {
+    if (!proposalInfo || !rarimePassportRef.current) return;
+    // Always read the latest key from SecureStore (may have been recovered)
+    const currentKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+    if (!currentKey) return;
+    setVoteError(null);
+    try {
+      console.log("[FreedomTool] Checking eligibility...");
+      const ft = new FreedomTool(FREEDOM_TOOL_CONFIG);
+      const rarime = new Rarime({
+        ...RARIME_TESTNET_CONFIG,
+        userConfiguration: { userPrivateKey: currentKey },
+      });
+
+      // Check if already voted
+      const voted = await ft.isAlreadyVoted(proposalInfo, rarime);
+      console.log("[FreedomTool] Already voted:", voted);
+      setHasVoted(voted);
+
+      if (!voted) {
+        // Verify eligibility (throws if not eligible)
+        await ft.verify(proposalInfo, rarimePassportRef.current, rarime);
+        console.log("[FreedomTool] Eligible: true");
+        setIsEligible(true);
+      }
+    } catch (err) {
+      console.error("[FreedomTool] Eligibility check error:", err);
+      setIsEligible(false);
+      setVoteError((err as Error).message);
+    }
+  };
+
+  const submitVote = async () => {
+    if (!proposalInfo || !rarimePassportRef.current || selectedAnswer === null) return;
+    const currentKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+    if (!currentKey) return;
+    setIsSubmittingVote(true);
+    setVoteError(null);
+    setVoteTxHash(null);
+    try {
+      // Pre-flight citizenship check
+      const whitelist = proposalInfo.criteria.citizenshipWhitelist;
+      if (whitelist.length > 0) {
+        const allowed = whitelist.map(decodeCitizenship);
+        if (!allowed.includes("FRA")) {
+          setVoteError(
+            `Votre nationalite (FRA) n'est pas dans la liste autorisee pour cette proposition.\n` +
+            `Nationalites autorisees : [${allowed.join(", ")}].\n` +
+            `Essayez une autre proposition.`
+          );
+          setIsSubmittingVote(false);
+          return;
+        }
+      }
+
+      console.log(`[FreedomTool] Submitting vote answer=${selectedAnswer}...`);
+      const ft = new FreedomTool(FREEDOM_TOOL_CONFIG) as any;
+      const rarime = new Rarime({
+        ...RARIME_TESTNET_CONFIG,
+        userConfiguration: { userPrivateKey: currentKey },
+      }) as any;
+      const passport = rarimePassportRef.current;
+
+      // Step-by-step to capture full error details
+      await ft.verify(proposalInfo, passport, rarime);
+      console.log("[FreedomTool] Verify passed");
+
+      // Debug: log passport data before proof generation
+      console.log("[FreedomTool] DG1 length:", passport.dataGroup1.length, "(expected: 95)");
+      console.log("[FreedomTool] DG1 hex:", Buffer.from(passport.dataGroup1).toString("hex"));
+      try {
+        console.log("[FreedomTool] PassportKey:", passport.getPassportKey().toString(16));
+      } catch (e) { console.warn("[FreedomTool] PassportKey error:", e); }
+      try {
+        const mrzData = passport.getMRZData();
+        console.log("[FreedomTool] MRZ data:", JSON.stringify(mrzData));
+      } catch (e) { console.warn("[FreedomTool] MRZ parse error:", e); }
+
+      const passportInfo = await rarime.getPassportInfo(passport);
+      console.log("[FreedomTool] PassportInfo fetched");
+      console.log("[FreedomTool] On-chain passportInfo:", JSON.stringify(passportInfo, (_, v) =>
+        typeof v === 'bigint' ? v.toString() : v
+      ));
+
+      const queryProofParams = await ft.buildQueryProofParams(
+        [selectedAnswer], proposalInfo, passportInfo
+      );
+      console.log("[FreedomTool] QueryProofParams built");
+      console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
+
+      let queryProof;
+      try {
+        queryProof = await rarime.generateQueryProof(queryProofParams, passport);
+      } catch (proofErr) {
+        console.error("[FreedomTool] Proof generation failed:", proofErr);
+        console.error("[FreedomTool] This likely means circuit constraints are unsatisfied.");
+        console.error("[FreedomTool] DG1 length:", passport.dataGroup1.length, "expected: 95");
+        throw proofErr;
+      }
+      console.log("[FreedomTool] ZK proof generated");
+      console.log("[FreedomTool] pub_signals count:", queryProof.pub_signals.length);
+      console.log("[FreedomTool] pub_signals[6] (citizenship):", queryProof.pub_signals[6]);
+
+      const txCallData = await ft.buildProposalCallData(
+        [selectedAnswer], proposalInfo, rarime, passport, queryProof, passportInfo
+      );
+      console.log("[FreedomTool] CallData built, length:", txCallData.length);
+      console.log("[FreedomTool] Destination:", proposalInfo.sendVoteContractAddress);
+      console.log("[FreedomTool] Sending to relayer...");
+
+      // Send vote — capture full response on error
+      const sendVoteRequest = {
+        data: {
+          attributes: {
+            tx_data: txCallData,
+            destination: proposalInfo.sendVoteContractAddress,
+          },
+        },
+      };
+      const response = await fetch(
+        FREEDOM_TOOL_CONFIG.api.votingRelayerUrl +
+          "/integrations/proof-verification-relayer/v3/vote",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sendVoteRequest),
+        }
+      );
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("[FreedomTool] Relayer error body:", errorBody);
+        throw new Error(`Relayer HTTP ${response.status}: ${errorBody}`);
+      }
+      const result = await response.json();
+      const txHash = result.data.id;
+
+      console.log("[FreedomTool] Vote TX hash:", txHash);
+      setVoteTxHash(txHash);
+      setHasVoted(true);
+    } catch (err) {
+      console.error("[FreedomTool] submitProposal error:", err);
+      setVoteError("Vote failed: " + (err as Error).message);
+    } finally {
+      setIsSubmittingVote(false);
+    }
   };
 
   const handleNfcDiagnostic = async () => {
@@ -747,10 +985,8 @@ export default function FrenchIDTestScreen() {
 
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Profile Key:</Text>
-            <Text style={styles.resultValue} numberOfLines={1}>
-              {profileKey
-                ? `${profileKey.substring(0, 12)}...`
-                : "Loading..."}
+            <Text style={styles.resultValue} selectable>
+              {profileKey ?? "Loading..."}
             </Text>
           </View>
 
@@ -792,7 +1028,8 @@ export default function FrenchIDTestScreen() {
             </View>
           )}
 
-          {documentStatus === DocumentStatus.NotRegistered &&
+          {(documentStatus === DocumentStatus.NotRegistered ||
+            documentStatus === DocumentStatus.RegisteredWithOtherPk) &&
             rarimePassportRef.current && (
               <TouchableOpacity
                 style={[
@@ -811,7 +1048,9 @@ export default function FrenchIDTestScreen() {
                   </View>
                 ) : (
                   <Text style={styles.registerButtonText}>
-                    Register Identity on Testnet
+                    {documentStatus === DocumentStatus.RegisteredWithOtherPk
+                      ? "Re-register with Current Key"
+                      : "Register Identity on Testnet"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -820,7 +1059,7 @@ export default function FrenchIDTestScreen() {
           {registrationTxHash && (
             <View style={styles.txHashContainer}>
               <Text style={styles.resultLabel}>TX Hash:</Text>
-              <Text style={styles.resultValue} numberOfLines={1}>
+              <Text style={styles.resultValue} selectable>
                 {registrationTxHash}
               </Text>
             </View>
@@ -832,6 +1071,173 @@ export default function FrenchIDTestScreen() {
           >
             <Text style={styles.resetButtonText}>Reset Private Key</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Freedom Tool Voting */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Freedom Tool Vote</Text>
+
+          {/* Proposal ID input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Proposal ID</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput
+                style={[styles.input, { flex: 1 }]}
+                value={proposalId}
+                onChangeText={setProposalId}
+                keyboardType="numeric"
+                placeholder="236"
+              />
+              <TouchableOpacity
+                style={[styles.registerButton, isLoadingProposal && styles.buttonDisabled]}
+                onPress={loadProposal}
+                disabled={isLoadingProposal}
+              >
+                {isLoadingProposal ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.registerButtonText}>Load</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Proposal info */}
+          {proposalInfo && (
+            <>
+              <View style={styles.resultRow}>
+                <Text style={styles.resultLabel}>Title:</Text>
+                <Text style={styles.resultValue}>{proposalInfo.title}</Text>
+              </View>
+              {proposalInfo.description ? (
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>Description:</Text>
+                  <Text style={styles.resultValue}>{proposalInfo.description}</Text>
+                </View>
+              ) : null}
+
+              {/* Citizenship whitelist */}
+              {(() => {
+                const wl = proposalInfo.criteria.citizenshipWhitelist;
+                if (wl.length === 0) return (
+                  <View style={styles.resultRow}>
+                    <Text style={styles.resultLabel}>Nationalites:</Text>
+                    <Text style={styles.resultValue}>Toutes (pas de restriction)</Text>
+                  </View>
+                );
+                const countries = wl.map(decodeCitizenship);
+                const fraAllowed = countries.includes("FRA");
+                return (
+                  <>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.resultLabel}>Nationalites autorisees:</Text>
+                      <Text style={styles.resultValue}>{countries.join(", ")}</Text>
+                    </View>
+                    {!fraAllowed && (
+                      <View style={[styles.statusBadge, styles.statusError]}>
+                        <Text style={styles.statusBadgeText}>
+                          France (FRA) non autorisee
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* Eligibility check */}
+              {rarimePassportRef.current && privateKey && (
+                <TouchableOpacity
+                  style={[styles.registerButton, { backgroundColor: "#6366F1" }]}
+                  onPress={checkEligibility}
+                >
+                  <Text style={styles.registerButtonText}>Check Eligibility</Text>
+                </TouchableOpacity>
+              )}
+
+              {hasVoted === true && (
+                <View style={[styles.statusBadge, styles.statusRegisteredOther]}>
+                  <Text style={styles.statusBadgeText}>Already voted</Text>
+                </View>
+              )}
+
+              {isEligible === true && !hasVoted && (
+                <View style={[styles.statusBadge, styles.statusRegisteredOwn]}>
+                  <Text style={styles.statusBadgeText}>Eligible to vote</Text>
+                </View>
+              )}
+
+              {isEligible === false && (
+                <View style={[styles.statusBadge, styles.statusError]}>
+                  <Text style={styles.statusBadgeText}>Not eligible</Text>
+                </View>
+              )}
+
+              {/* Vote options */}
+              {isEligible && !hasVoted && proposalInfo.questions.length > 0 && (
+                <>
+                  <Text style={styles.sectionSubtitle}>
+                    {proposalInfo.questions[0].title}
+                  </Text>
+                  <View style={{ gap: 8 }}>
+                    {proposalInfo.questions[0].variants.map((variant, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={[
+                          styles.registerButton,
+                          {
+                            backgroundColor:
+                              selectedAnswer === idx ? "#6366F1" : "#94A3B8",
+                          },
+                        ]}
+                        onPress={() => setSelectedAnswer(idx)}
+                      >
+                        <Text style={styles.registerButtonText}>{variant}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {selectedAnswer !== null && (
+                    <TouchableOpacity
+                      style={[
+                        styles.scanButton,
+                        isSubmittingVote && styles.buttonDisabled,
+                      ]}
+                      onPress={submitVote}
+                      disabled={isSubmittingVote}
+                    >
+                      {isSubmittingVote ? (
+                        <View style={styles.loadingRow}>
+                          <ActivityIndicator size="small" color="#fff" />
+                          <Text style={styles.scanButtonText}>
+                            Submitting vote...
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.scanButtonText}>Submit Vote</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              {/* Vote TX hash */}
+              {voteTxHash && (
+                <View style={styles.txHashContainer}>
+                  <Text style={styles.resultLabel}>Vote TX Hash:</Text>
+                  <Text style={styles.resultValue} selectable>
+                    {voteTxHash}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Vote error */}
+          {voteError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{voteError}</Text>
+            </View>
+          )}
         </View>
 
         {/* MRZ Input Section */}

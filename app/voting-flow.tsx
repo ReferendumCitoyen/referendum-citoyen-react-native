@@ -4,6 +4,17 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
+import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import * as SecureStore from 'expo-secure-store';
+import { Buffer } from 'buffer';
+import {
+  RARIME_TESTNET_CONFIG,
+  FREEDOM_TOOL_CONFIG,
+  PRIVATE_KEY_STORAGE_KEY,
+  DEFAULT_PROPOSAL_ID,
+  withRetry,
+  formatRpcError,
+} from '@/constants/rarime-config';
 
 // Import all steps
 import Step1 from '@/components/voting-modal/Step1';
@@ -15,6 +26,7 @@ import Step6 from '@/components/voting-modal/Step6';
 import Step7 from '@/components/voting-modal/Step7';
 import Step8 from '@/components/voting-modal/Step8';
 import Step9Error from '@/components/voting-modal/Step9Error';
+import Step9Vote from '@/components/voting-modal/Step9Vote';
 import Step10 from '@/components/voting-modal/Step10';
 import Step11 from '@/components/voting-modal/Step11';
 import Step12Success from '@/components/voting-modal/Step12Success';
@@ -53,6 +65,13 @@ export default function VotingFlowScreen() {
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
   const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non'>('oui');
 
+  // Rarime / FreedomTool state
+  const [privateKey, setPrivateKey] = useState<string | null>(null);
+  const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
+  const rarimeRef = useRef<Rarime | null>(null);
+  const freedomToolRef = useRef<FreedomTool | null>(null);
+  const passportRef = useRef<RarimePassport | null>(null);
+
   const slideAnim = useRef(new Animated.Value(0)).current;
   const progressOpacity1 = useRef(new Animated.Value(1)).current;
   const progressOpacity2 = useRef(new Animated.Value(0.25)).current;
@@ -60,6 +79,42 @@ export default function VotingFlowScreen() {
 
   const { players, handleStepChange, pauseAll } = useModalVideoPlayers();
   const { player1, player2, player3, player4, player5 } = players;
+
+  // Init Rarime + FreedomTool + load proposal (lazy import to avoid crypto polyfill issues)
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Rarime: RarimeClass, RarimeUtils: Utils, FreedomTool: FT } =
+          await import('@rarimo/rarime-rn-sdk');
+
+        let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+        if (!storedKey) {
+          storedKey = Utils.generateBJJPrivateKey();
+          await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
+        }
+        setPrivateKey(storedKey);
+
+        const rarime = new RarimeClass({
+          ...RARIME_TESTNET_CONFIG,
+          userConfiguration: { userPrivateKey: storedKey },
+        });
+        rarimeRef.current = rarime;
+
+        const ft = new FT(FREEDOM_TOOL_CONFIG);
+        freedomToolRef.current = ft;
+
+        console.log('[FreedomTool] Loading proposal', DEFAULT_PROPOSAL_ID);
+        const info = await withRetry(
+          () => ft.getProposalInfo(DEFAULT_PROPOSAL_ID),
+          { label: 'getProposalInfo' }
+        );
+        console.log('[FreedomTool] Proposal loaded:', info.title);
+        setProposalInfo(info);
+      } catch (err) {
+        console.error('[FreedomTool] Init error:', err);
+      }
+    })();
+  }, []);
 
   // Reset state when screen comes into focus
   useFocusEffect(
@@ -113,6 +168,22 @@ export default function VotingFlowScreen() {
 
   const handleNFCSuccess = useCallback((data: NFCScanResult) => {
     setNFCData(data);
+
+    // Create RarimePassport from NFC data
+    if (data.dg1Bytes && data.sodBytes) {
+      (async () => {
+        try {
+          const { RarimePassport: RP } = await import('@rarimo/rarime-rn-sdk');
+          const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes, 'base64'));
+          const sod = new Uint8Array(Buffer.from(data.sodBytes, 'base64'));
+          passportRef.current = new RP({ dataGroup1: dg1, sod });
+          console.log('[FreedomTool] RarimePassport created from NFC data');
+        } catch (err) {
+          console.error('[FreedomTool] Failed to create RarimePassport:', err);
+        }
+      })();
+    }
+
     handleNext();
   }, [handleNext]);
 
@@ -162,7 +233,6 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleVoteSuccess = useCallback(() => {
-    setSelectedVote('oui');
     setCurrentStep(9);
     Animated.timing(slideAnim, {
       toValue: -8 * containerWidth,
@@ -173,6 +243,17 @@ export default function VotingFlowScreen() {
     handleStepChange(9);
   }, [slideAnim, containerWidth, handleStepChange]);
 
+  const handleVoteSelect = useCallback((vote: 'oui' | 'blanc' | 'non') => {
+    setSelectedVote(vote);
+    setCurrentStep(10);
+    Animated.timing(slideAnim, {
+      toValue: -9 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(10);
+  }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleStep9Confirm = useCallback(() => {
     setCurrentStep(11);
@@ -270,6 +351,9 @@ export default function VotingFlowScreen() {
               nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
+              rarime={rarimeRef.current ?? undefined}
+              passport={passportRef.current ?? undefined}
+              freedomTool={freedomToolRef.current ?? undefined}
             />
             <Step8
               containerWidth={containerWidth}
@@ -277,6 +361,11 @@ export default function VotingFlowScreen() {
               voteSubmissionResult={voteSubmissionResult}
               onVoteSuccess={handleVoteSuccess}
               onClose={handleClose}
+            />
+            <Step9Vote
+              containerWidth={containerWidth}
+              onVoteSelect={handleVoteSelect}
+              onCancel={handleStep9Cancel}
             />
             <Step10
               containerWidth={containerWidth}
@@ -290,6 +379,11 @@ export default function VotingFlowScreen() {
               isActive={currentStep === 11}
               onSuccess={handleStep11Success}
               onError={handleStep11Error}
+              freedomTool={freedomToolRef.current ?? undefined}
+              rarime={rarimeRef.current ?? undefined}
+              passport={passportRef.current ?? undefined}
+              proposalInfo={proposalInfo ?? undefined}
+              answerIndex={selectedVote === 'oui' ? 0 : selectedVote === 'non' ? 2 : 1}
             />
             <Step12Success
               containerWidth={containerWidth}
@@ -302,13 +396,7 @@ export default function VotingFlowScreen() {
             {verificationResult === 'error' && (
               <Step9Error
                 containerWidth={containerWidth}
-                onRetry={() => {
-                  setCurrentStep(5);
-                  setVerificationResult(null);
-                  setMRZData(null);
-                  setNFCData(null);
-                }}
-                onClose={handleClose}
+                onGoHome={handleClose}
               />
             )}
           </Animated.View>
