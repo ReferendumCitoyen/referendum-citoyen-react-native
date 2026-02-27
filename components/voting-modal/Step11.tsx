@@ -3,6 +3,8 @@ import { View, Text, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
+import { withRetry, formatRpcError } from '@/constants/rarime-config';
+import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 
 interface Step11Props {
   containerWidth: number;
@@ -10,43 +12,82 @@ interface Step11Props {
   onSuccess?: () => void;
   onError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  freedomTool?: FreedomTool;
+  rarime?: Rarime;
+  passport?: RarimePassport;
+  proposalInfo?: ProposalInfo;
+  answerIndex?: number;
 }
 
-const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, onError, onLayout }) => {
+const Step11: React.FC<Step11Props> = ({
+  containerWidth,
+  isActive,
+  onSuccess,
+  onError,
+  onLayout,
+  freedomTool,
+  rarime,
+  passport,
+  proposalInfo,
+  answerIndex,
+}) => {
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
-  const [countdown, setCountdown] = useState(5);
-  const [willSucceed] = useState(() => Math.random() < 0.75);
+  const [statusText, setStatusText] = useState('');
   const hasCalledCallback = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
+
+  const canSubmitReal = freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
 
   useEffect(() => {
     if (isActive && !hasStarted) {
       setHasStarted(true);
-      setCountdown(5);
       hasCalledCallback.current = false;
+      setStatusText('Préparation...');
     } else if (!isActive && hasStarted) {
-      // Reset when step becomes inactive
       setHasStarted(false);
       hasCalledCallback.current = false;
     }
   }, [isActive, hasStarted]);
 
   useEffect(() => {
-    if (hasStarted && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (hasStarted && countdown === 0 && !hasCalledCallback.current) {
+    if (!hasStarted || hasCalledCallback.current) return;
+
+    if (!canSubmitReal) {
       hasCalledCallback.current = true;
-      if (willSucceed && onSuccess) {
-        onSuccess();
-      } else if (!willSucceed && onError) {
-        onError();
-      }
+      setStatusText("Erreur : scannez d'abord votre carte d'identité.");
+      onError?.();
+      return;
     }
-  }, [hasStarted, countdown, willSucceed, onSuccess, onError]);
+
+    (async () => {
+      try {
+        setStatusText('Génération de la preuve ZK...');
+        console.log('[FreedomTool] Step11: Submitting vote...');
+
+        const txHash = await withRetry(
+          () =>
+            freedomTool.submitProposal({
+              answers: [answerIndex],
+              proposalInfo,
+              rarime,
+              passport,
+            }),
+          { label: 'submitProposal' }
+        );
+
+        console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
+        hasCalledCallback.current = true;
+        setStatusText('Vote soumis !');
+        onSuccess?.();
+      } catch (err) {
+        console.error('[FreedomTool] Step11: Vote error:', err);
+        hasCalledCallback.current = true;
+        setStatusText(formatRpcError(err));
+        onError?.();
+      }
+    })();
+  }, [hasStarted, canSubmitReal, freedomTool, rarime, passport, proposalInfo, answerIndex, onSuccess, onError]);
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
@@ -64,7 +105,7 @@ const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, on
           fontSize: Typography.fontSize.small,
           color: colors.text,
         }}>
-          {countdown} ({willSucceed ? 'Success' : 'Fail'})
+          {statusText}
         </Text>
       </View>
     </View>

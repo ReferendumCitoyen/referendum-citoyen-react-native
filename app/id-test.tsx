@@ -22,21 +22,7 @@ import { getRandomValues } from "expo-crypto";
 import { Rarime, RarimePassport, RarimeUtils, DocumentStatus } from "@rarimo/rarime-rn-sdk";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
-
-// Rarime Testnet Configuration
-const RARIME_TESTNET_CONFIG = {
-  contractsConfiguration: {
-    stateKeeperAddress: '0x12883d5F530AF7EC2adD7cEC29Cf84215efCf4D8',
-    registerSimpleContractAddress: '0x1b6ae4b80F0f26DC53731D1d7aA31fc3996B513B',
-    poseidonSmtAddress: '0xb8bAac4C443097d697F87CC35C5d6B06dDe64D60',
-  },
-  apiConfiguration: {
-    jsonRpcEvmUrl: 'https://rpc.qtestnet.org',
-    rarimeApiUrl: 'https://api.orgs.app.stage.rarime.com',
-  },
-};
-
-const PRIVATE_KEY_STORAGE_KEY = 'rarime_bjj_private_key';
+import { RARIME_TESTNET_CONFIG, PRIVATE_KEY_STORAGE_KEY } from "@/constants/rarime-config";
 
 // Helper function to shorten long values for display
 const shortenValue = (value: any, maxLength = 50): string => {

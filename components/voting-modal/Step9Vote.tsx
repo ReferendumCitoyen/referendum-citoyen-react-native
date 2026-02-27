@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image, LayoutChangeEvent, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Image, LayoutChangeEvent } from 'react-native';
 import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -13,7 +13,6 @@ interface Step9VoteProps {
 }
 
 const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect }) => {
-  console.log('🗳️ Step9Vote rendering');
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non' | null>(null);
@@ -21,7 +20,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
 
   const handleVoteSelect = (vote: 'oui' | 'blanc' | 'non') => {
     setSelectedVote(vote);
-    if (Platform.OS === 'android' && onVoteSelect) {
+    if (onVoteSelect) {
       onVoteSelect(vote);
     } else {
       confirmationModalRef.current?.present();
