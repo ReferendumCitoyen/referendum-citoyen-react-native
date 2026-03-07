@@ -1,7 +1,8 @@
 // Step 9 - Placeholder
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step9Props {
   onNext?: () => void;
@@ -12,7 +13,9 @@ interface Step9Props {
   isFullScreen?: boolean;
 }
 
-const Step9: React.FC<Step9Props> = ({ onNext, onClose, onSuccess, onError, nfcData, isFullScreen }) => {
+const Step9: React.FC<Step9Props> = ({ onNext, onClose, onSuccess, isFullScreen }) => {
+  const { t } = useTranslation();
+
   const handleAction = () => {
     if (onNext) onNext();
     if (onSuccess) onSuccess();
@@ -21,11 +24,11 @@ const Step9: React.FC<Step9Props> = ({ onNext, onClose, onSuccess, onError, nfcD
 
   return (
     <View style={[styles.container, isFullScreen && styles.fullScreen]}>
-      <Text style={styles.title}>Step 9</Text>
-      <Text style={styles.text}>Content for step 9</Text>
-      
+      <Text style={styles.title}>{t('placeholderSteps.title', { step: '9' })}</Text>
+      <Text style={styles.text}>{t('placeholderSteps.content', { step: '9' })}</Text>
+
       <TouchableOpacity style={styles.button} onPress={handleAction}>
-        <Text style={styles.buttonText}>Continuer</Text>
+        <Text style={styles.buttonText}>{t('placeholderSteps.continue')}</Text>
       </TouchableOpacity>
     </View>
   );

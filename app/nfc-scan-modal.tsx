@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
+import { useTranslation } from 'react-i18next';
 
 export default function NFCScanModal() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -25,22 +27,22 @@ export default function NFCScanModal() {
 
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
-            setScanStatus("📱 Approchez votre carte d'identité du téléphone");
+            setScanStatus(t('voting.step6PresentCard'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
-            setScanStatus("🔐 Authentification...");
+            setScanStatus(t('voting.step6Authenticating'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
-            setScanStatus("📖 Lecture des données...");
+            setScanStatus(t('voting.step6Reading'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
-            setScanStatus("✅ Authentification active...");
+            setScanStatus(t('voting.step6ActiveAuth'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
-            setScanStatus("✅ Lecture réussie !");
+            setScanStatus(t('voting.step6ReadSuccess'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
-            setScanStatus("❌ Erreur de lecture");
+            setScanStatus(t('voting.step6ReadError'));
           }),
         ];
       } catch (_error) {
@@ -70,14 +72,14 @@ export default function NFCScanModal() {
 
   const startScan = async () => {
     if (!mrzData) {
-      setError("Données MRZ manquantes");
+      setError(t('nfcScan.missingMrz'));
       return;
     }
 
     try {
       setIsScanning(true);
       setError(null);
-      setScanStatus("🔄 Initialisation...");
+      setScanStatus(t('voting.step6Init'));
 
       const { scanDocument } = await import('@/modules/e-document');
       const challenge = getRandomValues(new Uint8Array(32));
@@ -86,7 +88,7 @@ export default function NFCScanModal() {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      setScanStatus("📱 Approchez votre carte maintenant...");
+      setScanStatus(t('voting.step6Now'));
 
       const result = await scanDocument('P', {
         documentNumber: mrzData.documentNumber,
@@ -98,7 +100,7 @@ export default function NFCScanModal() {
       router.back();
 
     } catch (error: any) {
-      setError(error.message || 'Erreur de lecture');
+      setError(error.message || t('voting.step6ReadError'));
       setIsScanning(false);
     }
   };
@@ -106,7 +108,7 @@ export default function NFCScanModal() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Lecture NFC</Text>
+        <Text style={styles.title}>{t('nfcScan.title')}</Text>
 
         {scanStatus && (
           <View style={styles.statusContainer}>
@@ -121,7 +123,7 @@ export default function NFCScanModal() {
         )}
 
         <Text style={styles.instruction}>
-          Placez votre carte d'identité contre l'arrière de votre téléphone
+          {t('nfcScan.instruction')}
         </Text>
 
         <View style={styles.buttonContainer}>
@@ -130,7 +132,7 @@ export default function NFCScanModal() {
               style={styles.retryButton}
               onPress={startScan}
             >
-              <Text style={styles.retryButtonText}>Réessayer</Text>
+              <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           )}
 
@@ -138,7 +140,7 @@ export default function NFCScanModal() {
             style={styles.cancelButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.cancelButtonText}>Annuler</Text>
+            <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>

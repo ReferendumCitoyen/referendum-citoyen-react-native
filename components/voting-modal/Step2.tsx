@@ -3,6 +3,7 @@ import { View, Text, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step2Props {
   player: any;
@@ -11,6 +12,7 @@ interface Step2Props {
 }
 
 const Step2: React.FC<Step2Props> = ({ player, containerWidth, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -39,10 +41,10 @@ const Step2: React.FC<Step2Props> = ({ player, containerWidth, onLayout }) => {
             <View style={modalStyles.numberCircle}>
               <Text style={modalStyles.numberText}>2</Text>
             </View>
-            <Text style={modalStyles.stepTitle}>Vérifiez votre âge et nationalité localement sur votre appareil</Text>
+            <Text style={modalStyles.stepTitle}>{t('voting.step2Title')}</Text>
           </View>
           <Text style={modalStyles.stepDescription}>
-            Cette application vérifie les données sur la puce NFC à l'intérieur de votre Carte d'identité. Les données ne sont pas transférées ni conservées sur un serveur tiers.
+            {t('voting.step2Description')}
           </Text>
         </View>
       </View>

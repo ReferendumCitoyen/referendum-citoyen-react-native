@@ -1,10 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import CustomTabBar from '@/components/CustomTabBar';
 import { VideoProvider } from '@/contexts/VideoContext';
 
 export default function TabLayout() {
+  const { t } = useTranslation();
+
   return (
     <VideoProvider>
       <Tabs
@@ -16,21 +19,21 @@ export default function TabLayout() {
         <Tabs.Screen
           name="comprendre"
           options={{
-            title: 'Comprendre',
+            title: t('tabs.comprendre'),
             headerShown: false,
           }}
         />
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Accueil',
+            title: t('tabs.accueil'),
             headerShown: false,
           }}
         />
         <Tabs.Screen
           name="parametres"
           options={{
-            title: 'Paramètres',
+            title: t('tabs.parametres'),
             headerShown: false,
           }}
         />

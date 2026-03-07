@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 import Step1 from "./Step1";
 import Step10 from "./Step10";
 import Step11 from "./Step11";
@@ -46,6 +47,7 @@ interface VotingModalProps {
 }
 
 const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
@@ -376,7 +378,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         {/* Title Section - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
           <View style={modalStyles.titleSection}>
-            <Text style={modalStyles.title}>Processus de vote</Text>
+            <Text style={modalStyles.title}>{t('voting.title')}</Text>
           </View>
         )}
 
