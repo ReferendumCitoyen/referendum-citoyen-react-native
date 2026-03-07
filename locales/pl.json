@@ -1,0 +1,217 @@
+{
+  "tabs": {
+    "comprendre": "Zrozumieć",
+    "accueil": "Strona główna",
+    "parametres": "Ustawienia"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "nl": "Nederlands",
+    "pl": "Polski",
+    "es": "Español"
+  },
+  "common": {
+    "cancel": "Anuluj",
+    "retry": "Spróbuj ponownie",
+    "analyze": "Analizuj",
+    "manualFill": "Wypełnij ręcznie",
+    "open": "Otwórz",
+    "select": "Wybierz",
+    "backToHome": "Wróć do strony głównej",
+    "yes": "Tak",
+    "no": "Nie",
+    "blank": "Pusty"
+  },
+  "navigation": {
+    "nfcTest": "Test NFC",
+    "nfcScan": "Skan NFC",
+    "back": "Wstecz",
+    "votingProcess": "Proces głosowania",
+    "oops": "Ups!"
+  },
+  "settings": {
+    "title": "Ustawienia",
+    "darkMode": "Tryb ciemny",
+    "language": "Język",
+    "rpc": "RPC",
+    "smartContract": "Smart contract",
+    "nfcTest": "Test NFC",
+    "version": "Wersja {{version}} ({{build}})"
+  },
+  "home": {
+    "yes": "Tak",
+    "blank": "Pusty",
+    "no": "Nie",
+    "ongoingVotes": "Trwające głosowania",
+    "badgeOngoing": "Trwa",
+    "badgeSoon": "Wkrótce",
+    "badgeFinished": "Zakończone",
+    "votes": "Głosy",
+    "endsIn": "Kończy się za",
+    "starts": "Start",
+    "ended": "Zakończono",
+    "voteButton": "Głosuj"
+  },
+  "voting": {
+    "title": "Proces głosowania",
+    "step1Title": "Zeskanuj anonimowo swój dowód tożsamości",
+    "step1Description": "Zeskanuj dowód, aby potwierdzić wiek i obywatelstwo. Twoje dane są zaszyfrowane i niemożliwe do śledzenia. Jesteś w 100% anonimowy.",
+    "step2Title": "Zweryfikuj wiek i obywatelstwo lokalnie na urządzeniu",
+    "step2Description": "Ta aplikacja weryfikuje dane z chipu NFC w Twoim dowodzie. Dane nie są przesyłane ani przechowywane na serwerach stron trzecich.",
+    "step3Title": "Anonimowy głos",
+    "step3Description": "Po zweryfikowaniu i potwierdzeniu danych aplikacja generuje anonimowy token, który pozwala oddać głos.",
+    "step4Title": "Analiza dowodu tożsamości",
+    "step4Description": "Przyłóż urządzenie do dowodu",
+    "step4Start": "Rozpocznij analizę",
+    "step5Title": "Analiza MRZ",
+    "step5CameraPermission": "Wymagane jest uprawnienie do aparatu",
+    "step5CameraUnavailable": "Aparat niedostępny",
+    "step6Title": "Czytnik NFC",
+    "step6MissingMrz": "Brak danych MRZ. Najpierw zeskanuj MRZ.",
+    "step6Init": "🔄 Inicjalizacja...",
+    "step6PresentCard": "📱 Przyłóż dowód do telefonu",
+    "step6Authenticating": "🔐 Uwierzytelnianie...",
+    "step6Reading": "📖 Odczytywanie danych...",
+    "step6ActiveAuth": "✅ Aktywne uwierzytelnianie...",
+    "step6ReadSuccess": "✅ Odczyt zakończony sukcesem!",
+    "step6ReadError": "❌ Błąd odczytu",
+    "step6Now": "📱 Przyłóż teraz kartę...",
+    "step6InvalidMrz": "❌ Nieprawidłowe dane MRZ. Powrót do skanera...",
+    "step6ErrorWithMessage": "❌ Błąd: {{message}}. Spróbuj ponownie.",
+    "step6Scanning": "Skanowanie w toku...",
+    "step7Title": "Weryfikacja lokalna",
+    "step7Description": "Weryfikacja wieku i obywatelstwa lokalnie na urządzeniu. Proszę czekać…",
+    "step7NameUnavailable": "Nazwa niedostępna",
+    "step7BornOn": "Data urodzenia: {{date}}",
+    "step7Nationality": "Obywatelstwo: {{value}}",
+    "step8Ready": "Gotowe",
+    "step8VoteNow": "Głosuj teraz",
+    "step9Confirm": "Czy na pewno chcesz zagłosować: {{vote}}?",
+    "step9VoteAction": "Głosuj {{vote}}",
+    "step9ErrorTitle": "Nie można użyć tej tożsamości",
+    "step9ErrorDescription": "Właściciel tego dowodu już zagłosował lub poinformował nas, że odmawia głosowania",
+    "step10Confirm": "Czy na pewno chcesz zagłosować: {{vote}}?",
+    "step10VoteYes": "Głosuj Tak",
+    "step10VoteNo": "Głosuj Nie",
+    "step10VoteBlank": "Głosuj Pusty",
+    "step11Status": "{{countdown}} ({{status}})",
+    "step11Success": "Sukces",
+    "step11Fail": "Niepowodzenie",
+    "step12SuccessTitle": "Gotowe! Twój głos został zapisany.",
+    "step12SuccessDescription": "Dane z Twojego dowodu zostały usunięte z urządzenia.",
+    "step12SuccessButton": "Zobacz wyniki",
+    "step12ErrorTitle": "Wystąpił błąd.",
+    "step12ErrorDescription": "Spróbuj ponownie."
+  },
+  "nfcScan": {
+    "title": "Skan NFC",
+    "missingMrz": "Brak danych MRZ",
+    "instruction": "Przyłóż dowód do tylnej części telefonu"
+  },
+  "mrzManual": {
+    "title": "Ręczne wprowadzanie MRZ",
+    "documentNumber": "Numer dokumentu",
+    "birthDate": "Data urodzenia",
+    "expiryDate": "Data ważności",
+    "documentPlaceholder": "Np: AB123456",
+    "datePlaceholder": "DDMMRR",
+    "birthHint": "Format: Dzień Miesiąc Rok (np. 150790 dla 15/07/1990)",
+    "expiryHint": "Format: Dzień Miesiąc Rok (np. 251229 dla 25/12/2029)",
+    "submit": "Zatwierdź"
+  },
+  "nfcTest": {
+    "closeCamera": "✕ Zamknij",
+    "scanMrzInstructions": "Zeskanuj 3 linie MRZ z tyłu dowodu",
+    "rarimeTestnet": "Rarime Testnet",
+    "profileKey": "Klucz profilu:",
+    "loading": "Ładowanie...",
+    "notRegistered": "⚪ Niezarejestrowany",
+    "registeredOwnKey": "✅ Zarejestrowany (Twój klucz)",
+    "registeredOtherKey": "⚠️ Zarejestrowany (inny klucz)",
+    "checkingStatus": "Sprawdzanie statusu w testnecie...",
+    "registering": "Rejestrowanie (~5s)...",
+    "registerIdentity": "Zarejestruj tożsamość w testnecie",
+    "txHash": "Hash TX:",
+    "resetPrivateKey": "🔄 Resetuj klucz prywatny",
+    "mrzData": "Dane MRZ (tył paszportu)",
+    "scanWithCamera": "📷 Skanuj aparatem",
+    "orManualInput": "lub wpisz ręcznie:",
+    "documentNumberPlaceholder": "Numer dokumentu (np. 12AB34567)",
+    "birthDatePlaceholder": "Data urodzenia (RRMMDD)",
+    "expiryDatePlaceholder": "Data ważności (RRMMDD)",
+    "fullPassportRead": "Pełny odczyt paszportu:",
+    "scanInProgress": "Skanowanie...",
+    "edocumentModule": "📄 Moduł EDocument",
+    "basicNfcTests": "Podstawowe testy NFC:",
+    "scanNdefTag": "Skanuj tag NDEF",
+    "scanIsoDepPassport": "Skanuj IsoDep (Paszport)",
+    "errorLabel": "Błąd:",
+    "passportScannedSuccess": "✅ Paszport zeskanowany pomyślnie",
+    "lastName": "Nazwisko:",
+    "firstName": "Imię:",
+    "birthDate": "Data urodzenia:",
+    "nationality": "Obywatelstwo:",
+    "documentNumber": "Nr dokumentu:",
+    "expiryDate": "Data ważności:",
+    "passportDataInLogs": "Dane paszportu dostępne w logach",
+    "viewRawData": "📋 Zobacz surowe dane (logi)",
+    "instruction": "Naciśnij przycisk i zbliż tag NFC do urządzenia.",
+    "errors": {
+      "cameraPermissionDenied": "Odmowa dostępu do aparatu",
+      "missingPassportOrKey": "Brak zeskanowanego paszportu lub niedostępny klucz prywatny",
+      "registrationFailed": "Rejestracja nieudana: {{message}}",
+      "unknown": "Nieznany błąd",
+      "fillAllMrzFields": "Wypełnij wszystkie pola MRZ"
+    },
+    "status": {
+      "presentPassport": "📱 Przyłóż paszport do telefonu",
+      "authenticatingPassport": "🔐 Uwierzytelnianie paszportu...",
+      "readingPassportData": "📖 Odczytywanie danych paszportu...",
+      "scanCompleted": "✅ Skanowanie zakończone sukcesem!"
+    }
+  },
+  "notFound": {
+    "title": "Ten ekran nie istnieje.",
+    "goHome": "Przejdź do ekranu głównego"
+  },
+  "comprendre": {
+    "welcome": {
+      "title": "Witamy!",
+      "text": "Zapraszamy wszystkich obywateli do udziału w referendach dotyczących bieżących tematów."
+    },
+    "accordions": [
+      {
+        "title": "Jeden unikalny, odporny na manipulacje głos",
+        "content": "Głosowanie odbywa się poprzez lokalny odczyt chipu dowodu tożsamości w telefonie (nie paszportu, aby uniknąć podwójnych głosów), aby upewnić się, że:\\n1. Jesteś Francuzem i osobą pełnoletnią\\n2. Nikt nie może zagłosować dwa razy"
+      },
+      {
+        "title": "Gwarantowana anonimowość głosu",
+        "content": "Nie da się ustalić, kto jak głosował, ponieważ dane są szyfrowane lokalnie na telefonie przed wysłaniem do publicznego rejestru, gdzie nie ma powiązania między Twoim nazwiskiem a głosem."
+      },
+      {
+        "title": "Transparentne głosowanie",
+        "content": "Wszystkie głosy widoczne on-chain są weryfikowalne, dzięki czemu każdy może sprawdzić obecność swojego głosu i legalność innych. Rejestr jest publiczny i transparentny. Nie można go zmienić po zapisaniu danych."
+      },
+      {
+        "title": "Inni mogą głosować w Twoim referendum",
+        "content": "Aplikacja pozwala wielu osobom głosować w tym samym referendum. Możesz utworzyć własne referendum i zaprosić innych do udziału."
+      },
+      {
+        "title": "Co dzieje się po zliczeniu głosów?",
+        "content": "Nie ma centralnego komputera zbierającego głosy. Głosy są zapisywane na tysiącach komputerów. Jeśli aplikacja zostanie zablokowana lub usunięta ze sklepów, można ją powielić, aby kontynuować głosowanie."
+      }
+    ],
+    "origin": {
+      "title": "Skąd to się wzięło",
+      "content": "Alexandre Jardin (pisarz, założyciel #LesGueux) został przekonany przez swojego syna Robinsona Jardina (ex-NordVPN, obecnie Nym) o potencjale blockchaina dla demokracji bezpośredniej.\\n\\nNastępnie połączyli siły z Alexisem Rousselem (szwajcarski działacz na rzecz demokracji cyfrowej, współzałożyciel Nym), który określił wymagania aplikacji.\\n\\nAplikacja open-source\\nHostowana przez Szwajcarską Partię Piratów\\nLokalne przetwarzanie danych - RODO"
+    }
+  },
+  "placeholderSteps": {
+    "title": "Krok {{step}}",
+    "content": "Treść kroku {{step}}",
+    "continue": "Kontynuuj"
+  }
+}

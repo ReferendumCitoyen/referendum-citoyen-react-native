@@ -3,6 +3,7 @@ import { View, Text, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step11Props {
   containerWidth: number;
@@ -13,6 +14,7 @@ interface Step11Props {
 }
 
 const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, onError, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [countdown, setCountdown] = useState(5);
@@ -64,7 +66,10 @@ const Step11: React.FC<Step11Props> = ({ containerWidth, isActive, onSuccess, on
           fontSize: Typography.fontSize.small,
           color: colors.text,
         }}>
-          {countdown} ({willSucceed ? 'Success' : 'Fail'})
+          {t('voting.step11Status', {
+            countdown,
+            status: willSucceed ? t('voting.step11Success') : t('voting.step11Fail'),
+          })}
         </Text>
       </View>
     </View>

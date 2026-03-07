@@ -19,6 +19,7 @@ import { getRandomValues } from "expo-crypto";
 import { Rarime, RarimePassport, RarimeUtils, DocumentStatus } from "@rarimo/rarime-rn-sdk";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
+import { useTranslation } from "react-i18next";
 
 // Rarime Testnet Configuration
 const RARIME_TESTNET_CONFIG = {
@@ -43,6 +44,7 @@ const base64ToUint8Array = (base64: string): Uint8Array => {
 };
 
 export default function NFCTestScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [tagData, setTagData] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -113,22 +115,22 @@ export default function NFCTestScreen() {
 
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
-            setScanStatus("📱 Approchez votre passeport du téléphone");
+            setScanStatus(t("nfcTest.status.presentPassport"));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
-            setScanStatus("🔐 Authentification avec le passeport...");
+            setScanStatus(t("nfcTest.status.authenticatingPassport"));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
-            setScanStatus("📖 Lecture des données du passeport...");
+            setScanStatus(t("nfcTest.status.readingPassportData"));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
-            setScanStatus("✅ Authentification active...");
+            setScanStatus(t("voting.step6ActiveAuth"));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
-            setScanStatus("✅ Lecture réussie !");
+            setScanStatus(t("voting.step6ReadSuccess"));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
-            setScanStatus("❌ Erreur de lecture");
+            setScanStatus(t("voting.step6ReadError"));
           }),
         ];
       } catch (error) {
@@ -265,7 +267,7 @@ export default function NFCTestScreen() {
     if (!hasPermission) {
       const granted = await requestPermission();
       if (!granted) {
-        setError("Permission caméra refusée");
+        setError(t("nfcTest.errors.cameraPermissionDenied"));
         return;
       }
     }
@@ -276,7 +278,7 @@ export default function NFCTestScreen() {
   // Register identity on testnet
   async function registerIdentityOnTestnet() {
     if (!privateKey || !rarimePassportRef.current) {
-      setError("No passport scanned or private key not available");
+      setError(t("nfcTest.errors.missingPassportOrKey"));
       return;
     }
 
@@ -300,7 +302,7 @@ export default function NFCTestScreen() {
       console.log('=== REGISTRATION COMPLETE ===\n');
     } catch (regError) {
       console.error('Registration failed:', regError);
-      setError('Registration failed: ' + (regError as Error).message);
+      setError(t('nfcTest.errors.registrationFailed', { message: (regError as Error).message }));
     } finally {
       setIsRegistering(false);
     }
@@ -340,7 +342,7 @@ export default function NFCTestScreen() {
       setTagData(tag);
     } catch (ex: any) {
       console.warn("Oops!", ex);
-      setError(ex?.message || "Unknown error");
+      setError(ex?.message || t("nfcTest.errors.unknown"));
     } finally {
       // stop the nfc scanning
       NfcManager.cancelTechnologyRequest();
@@ -367,7 +369,7 @@ export default function NFCTestScreen() {
       setTagData(tag);
     } catch (ex: any) {
       console.warn("Oops!", ex);
-      setError(ex?.message || "Unknown error");
+      setError(ex?.message || t("nfcTest.errors.unknown"));
     } finally {
       NfcManager.cancelTechnologyRequest();
       setIsScanning(false);
@@ -382,7 +384,7 @@ export default function NFCTestScreen() {
       setScanStatus("");
 
       if (!documentNo || !birthDate || !expiryDate) {
-        setError("Veuillez remplir tous les champs MRZ");
+        setError(t("nfcTest.errors.fillAllMrzFields"));
         setIsScanning(false);
         setScanStatus("");
         return;
@@ -504,12 +506,12 @@ export default function NFCTestScreen() {
         console.log('=== RARIME SDK INTEGRATION FAILED ===\n');
       }
 
-      setScanStatus("✅ Scan terminé avec succès !");
+      setScanStatus(t("nfcTest.status.scanCompleted"));
       setTagData(result);
       setError(null);
     } catch (ex: any) {
       console.warn("EDocument error:", ex);
-      setError(ex?.message || "Unknown error");
+      setError(ex?.message || t("nfcTest.errors.unknown"));
       setScanStatus("");
     } finally {
       console.log("Finally block: setting isScanning to false");
@@ -542,11 +544,11 @@ export default function NFCTestScreen() {
                 style={styles.closeCameraButton}
                 onPress={() => setShowCamera(false)}
               >
-                <Text style={styles.closeCameraText}>✕ Fermer</Text>
+                <Text style={styles.closeCameraText}>{t('nfcTest.closeCamera')}</Text>
               </TouchableOpacity>
               <View style={styles.cameraOverlay}>
                 <Text style={styles.cameraInstructions}>
-                  Scannez les 3 lignes MRZ au dos de la carte d'identité
+                  {t('nfcTest.scanMrzInstructions')}
                 </Text>
               </View>
             </View>
@@ -554,12 +556,12 @@ export default function NFCTestScreen() {
 
           {/* Rarime Testnet Status */}
           <View style={styles.rarimeSection}>
-            <Text style={styles.sectionTitle}>Rarime Testnet</Text>
+            <Text style={styles.sectionTitle}>{t('nfcTest.rarimeTestnet')}</Text>
 
             <View style={styles.infoRow}>
-              <Text style={styles.rarimeLabel}>Profile Key:</Text>
+              <Text style={styles.rarimeLabel}>{t('nfcTest.profileKey')}</Text>
               <Text style={styles.rarimeValue} numberOfLines={1}>
-                {profileKey ? `${profileKey.substring(0, 12)}...` : 'Loading...'}
+                {profileKey ? `${profileKey.substring(0, 12)}...` : t('nfcTest.loading')}
               </Text>
             </View>
 
@@ -572,9 +574,9 @@ export default function NFCTestScreen() {
                 documentStatus.startsWith('ERROR') && styles.statusError,
               ]}>
                 <Text style={styles.statusBadgeText}>
-                  {documentStatus === DocumentStatus.NotRegistered && '⚪ Not Registered'}
-                  {documentStatus === DocumentStatus.RegisteredWithThisPk && '✅ Registered (Your Key)'}
-                  {documentStatus === DocumentStatus.RegisteredWithOtherPk && '⚠️ Registered (Other Key)'}
+                  {documentStatus === DocumentStatus.NotRegistered && t('nfcTest.notRegistered')}
+                  {documentStatus === DocumentStatus.RegisteredWithThisPk && t('nfcTest.registeredOwnKey')}
+                  {documentStatus === DocumentStatus.RegisteredWithOtherPk && t('nfcTest.registeredOtherKey')}
                   {documentStatus.startsWith('ERROR') && `❌ ${documentStatus}`}
                 </Text>
               </View>
@@ -583,7 +585,7 @@ export default function NFCTestScreen() {
             {isCheckingStatus && (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color="#3B82F6" />
-                <Text style={styles.loadingText}>Checking status on testnet...</Text>
+                <Text style={styles.loadingText}>{t('nfcTest.checkingStatus')}</Text>
               </View>
             )}
 
@@ -597,17 +599,17 @@ export default function NFCTestScreen() {
                 {isRegistering ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator size="small" color="#fff" />
-                    <Text style={styles.registerButtonText}>Registering (~5s)...</Text>
+                    <Text style={styles.registerButtonText}>{t('nfcTest.registering')}</Text>
                   </View>
                 ) : (
-                  <Text style={styles.registerButtonText}>Register Identity on Testnet</Text>
+                  <Text style={styles.registerButtonText}>{t('nfcTest.registerIdentity')}</Text>
                 )}
               </TouchableOpacity>
             )}
 
             {registrationTxHash && (
               <View style={styles.txHashContainer}>
-                <Text style={styles.txHashLabel}>TX Hash:</Text>
+                <Text style={styles.txHashLabel}>{t('nfcTest.txHash')}</Text>
                 <Text style={styles.txHashValue} numberOfLines={1}>{registrationTxHash}</Text>
               </View>
             )}
@@ -617,34 +619,34 @@ export default function NFCTestScreen() {
               onPress={resetPrivateKey}
               activeOpacity={0.7}
             >
-              <Text style={styles.resetButtonText}>🔄 Reset Private Key</Text>
+              <Text style={styles.resetButtonText}>{t('nfcTest.resetPrivateKey')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* MRZ Input Section */}
           <View style={styles.mrzSection}>
-            <Text style={styles.sectionTitle}>Données MRZ (au dos du passeport)</Text>
+            <Text style={styles.sectionTitle}>{t('nfcTest.mrzData')}</Text>
 
             <TouchableOpacity
               style={styles.cameraButton}
               onPress={openMRZScanner}
               activeOpacity={0.7}
             >
-              <Text style={styles.cameraButtonText}>📷 Scanner avec caméra</Text>
+              <Text style={styles.cameraButtonText}>{t('nfcTest.scanWithCamera')}</Text>
             </TouchableOpacity>
 
-            <Text style={styles.orText}>ou saisir manuellement:</Text>
+            <Text style={styles.orText}>{t('nfcTest.orManualInput')}</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Numéro de document (ex: 12AB34567)"
+              placeholder={t('nfcTest.documentNumberPlaceholder')}
               value={documentNo}
               onChangeText={setDocumentNo}
               autoCapitalize="characters"
             />
             <TextInput
               style={styles.input}
-              placeholder="Date de naissance (AAMMJJ)"
+              placeholder={t('nfcTest.birthDatePlaceholder')}
               value={birthDate}
               onChangeText={setBirthDate}
               keyboardType="number-pad"
@@ -652,7 +654,7 @@ export default function NFCTestScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="Date d'expiration (AAMMJJ)"
+              placeholder={t('nfcTest.expiryDatePlaceholder')}
               value={expiryDate}
               onChangeText={setExpiryDate}
               keyboardType="number-pad"
@@ -661,7 +663,7 @@ export default function NFCTestScreen() {
           </View>
 
           {/* Passport Reading Buttons */}
-          <Text style={styles.sectionTitle}>Lecture complète du passeport:</Text>
+          <Text style={styles.sectionTitle}>{t('nfcTest.fullPassportRead')}</Text>
 
           <TouchableOpacity
             style={[styles.scanButton, styles.scanButtonSecondary, isScanning && styles.scanButtonDisabled]}
@@ -670,12 +672,12 @@ export default function NFCTestScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.scanButtonText}>
-              {isScanning ? "Scan en cours..." : "📄 EDocument Module"}
+              {isScanning ? t('nfcTest.scanInProgress') : t('nfcTest.edocumentModule')}
             </Text>
           </TouchableOpacity>
 
           {/* Basic NFC Test Buttons */}
-          <Text style={styles.sectionTitle}>Tests NFC basiques:</Text>
+          <Text style={styles.sectionTitle}>{t('nfcTest.basicNfcTests')}</Text>
 
           <TouchableOpacity
             style={[styles.scanButton, styles.scanButtonTest, isScanning && styles.scanButtonDisabled]}
@@ -684,7 +686,7 @@ export default function NFCTestScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.scanButtonText}>
-              {isScanning ? "Scan en cours..." : "Scanner Tag NDEF"}
+              {isScanning ? t('nfcTest.scanInProgress') : t('nfcTest.scanNdefTag')}
             </Text>
           </TouchableOpacity>
 
@@ -699,7 +701,7 @@ export default function NFCTestScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.scanButtonText}>
-              {isScanning ? "Scan en cours..." : "Scanner IsoDep (Passport)"}
+              {isScanning ? t('nfcTest.scanInProgress') : t('nfcTest.scanIsoDepPassport')}
             </Text>
           </TouchableOpacity>
 
@@ -711,56 +713,56 @@ export default function NFCTestScreen() {
 
           {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorTitle}>Erreur:</Text>
+              <Text style={styles.errorTitle}>{t('nfcTest.errorLabel')}</Text>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
           {tagData && (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultTitle}>✅ Passeport scanné avec succès</Text>
+              <Text style={styles.resultTitle}>{t('nfcTest.passportScannedSuccess')}</Text>
 
               {tagData.personDetails ? (
                 <>
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nom:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.lastName')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.lastName || 'N/A'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Prénom:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.firstName')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.firstName || 'N/A'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Date de naissance:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.birthDate')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.dateOfBirth || 'N/A'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Nationalité:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.nationality')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.nationality || 'N/A'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>N° Document:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.documentNumber')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.documentNumber || 'N/A'}</Text>
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Date d'expiration:</Text>
+                    <Text style={styles.infoLabel}>{t('nfcTest.expiryDate')}</Text>
                     <Text style={styles.infoValue}>{tagData.personDetails?.dateOfExpiry || 'N/A'}</Text>
                   </View>
                 </>
               ) : (
-                <Text style={styles.infoValue}>Données du passeport disponibles dans les logs</Text>
+                <Text style={styles.infoValue}>{t('nfcTest.passportDataInLogs')}</Text>
               )}
 
               <TouchableOpacity
                 style={styles.viewRawButton}
                 onPress={() => console.log("Full data:", JSON.stringify(tagData, null, 2))}
               >
-                <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
+                <Text style={styles.viewRawButtonText}>{t('nfcTest.viewRawData')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -768,7 +770,7 @@ export default function NFCTestScreen() {
           {!error && !tagData && !isScanning && (
             <View style={styles.instructionContainer}>
               <Text style={styles.instructionText}>
-                Appuyez sur le bouton et approchez un tag NFC de votre appareil.
+                {t('nfcTest.instruction')}
               </Text>
             </View>
           )}

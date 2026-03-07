@@ -14,6 +14,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 
 export {
@@ -89,6 +90,7 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -99,15 +101,15 @@ function RootLayoutNav() {
           <Stack.Screen
             name="nfc-test"
             options={{
-              title: 'Test NFC',
-              headerBackTitle: 'Retour'
+              title: t('navigation.nfcTest'),
+              headerBackTitle: t('navigation.back')
             }}
           />
           <Stack.Screen
             name="nfc-scan-modal"
             options={{
-              title: 'Lecture NFC',
-              headerBackTitle: 'Retour',
+              title: t('navigation.nfcScan'),
+              headerBackTitle: t('navigation.back'),
               presentation: 'modal'
             }}
           />

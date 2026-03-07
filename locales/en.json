@@ -3,5 +3,215 @@
     "comprendre": "Understand",
     "accueil": "Home",
     "parametres": "Settings"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "nl": "Nederlands",
+    "pl": "Polski",
+    "es": "Español"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "analyze": "Analyze",
+    "manualFill": "Fill manually",
+    "open": "Open",
+    "select": "Select",
+    "backToHome": "Back to home",
+    "yes": "Yes",
+    "no": "No",
+    "blank": "Blank"
+  },
+  "navigation": {
+    "nfcTest": "NFC test",
+    "nfcScan": "NFC scan",
+    "back": "Back",
+    "votingProcess": "Voting process",
+    "oops": "Oops!"
+  },
+  "settings": {
+    "title": "Settings",
+    "darkMode": "Dark mode",
+    "language": "Language",
+    "rpc": "RPC",
+    "smartContract": "Smart contract",
+    "nfcTest": "NFC test",
+    "version": "Version {{version}} ({{build}})"
+  },
+  "home": {
+    "yes": "Yes",
+    "blank": "Blank",
+    "no": "No",
+    "ongoingVotes": "Ongoing votes",
+    "badgeOngoing": "Ongoing",
+    "badgeSoon": "Soon",
+    "badgeFinished": "Finished",
+    "votes": "Votes",
+    "endsIn": "Ends in",
+    "starts": "Starts",
+    "ended": "Ended",
+    "voteButton": "Vote"
+  },
+  "voting": {
+    "title": "Voting process",
+    "step1Title": "Scan your ID card anonymously",
+    "step1Description": "Scan your ID card to validate your age and nationality. Your data is encrypted and untraceable. You are 100% anonymous.",
+    "step2Title": "Verify your age and nationality locally on your device",
+    "step2Description": "This app verifies data from the NFC chip inside your ID card. Data is neither transferred nor stored on any third-party server.",
+    "step3Title": "Anonymous vote",
+    "step3Description": "Once your data is verified and authentic, the app generates an anonymous token that allows you to vote.",
+    "step4Title": "ID card analysis",
+    "step4Description": "Hold your device over your ID card",
+    "step4Start": "Start analysis",
+    "step5Title": "MRZ analysis",
+    "step5CameraPermission": "Camera permission is required",
+    "step5CameraUnavailable": "Camera unavailable",
+    "step6Title": "NFC reader",
+    "step6MissingMrz": "MRZ data is missing. Scan MRZ first.",
+    "step6Init": "🔄 Initializing...",
+    "step6PresentCard": "📱 Bring your ID card to the phone",
+    "step6Authenticating": "🔐 Authenticating...",
+    "step6Reading": "📖 Reading data...",
+    "step6ActiveAuth": "✅ Active authentication...",
+    "step6ReadSuccess": "✅ Read successful!",
+    "step6ReadError": "❌ Read error",
+    "step6Now": "📱 Bring your card now...",
+    "step6InvalidMrz": "❌ Invalid MRZ data. Returning to scanner...",
+    "step6ErrorWithMessage": "❌ Error: {{message}}. Please retry.",
+    "step6Scanning": "Scan in progress...",
+    "step7Title": "Local verification",
+    "step7Description": "Verifying your age and nationality locally on your device. Please wait…",
+    "step7NameUnavailable": "Name unavailable",
+    "step7BornOn": "Born on: {{date}}",
+    "step7Nationality": "Nationality: {{value}}",
+    "step8Ready": "You are ready",
+    "step8VoteNow": "Vote now",
+    "step9Confirm": "Are you sure you want to vote: {{vote}}?",
+    "step9VoteAction": "Vote {{vote}}",
+    "step9ErrorTitle": "This identity cannot be used",
+    "step9ErrorDescription": "The owner of this ID card has already voted or informed us they refuse to vote",
+    "step10Confirm": "Are you sure you want to vote: {{vote}}?",
+    "step10VoteYes": "Vote Yes",
+    "step10VoteNo": "Vote No",
+    "step10VoteBlank": "Vote Blank",
+    "step11Status": "{{countdown}} ({{status}})",
+    "step11Success": "Success",
+    "step11Fail": "Fail",
+    "step12SuccessTitle": "Done! Your vote has been recorded.",
+    "step12SuccessDescription": "Your ID card data has been erased from this device.",
+    "step12SuccessButton": "View results",
+    "step12ErrorTitle": "An error occurred.",
+    "step12ErrorDescription": "Please try again."
+  },
+  "nfcScan": {
+    "title": "NFC scan",
+    "missingMrz": "MRZ data is missing",
+    "instruction": "Place your ID card against the back of your phone"
+  },
+  "mrzManual": {
+    "title": "Manual MRZ input",
+    "documentNumber": "Document number",
+    "birthDate": "Date of birth",
+    "expiryDate": "Expiry date",
+    "documentPlaceholder": "Ex: AB123456",
+    "datePlaceholder": "DDMMYY",
+    "birthHint": "Format: Day Month Year (e.g. 150790 for 15/07/1990)",
+    "expiryHint": "Format: Day Month Year (e.g. 251229 for 25/12/2029)",
+    "submit": "Validate"
+  },
+  "nfcTest": {
+    "closeCamera": "✕ Close",
+    "scanMrzInstructions": "Scan the 3 MRZ lines on the back of the ID card",
+    "rarimeTestnet": "Rarime Testnet",
+    "profileKey": "Profile Key:",
+    "loading": "Loading...",
+    "notRegistered": "⚪ Not Registered",
+    "registeredOwnKey": "✅ Registered (Your Key)",
+    "registeredOtherKey": "⚠️ Registered (Other Key)",
+    "checkingStatus": "Checking status on testnet...",
+    "registering": "Registering (~5s)...",
+    "registerIdentity": "Register Identity on Testnet",
+    "txHash": "TX Hash:",
+    "resetPrivateKey": "🔄 Reset Private Key",
+    "mrzData": "MRZ data (passport back side)",
+    "scanWithCamera": "📷 Scan with camera",
+    "orManualInput": "or enter manually:",
+    "documentNumberPlaceholder": "Document number (e.g. 12AB34567)",
+    "birthDatePlaceholder": "Birth date (YYMMDD)",
+    "expiryDatePlaceholder": "Expiry date (YYMMDD)",
+    "fullPassportRead": "Full passport read:",
+    "scanInProgress": "Scanning...",
+    "edocumentModule": "📄 EDocument Module",
+    "basicNfcTests": "Basic NFC tests:",
+    "scanNdefTag": "Scan NDEF Tag",
+    "scanIsoDepPassport": "Scan IsoDep (Passport)",
+    "errorLabel": "Error:",
+    "passportScannedSuccess": "✅ Passport scanned successfully",
+    "lastName": "Last name:",
+    "firstName": "First name:",
+    "birthDate": "Date of birth:",
+    "nationality": "Nationality:",
+    "documentNumber": "Document no.:",
+    "expiryDate": "Expiry date:",
+    "passportDataInLogs": "Passport data available in logs",
+    "viewRawData": "📋 View raw data (logs)",
+    "instruction": "Tap a button and bring an NFC tag close to your device.",
+    "errors": {
+      "cameraPermissionDenied": "Camera permission denied",
+      "missingPassportOrKey": "No passport scanned or private key not available",
+      "registrationFailed": "Registration failed: {{message}}",
+      "unknown": "Unknown error",
+      "fillAllMrzFields": "Please fill in all MRZ fields"
+    },
+    "status": {
+      "presentPassport": "📱 Hold your passport near the phone",
+      "authenticatingPassport": "🔐 Authenticating with passport...",
+      "readingPassportData": "📖 Reading passport data...",
+      "scanCompleted": "✅ Scan completed successfully!"
+    }
+  },
+  "notFound": {
+    "title": "This screen does not exist.",
+    "goHome": "Go to home screen"
+  },
+  "comprendre": {
+    "welcome": {
+      "title": "Welcome!",
+      "text": "We invite all citizens to vote in referendums on current topics."
+    },
+    "accordions": [
+      {
+        "title": "A unique, tamper-proof vote",
+        "content": "Voting is done by reading your ID card chip (not passport, to avoid double votes) locally on your phone to ensure:\n1. You are French and of legal age\n2. No one can vote twice"
+      },
+      {
+        "title": "A guaranteed anonymous vote",
+        "content": "It is impossible to know who voted what because records are encrypted locally on your phone before being sent to a public ledger where there is no link between your name and your vote."
+      },
+      {
+        "title": "A transparent vote",
+        "content": "All votes visible on-chain are verifiable, allowing everyone to verify the presence of their vote and the legitimacy of others. The ledger is public and transparent. It cannot be altered once data is recorded."
+      },
+      {
+        "title": "Others can vote in your referendum",
+        "content": "The app allows multiple people to vote on the same referendum. You can create your own referendum and invite others to participate."
+      },
+      {
+        "title": "What happens after counting votes?",
+        "content": "There is no central computer collecting votes. Votes are recorded on thousands of computers. If the app is blocked or removed from app stores, it can be duplicated to continue voting."
+      }
+    ],
+    "origin": {
+      "title": "Where it comes from",
+      "content": "Alexandre Jardin (writer, founder of #LesGueux) was convinced by his son Robinson Jardin (ex-NordVPN, now Nym) of blockchain’s potential for direct democracy.\n\nThey partnered with Alexis Roussel (Swiss digital democracy advocate, co-founder of Nym), who defined the application requirements.\n\nOpen-source app\nHosted by the Swiss Pirate Party\nLocal data processing - GDPR"
+    }
+  },
+  "placeholderSteps": {
+    "title": "Step {{step}}",
+    "content": "Content for step {{step}}",
+    "continue": "Continue"
   }
 }

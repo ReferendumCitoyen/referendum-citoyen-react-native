@@ -3,6 +3,7 @@ import { View, Text, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step7Props {
   containerWidth: number;
@@ -15,6 +16,7 @@ interface Step7Props {
 }
 
 const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData, onSuccess, onError, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [countdown, setCountdown] = useState(5);
@@ -50,7 +52,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step7Container}>
-        <Text style={stepSpecificStyles.step7Title}>Vérification locale</Text>
+        <Text style={stepSpecificStyles.step7Title}>{t('voting.step7Title')}</Text>
 
         {Platform.OS === 'android' ? (
           <Image
@@ -69,7 +71,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData
         )}
 
         <Text style={stepSpecificStyles.step7Description}>
-          Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter…{' '}
+          {t('voting.step7Description')}{' '}
           <Text style={{
             fontFamily: Typography.fontFamily.medium,
             fontSize: Typography.fontSize.xs,
@@ -88,7 +90,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData
               color: colors.text,
               marginBottom: 8,
             }}>
-              {`${nfcData.personDetails.firstName || ''} ${nfcData.personDetails.lastName || ''}`.trim() || 'Nom non disponible'}
+              {`${nfcData.personDetails.firstName || ''} ${nfcData.personDetails.lastName || ''}`.trim() || t('voting.step7NameUnavailable')}
             </Text>
             <Text style={{
               fontFamily: Typography.fontFamily.medium,
@@ -96,9 +98,11 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData
               color: colors.text,
               opacity: 0.7,
             }}>
-              Né(e) le: {nfcData.personDetails.birthDate ?
-                `${nfcData.personDetails.birthDate.slice(4, 6)}/${nfcData.personDetails.birthDate.slice(2, 4)}/${nfcData.personDetails.birthDate.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.birthDate.slice(0, 2)}`
-                : 'N/A'}
+              {t('voting.step7BornOn', {
+                date: nfcData.personDetails.birthDate
+                  ? `${nfcData.personDetails.birthDate.slice(4, 6)}/${nfcData.personDetails.birthDate.slice(2, 4)}/${nfcData.personDetails.birthDate.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.birthDate.slice(0, 2)}`
+                  : 'N/A',
+              })}
             </Text>
             <Text style={{
               fontFamily: Typography.fontFamily.medium,
@@ -106,7 +110,7 @@ const Step7: React.FC<Step7Props> = ({ containerWidth, player, isActive, nfcData
               color: colors.text,
               opacity: 0.7,
             }}>
-              Nationalité: {nfcData.personDetails.nationality || 'N/A'}
+              {t('voting.step7Nationality', { value: nfcData.personDetails.nationality || 'N/A' })}
             </Text>
           </View>
         )}

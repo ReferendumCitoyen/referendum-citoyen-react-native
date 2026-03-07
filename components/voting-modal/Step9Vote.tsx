@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, LayoutChangeEvent, Platform } from
 import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step9VoteProps {
   containerWidth: number;
@@ -14,6 +15,7 @@ interface Step9VoteProps {
 
 const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect }) => {
   console.log('🗳️ Step9Vote rendering');
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non' | null>(null);
@@ -41,9 +43,9 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
   };
 
   const getVoteText = () => {
-    if (selectedVote === 'oui') return 'OUI';
-    if (selectedVote === 'non') return 'NON';
-    return 'BLANC';
+    if (selectedVote === 'oui') return t('common.yes');
+    if (selectedVote === 'non') return t('common.no');
+    return t('common.blank');
   };
 
   const renderBackdrop = useCallback(
@@ -63,7 +65,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step9VoteContainer}>
         <Text style={stepSpecificStyles.step9VoteTitle}>
-          Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?
+          XXXApprouvez vous la Loi instaurant les zones à faibles émissions mobilité ?
         </Text>
 
         <View style={stepSpecificStyles.step9VoteOptionsContainer}>
@@ -72,7 +74,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
             activeOpacity={0.8}
             onPress={() => handleVoteSelect('oui')}
           >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>OUI</Text>
+            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>{t('common.yes').toUpperCase()}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -80,7 +82,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
             activeOpacity={0.8}
             onPress={() => handleVoteSelect('blanc')}
           >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>BLANC</Text>
+            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>{t('common.blank').toUpperCase()}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -88,7 +90,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
             activeOpacity={0.8}
             onPress={() => handleVoteSelect('non')}
           >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>NON</Text>
+            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>{t('common.no').toUpperCase()}</Text>
           </TouchableOpacity>
         </View>
 
@@ -97,7 +99,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
           activeOpacity={0.8}
           onPress={onCancel}
         >
-          <Text style={stepSpecificStyles.step9VoteCancelButtonText}>Annuler</Text>
+          <Text style={stepSpecificStyles.step9VoteCancelButtonText}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -112,7 +114,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
       >
         <View style={stepSpecificStyles.step9VoteConfirmationCard}>
           <Text style={stepSpecificStyles.step9VoteTitle}>
-            Vous êtes sûr de vouloir voter: {getVoteText()} ?
+            {t('voting.step9Confirm', { vote: getVoteText().toUpperCase() })}
           </Text>
 
           <Image
@@ -127,7 +129,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
               activeOpacity={0.8}
               onPress={handleCancelConfirmation}
             >
-              <Text style={stepSpecificStyles.step9VoteCancelButtonText}>Annuler</Text>
+              <Text style={stepSpecificStyles.step9VoteCancelButtonText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -136,7 +138,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
               onPress={handleConfirm}
             >
               <Text style={stepSpecificStyles.step9VoteConfirmButtonText}>
-                Voter {getVoteText() === 'OUI' ? 'Oui' : getVoteText() === 'NON' ? 'Non' : 'Blanc'}
+                {t('voting.step9VoteAction', { vote: getVoteText() })}
               </Text>
             </TouchableOpacity>
           </View>

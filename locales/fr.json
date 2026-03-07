@@ -3,5 +3,215 @@
     "comprendre": "Comprendre",
     "accueil": "Accueil",
     "parametres": "Paramètres"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "nl": "Nederlands",
+    "pl": "Polski",
+    "es": "Español"
+  },
+  "common": {
+    "cancel": "Annuler",
+    "retry": "Réessayer",
+    "analyze": "Analyse",
+    "manualFill": "Remplir manuellement",
+    "open": "Ouvrir",
+    "select": "Sélectionner",
+    "backToHome": "Retour à l'écran d'accueil",
+    "yes": "Oui",
+    "no": "Non",
+    "blank": "Blanc"
+  },
+  "navigation": {
+    "nfcTest": "Test NFC",
+    "nfcScan": "Lecture NFC",
+    "back": "Retour",
+    "votingProcess": "Processus de vote",
+    "oops": "Oups !"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "darkMode": "Mode sombre",
+    "language": "Langue",
+    "rpc": "RPC",
+    "smartContract": "Smart Contract",
+    "nfcTest": "Test NFC",
+    "version": "Version {{version}} ({{build}})"
+  },
+  "home": {
+    "yes": "Oui",
+    "blank": "Blanc",
+    "no": "Non",
+    "ongoingVotes": "Les votes en cours",
+    "badgeOngoing": "Vote en cours",
+    "badgeSoon": "Bientôt",
+    "badgeFinished": "Terminé",
+    "votes": "Votes",
+    "endsIn": "Se termine dans",
+    "starts": "Commence",
+    "ended": "Terminé",
+    "voteButton": "Voter"
+  },
+  "voting": {
+    "title": "Processus de vote",
+    "step1Title": "Scannez votre Carte d'identité anonymement",
+    "step1Description": "Scannez votre Carte d'identité pour valider votre âge et votre nationalité. Vos données sont chiffrées et non traçables. Vous êtes 100% anonyme.",
+    "step2Title": "Vérifiez votre âge et nationalité localement sur votre appareil",
+    "step2Description": "Cette application vérifie les données sur la puce NFC à l'intérieur de votre Carte d'identité. Les données ne sont pas transférées ni conservées sur un serveur tiers.",
+    "step3Title": "Vote anonyme",
+    "step3Description": "Une fois vos données vérifiées et authentiques, l'application produit un jeton anonyme vous permettant de voter.",
+    "step4Title": "Analyse de la Carte d'Identité",
+    "step4Description": "Maintenez votre appareil sur votre Carte d'identité",
+    "step4Start": "Démarrer l'analyse",
+    "step5Title": "Analyse MRZ",
+    "step5CameraPermission": "Permission requise pour accéder à la caméra",
+    "step5CameraUnavailable": "Caméra non disponible",
+    "step6Title": "Lecteur NFC",
+    "step6MissingMrz": "Données MRZ manquantes. Scannez d'abord le MRZ.",
+    "step6Init": "🔄 Initialisation...",
+    "step6PresentCard": "📱 Approchez votre carte d'identité du téléphone",
+    "step6Authenticating": "🔐 Authentification...",
+    "step6Reading": "📖 Lecture des données...",
+    "step6ActiveAuth": "✅ Authentification active...",
+    "step6ReadSuccess": "✅ Lecture réussie !",
+    "step6ReadError": "❌ Erreur de lecture",
+    "step6Now": "📱 Approchez votre carte maintenant...",
+    "step6InvalidMrz": "❌ Données MRZ invalides. Retour au scanner...",
+    "step6ErrorWithMessage": "❌ Erreur: {{message}}. Réessayez.",
+    "step6Scanning": "Scan en cours...",
+    "step7Title": "Vérification locale",
+    "step7Description": "Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter…",
+    "step7NameUnavailable": "Nom non disponible",
+    "step7BornOn": "Né(e) le: {{date}}",
+    "step7Nationality": "Nationalité: {{value}}",
+    "step8Ready": "Vous êtes prêt",
+    "step8VoteNow": "Votez maintenant",
+    "step9Confirm": "Vous êtes sûr de vouloir voter: {{vote}} ?",
+    "step9VoteAction": "Voter {{vote}}",
+    "step9ErrorTitle": "Cet identifiant ne peut pas être utilisé",
+    "step9ErrorDescription": "Le propriétaire de cette carte d'identité a déjà voté ou nous a informé qu'il refuse de voter",
+    "step10Confirm": "Vous êtes sûr de vouloir voter: {{vote}} ?",
+    "step10VoteYes": "Voter Oui",
+    "step10VoteNo": "Voter Non",
+    "step10VoteBlank": "Voter Blanc",
+    "step11Status": "{{countdown}} ({{status}})",
+    "step11Success": "Succès",
+    "step11Fail": "Échec",
+    "step12SuccessTitle": "Bravo ! Votre vote a bien été enregistré.",
+    "step12SuccessDescription": "Les données de votre Carte d'Identité ont été effacées de cet appareil.",
+    "step12SuccessButton": "Voir les résultats",
+    "step12ErrorTitle": "Une erreur est survenue.",
+    "step12ErrorDescription": "Veuillez recommencer."
+  },
+  "nfcScan": {
+    "title": "Lecture NFC",
+    "missingMrz": "Données MRZ manquantes",
+    "instruction": "Placez votre carte d'identité contre l'arrière de votre téléphone"
+  },
+  "mrzManual": {
+    "title": "Saisie manuelle MRZ",
+    "documentNumber": "Numéro de document",
+    "birthDate": "Date de naissance",
+    "expiryDate": "Date d'expiration",
+    "documentPlaceholder": "Ex: AB123456",
+    "datePlaceholder": "JJMMAA",
+    "birthHint": "Format: Jour Mois Année (ex: 150790 pour 15/07/1990)",
+    "expiryHint": "Format: Jour Mois Année (ex: 251229 pour 25/12/2029)",
+    "submit": "Valider"
+  },
+  "nfcTest": {
+    "closeCamera": "✕ Fermer",
+    "scanMrzInstructions": "Scannez les 3 lignes MRZ au dos de la carte d'identité",
+    "rarimeTestnet": "Rarime Testnet",
+    "profileKey": "Profile Key:",
+    "loading": "Chargement...",
+    "notRegistered": "⚪ Non enregistré",
+    "registeredOwnKey": "✅ Enregistré (votre clé)",
+    "registeredOtherKey": "⚠️ Enregistré (autre clé)",
+    "checkingStatus": "Vérification du statut sur le testnet...",
+    "registering": "Enregistrement (~5s)...",
+    "registerIdentity": "Enregistrer l'identité sur le testnet",
+    "txHash": "TX Hash:",
+    "resetPrivateKey": "🔄 Réinitialiser la clé privée",
+    "mrzData": "Données MRZ (au dos du passeport)",
+    "scanWithCamera": "📷 Scanner avec caméra",
+    "orManualInput": "ou saisir manuellement :",
+    "documentNumberPlaceholder": "Numéro de document (ex: 12AB34567)",
+    "birthDatePlaceholder": "Date de naissance (AAMMJJ)",
+    "expiryDatePlaceholder": "Date d'expiration (AAMMJJ)",
+    "fullPassportRead": "Lecture complète du passeport :",
+    "scanInProgress": "Scan en cours...",
+    "edocumentModule": "📄 EDocument Module",
+    "basicNfcTests": "Tests NFC basiques :",
+    "scanNdefTag": "Scanner Tag NDEF",
+    "scanIsoDepPassport": "Scanner IsoDep (Passeport)",
+    "errorLabel": "Erreur :",
+    "passportScannedSuccess": "✅ Passeport scanné avec succès",
+    "lastName": "Nom :",
+    "firstName": "Prénom :",
+    "birthDate": "Date de naissance :",
+    "nationality": "Nationalité :",
+    "documentNumber": "N° Document :",
+    "expiryDate": "Date d'expiration :",
+    "passportDataInLogs": "Données du passeport disponibles dans les logs",
+    "viewRawData": "📋 Voir données brutes (logs)",
+    "instruction": "Appuyez sur le bouton et approchez un tag NFC de votre appareil.",
+    "errors": {
+      "cameraPermissionDenied": "Permission caméra refusée",
+      "missingPassportOrKey": "Aucun passeport scanné ou clé privée indisponible",
+      "registrationFailed": "Échec d'enregistrement : {{message}}",
+      "unknown": "Erreur inconnue",
+      "fillAllMrzFields": "Veuillez remplir tous les champs MRZ"
+    },
+    "status": {
+      "presentPassport": "📱 Approchez votre passeport du téléphone",
+      "authenticatingPassport": "🔐 Authentification avec le passeport...",
+      "readingPassportData": "📖 Lecture des données du passeport...",
+      "scanCompleted": "✅ Scan terminé avec succès !"
+    }
+  },
+  "notFound": {
+    "title": "Cet écran n'existe pas.",
+    "goHome": "Retour à l'accueil"
+  },
+  "comprendre": {
+    "welcome": {
+      "title": "Bienvenue!",
+      "text": "Nous appelons tous les citoyens à voter lors d'un référendum sur des sujets d'actualité"
+    },
+    "accordions": [
+      {
+        "title": "Un vote unique et infalsifiable",
+        "content": "Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:\n1. Vous êtes français et majeur\n2. Personne ne peut voter deux fois"
+      },
+      {
+        "title": "Un vote garanti anonyme",
+        "content": "Il est impossible de savoir qui a voté quoi parce que l'enregistrement se fait pas chiffré uniquement sur le téléphone localement avant d'être envoyé sur un registre public dans lequel il n'y a aucun lien entre votre nom à votre vote."
+      },
+      {
+        "title": "Un vote transparent",
+        "content": "Tous les votes (tous ceux visibles publiquement sur la blockchain) sont vérifiables - permettant à chacun de vérifier la présence de son vote, et le légitimité des autres votes. Le registre est public et transparent. Il ne peut pas être manipulé une fois que les données y sont."
+      },
+      {
+        "title": "Les autres peuvent voter sur votre référendum",
+        "content": "L'application permet à plusieurs personnes de voter sur la même référendum. Vous pouvez créer votre propre référendum et inviter d'autres à participer. Les résultats sont visibles par tous et ne sont pas visibles par le référendum qui a été effectué."
+      },
+      {
+        "title": "Que se passe-t-il une fois les votes comptés ?",
+        "content": "Il n'y a pas d'ordinateur central rassemblant les votes - on ne peut pas détruire les données d'un endroit. Les votes sont enregistrés sur des milliers d'ordinateurs. Si l'application venait à se faire bloquer sur des milliers d'ordinateurs. Si l'application venait à se faire bloquer ou supprimée des app stores, elle pourrait se dupliquer pour continuer les votes."
+      }
+    ],
+    "origin": {
+      "title": "D'où ça vient",
+      "content": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN et actuel Nym) du potentiel de la blockchain pour mettre en place une démocratie directe sans attendre.\n\nIls s'associent avec Alexis Roussel (penseur phare de la démocratie numérique suisse et co-fondateur de Nym) qui établit le cahier des charges de cette application.\n\nApplication en logiciel libre\nLogiciel hébergé par le Parti Pirate Suisse\nTraitement de données local - GDPR"
+    }
+  },
+  "placeholderSteps": {
+    "title": "Étape {{step}}",
+    "content": "Contenu de l'étape {{step}}",
+    "continue": "Continuer"
   }
 }

@@ -48,3 +48,26 @@ Thumbs.db
 # generated native folders
 /ios
 /android
+
+# build outputs (all levels)
+build/
+**/build/
+dist/
+**/dist/
+web-build/
+coverage/
+**/coverage/
+
+# caches (all levels)
+.cache/
+**/.cache/
+.gradle/
+**/.gradle/
+.turbo/
+**/.turbo/
+.parcel-cache/
+**/.parcel-cache/
+tmp/
+**/tmp/
+temp/
+**/temp/

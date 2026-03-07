@@ -4,6 +4,7 @@ import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import VotingModal from '@/components/voting-modal/VotingModal';
+import { useTranslation } from 'react-i18next';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -27,6 +28,7 @@ interface VoteResultsProps {
 }
 
 const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCount, nonCount }: VoteResultsProps) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const maxHeight = 64;
@@ -57,9 +59,9 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
         </View>
       </View>
       <View style={styles.labelsContainer}>
-        <Text style={styles.barLabel}>Oui</Text>
-        <Text style={styles.barLabel}>Blanc</Text>
-        <Text style={styles.barLabel}>Non</Text>
+        <Text style={styles.barLabel}>{t('home.yes')}</Text>
+        <Text style={styles.barLabel}>{t('home.blank')}</Text>
+        <Text style={styles.barLabel}>{t('home.no')}</Text>
       </View>
       <View style={styles.countsContainer}>
         <Text style={styles.barCount}>{ouiCount.toLocaleString()}</Text>
@@ -71,6 +73,7 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
 };
 
 export default function AccueilScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
@@ -92,16 +95,16 @@ export default function AccueilScreen() {
         {/* Vote List Section */}
         <View style={styles.voteListSection}>
           <View style={styles.voteListHeader}>
-            <Text style={styles.voteListTitle}>Les votes en cours</Text>
+            <Text style={styles.voteListTitle}>{t('home.ongoingVotes')}</Text>
           </View>
 
           <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>Les Zones à Fortes Emission (ZFE)</Text>
+            <Text style={styles.voteListItemText}>XXXLes Zones à Fortes Emission (ZFE)</Text>
             <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>La Politique Pluriannuelle de l'Energie (PPE)</Text>
+            <Text style={styles.voteListItemText}>XXXLa Politique Pluriannuelle de l'Energie (PPE)</Text>
             <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
           </TouchableOpacity>
         </View>
@@ -110,29 +113,28 @@ export default function AccueilScreen() {
         <View style={styles.voteCard}>
           <View style={styles.badgeContainer}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Vote en cours</Text>
+              <Text style={styles.badgeText}>{t('home.badgeOngoing')}</Text>
             </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
+            <Text style={styles.voteTitle}>XXXApprouvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
           </View>
 
           <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+            XXXLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
           </Text>
 
           <View style={styles.statsContainer}>
             <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Votes</Text>
+              <Text style={styles.statLabel}>{t('home.votes')}</Text>
               <Text style={styles.statValue}>6,932</Text>
             </View>
             <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Se termine dans</Text>
+              <Text style={styles.statLabel}>{t('home.endsIn')}</Text>
               <Text style={styles.statValue}>24J 12H 5M</Text>
             </View>
           </View>
 
           <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={handleVoterPress}>
-            <Text style={styles.voteButtonText}>Voter</Text>
+            <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
           </TouchableOpacity>
 
           <VoteResults
@@ -149,24 +151,22 @@ export default function AccueilScreen() {
         <View style={styles.voteCard}>
           <View style={styles.badgeContainer}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Bientôt</Text>
+              <Text style={styles.badgeText}>{t('home.badgeSoon')}</Text>
             </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
+            <Text style={styles.voteTitle}>XXXApprouvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
           </View>
 
           <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.{'\n\n'}
-            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+            XXXLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.{'\n\n'}Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
           </Text>
 
           <View style={styles.statsContainer}>
             <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Commence</Text>
+              <Text style={styles.statLabel}>{t('home.starts')}</Text>
               <Text style={styles.statValue}>01 Dec 25</Text>
             </View>
             <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Terminé</Text>
+              <Text style={styles.statLabel}>{t('home.ended')}</Text>
               <Text style={styles.statValue}>01 Feb 26</Text>
             </View>
           </View>
@@ -176,18 +176,18 @@ export default function AccueilScreen() {
         <View style={styles.voteCard}>
           <View style={styles.badgeContainer}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Terminé</Text>
+              <Text style={styles.badgeText}>{t('home.badgeFinished')}</Text>
             </View>
-            <Text style={styles.voteTitle}>Approuvez vous la troisième Programmation pluriannuelle énergétique (PPE) ?</Text>
+            <Text style={styles.voteTitle}>XXXApprouvez vous la troisième Programmation pluriannuelle énergétique (PPE) ?</Text>
           </View>
 
           <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+            XXXLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
           </Text>
 
           <View style={styles.statsContainer}>
             <View style={[styles.statColumn, { flex: 1 }]}>
-              <Text style={styles.statLabel}>Terminé</Text>
+              <Text style={styles.statLabel}>{t('home.ended')}</Text>
               <Text style={styles.statValue}>01 Sep 25</Text>
             </View>
           </View>
