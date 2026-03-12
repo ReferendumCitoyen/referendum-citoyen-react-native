@@ -185,7 +185,7 @@
     "accordions": [
       {
         "title": "Un voto único y a prueba de manipulación",
-        "content": "La votación se realiza leyendo localmente en su teléfono el chip de su documento de identidad (no el pasaporte, para evitar votos dobles) para asegurar que:\\n1. Usted es francés y mayor de edad\\n2. Nadie puede votar dos veces"
+        "content": "La votación se realiza leyendo localmente en su teléfono el chip de su documento de identidad (no el pasaporte, para evitar votos dobles) para asegurar que:\n1. Usted es francés y mayor de edad\n2. Nadie puede votar dos veces"
       },
       {
         "title": "Un voto anónimo garantizado",
@@ -206,7 +206,7 @@
     ],
     "origin": {
       "title": "De dónde viene",
-      "content": "Alexandre Jardin (escritor, fundador de #LesGueux) fue convencido por su hijo Robinson Jardin (ex-NordVPN, ahora Nym) del potencial de la blockchain para la democracia directa.\\n\\nSe asociaron con Alexis Roussel (defensor suizo de la democracia digital, cofundador de Nym), quien definió los requisitos de la aplicación.\\n\\nApp de código abierto\\nAlojada por el Partido Pirata Suizo\\nProcesamiento local de datos - GDPR"
+      "content": "Alexandre Jardin (escritor, fundador de #LesGueux) fue convencido por su hijo Robinson Jardin (ex-NordVPN, ahora Nym) del potencial de la blockchain para la democracia directa.\n\nSe asociaron con Alexis Roussel (defensor suizo de la democracia digital, cofundador de Nym), quien definió los requisitos de la aplicación.\n\nApp de código abierto\nAlojada por el Partido Pirata Suizo\nProcesamiento local de datos - GDPR"
     }
   },
   "placeholderSteps": {

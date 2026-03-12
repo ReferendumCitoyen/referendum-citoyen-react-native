@@ -185,7 +185,7 @@
     "accordions": [
       {
         "title": "Een unieke, manipulatiebestendige stem",
-        "content": "Stemmen gebeurt door lokaal op uw telefoon de chip van uw identiteitskaart te lezen (niet van het paspoort, om dubbele stemmen te voorkomen), om te garanderen:\\n1. U bent Frans en meerderjarig\\n2. Niemand kan twee keer stemmen"
+        "content": "Stemmen gebeurt door lokaal op uw telefoon de chip van uw identiteitskaart te lezen (niet van het paspoort, om dubbele stemmen te voorkomen), om te garanderen:\n1. U bent Frans en meerderjarig\n2. Niemand kan twee keer stemmen"
       },
       {
         "title": "Een gegarandeerd anonieme stem",
@@ -206,7 +206,7 @@
     ],
     "origin": {
       "title": "Waar het vandaan komt",
-      "content": "Alexandre Jardin (schrijver, oprichter van #LesGueux) werd door zijn zoon Robinson Jardin (ex-NordVPN, nu Nym) overtuigd van het potentieel van blockchain voor directe democratie.\\n\\nZe werkten samen met Alexis Roussel (Zwitserse voorvechter van digitale democratie, medeoprichter van Nym), die de vereisten van de applicatie vastlegde.\\n\\nOpen-source app\\nGehost door de Zwitserse Piratenpartij\\nLokale gegevensverwerking - AVG"
+      "content": "Alexandre Jardin (schrijver, oprichter van #LesGueux) werd door zijn zoon Robinson Jardin (ex-NordVPN, nu Nym) overtuigd van het potentieel van blockchain voor directe democratie.\n\nZe werkten samen met Alexis Roussel (Zwitserse voorvechter van digitale democratie, medeoprichter van Nym), die de vereisten van de applicatie vastlegde.\n\nOpen-source app\nGehost door de Zwitserse Piratenpartij\nLokale gegevensverwerking - AVG"
     }
   },
   "placeholderSteps": {
