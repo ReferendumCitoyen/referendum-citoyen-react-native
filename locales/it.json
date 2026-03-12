@@ -99,7 +99,7 @@
     "step10VoteBlank": "Vota Bianco",
     "step11Status": "{{countdown}} ({{status}})",
     "step11Success": "Successo",
-    "step11Fail": "Errore",
+    "step11Fail": "Fallito",
     "step12SuccessTitle": "Fatto! Il tuo voto è stato registrato.",
     "step12SuccessDescription": "I dati del tuo documento sono stati eliminati da questo dispositivo.",
     "step12SuccessButton": "Vedi risultati",
@@ -185,7 +185,7 @@
     "accordions": [
       {
         "title": "Un voto unico e a prova di manomissione",
-        "content": "Il voto avviene leggendo localmente sul telefono il chip del tuo documento d'identità (non del passaporto, per evitare voti doppi) per garantire:\\n1. Che tu sia francese e maggiorenne\\n2. Che nessuno possa votare due volte"
+        "content": "Il voto avviene leggendo localmente sul telefono il chip del tuo documento d'identità (non del passaporto, per evitare voti doppi) per garantire:\n1. Che tu sia francese e maggiorenne\n2. Che nessuno possa votare due volte"
       },
       {
         "title": "Un voto anonimo garantito",
@@ -206,7 +206,7 @@
     ],
     "origin": {
       "title": "Da dove viene",
-      "content": "Alexandre Jardin (scrittore, fondatore di #LesGueux) è stato convinto dal figlio Robinson Jardin (ex NordVPN, ora Nym) del potenziale della blockchain per la democrazia diretta.\\n\\nHanno collaborato con Alexis Roussel (attivista svizzero per la democrazia digitale, cofondatore di Nym), che ha definito i requisiti dell'applicazione.\\n\\nApp open-source\\nOspitata dal Partito Pirata Svizzero\\nElaborazione dati locale - GDPR"
+      "content": "Alexandre Jardin (scrittore, fondatore di #LesGueux) è stato convinto dal figlio Robinson Jardin (ex NordVPN, ora Nym) del potenziale della blockchain per la democrazia diretta.\n\nHanno collaborato con Alexis Roussel (attivista svizzero per la democrazia digitale, cofondatore di Nym), che ha definito i requisiti dell'applicazione.\n\nApp open-source\nOspitata dal Partito Pirata Svizzero\nElaborazione dati locale - GDPR"
     }
   },
   "placeholderSteps": {

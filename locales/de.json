@@ -99,7 +99,7 @@
     "step10VoteBlank": "Leer stimmen",
     "step11Status": "{{countdown}} ({{status}})",
     "step11Success": "Erfolg",
-    "step11Fail": "Fehler",
+    "step11Fail": "Fehlgeschlagen",
     "step12SuccessTitle": "Fertig! Ihre Stimme wurde erfasst.",
     "step12SuccessDescription": "Die Daten Ihres Ausweises wurden von diesem Gerät gelöscht.",
     "step12SuccessButton": "Ergebnisse anzeigen",
