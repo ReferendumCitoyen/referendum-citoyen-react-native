@@ -15,7 +15,7 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
   return (
-    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
+    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step12ErrorContainer}>
         <View style={stepSpecificStyles.step12ErrorContent}>
           <Text style={stepSpecificStyles.step12ErrorTitle}>

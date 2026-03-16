@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
-import { useRouter } from 'expo-router';
-import VotingModal from '@/components/voting-modal/VotingModal';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
@@ -44,23 +43,16 @@ const formatTimeRemaining = (endTimestamp: bigint): string => {
 const formatTimeAgo = (timestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now < timestamp) return 'Bientôt';
-  const diff = Number(now - timestamp);
-  if (diff < 60) return 'À l\'instant';
-  if (diff < 3600) return `Il y a ${Math.floor(diff / 60)}min`;
-  if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)}h`;
-  const days = Math.floor(diff / 86400);
-  if (days === 1) return 'Il y a 1 jour';
-  if (days < 30) return `Il y a ${days} jours`;
-  const months = Math.floor(days / 30);
-  if (months === 1) return 'Il y a 1 mois';
-  return `Il y a ${months} mois`;
+  const localDate = new Date(Number(timestamp) * 1000);
+  return localDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-const computeVoteResults = (votingResults: bigint[][]) => {
+const computeVoteResults = (votingResults: bigint[][], variantCount: number) => {
   if (!votingResults || votingResults.length === 0 || !votingResults[0]) {
-    return { labels: [], percents: [], counts: [], total: 0 };
+    return { percents: [], counts: [], total: 0 };
   }
-  const results = votingResults[0];
+  // Slice results to match actual number of variants (contract may pad with zeros)
+  const results = votingResults[0].slice(0, variantCount);
   const total = results.reduce((sum, v) => sum + v, 0n);
   const percents = results.map(v => total > 0n ? Number(v * 10000n / total) / 100 : 0);
   const counts = results.map(v => Number(v));
@@ -75,7 +67,8 @@ interface VoteResultsProps {
   counts: number[];
 }
 
-const barColors = ['#22C55E', '#94A3B8', '#EF4444', '#3B82F6', '#F59E0B'];
+// Blue, Red, White, then cycle for extras
+const barColors = ['#3B82F6', '#EF4444', '#E5E7EB', '#F59E0B', '#22C55E'];
 
 const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
   const colors = useColors();
@@ -130,8 +123,6 @@ export default function AccueilScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedProposalId, setSelectedProposalId] = useState<string | undefined>();
   const [proposals, setProposals] = useState<ProposalInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -198,14 +189,25 @@ export default function AccueilScreen() {
 
   useEffect(() => { fetchProposals(); }, [fetchProposals]);
 
+  // Auto-refresh when screen regains focus (e.g. after voting)
+  const isFirstMount = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) {
+        isFirstMount.current = false;
+        return;
+      }
+      fetchProposals(true);
+    }, [fetchProposals])
+  );
+
   const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
 
   const handleVoterPress = (proposalId: string) => {
-    setSelectedProposalId(proposalId);
     if (Platform.OS === 'android') {
       router.push('/voting-flow');
     } else {
-      setIsModalVisible(true);
+      router.push({ pathname: '/voting-screen', params: { proposalId } });
     }
   };
 
@@ -261,8 +263,8 @@ export default function AccueilScreen() {
   ), [activeProposals, showAllList, isLoading, loadError, colors, styles]);
 
   const renderItem = useCallback(({ item: p }: { item: ProposalInfo }) => {
-    const { percents, counts, total } = computeVoteResults(p.votingResults);
     const variants = p.questions[0]?.variants ?? [];
+    const { percents, counts, total } = computeVoteResults(p.votingResults, variants.length);
     const endTime = p.startTimestamp + p.duration;
     return (
       <View style={styles.voteCard}>
@@ -320,11 +322,6 @@ export default function AccueilScreen() {
         windowSize={5}
       />
 
-      <VotingModal
-        isVisible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        proposalId={selectedProposalId}
-      />
     </View>
   );
 }

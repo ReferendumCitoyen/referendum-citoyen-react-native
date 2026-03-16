@@ -1,8 +1,15 @@
-import React, { useRef, useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { BottomSheetModal, BottomSheetView, BottomSheetBackdrop, BottomSheetTextInput } from '@gorhom/bottom-sheet';
-import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
-import { useColors } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { useColors, Typography } from '@/constants/theme';
 
 interface ManualMRZInputProps {
   isVisible: boolean;
@@ -12,30 +19,11 @@ interface ManualMRZInputProps {
 
 const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onSubmit }) => {
   const colors = useColors();
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [documentNumber, setDocumentNumber] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
 
-  React.useEffect(() => {
-    if (isVisible) {
-      bottomSheetRef.current?.present();
-    } else {
-      bottomSheetRef.current?.dismiss();
-    }
-  }, [isVisible]);
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
+  if (!isVisible) return null;
 
   // Convert French format (JJMMAA) to MRZ format (AAMMJJ)
   const convertToMRZFormat = (frenchDate: string): string => {
@@ -53,22 +41,29 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
         birthDate: convertToMRZFormat(birthDate),
         expiryDate: convertToMRZFormat(expiryDate),
       });
-      // Reset fields
       setDocumentNumber('');
       setBirthDate('');
       setExpiryDate('');
     }
   };
 
+  const isValid = documentNumber.length > 0 && birthDate.length === 6 && expiryDate.length === 6;
+
   const styles = StyleSheet.create({
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.cardBackground,
+      zIndex: 10,
+    },
     container: {
+      flex: 1,
       padding: 24,
-      gap: 20,
-      backgroundColor: colors.background,
+      gap: 24,
     },
     title: {
-      fontSize: 24,
-      fontWeight: '700',
+      fontFamily: Typography.fontFamily.bold,
+      fontSize: Typography.fontSize.h1,
+      lineHeight: Typography.lineHeight.h1,
       color: colors.text,
       textAlign: 'center',
     },
@@ -76,61 +71,73 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
       gap: 8,
     },
     label: {
+      fontFamily: Typography.fontFamily.semibold,
       fontSize: 16,
-      fontWeight: '600',
       color: colors.text,
     },
     input: {
-      backgroundColor: colors.white,
+      backgroundColor: colors.background,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 8,
-      padding: 12,
+      padding: 14,
       fontSize: 16,
+      fontFamily: Typography.fontFamily.medium,
       color: colors.text,
     },
     hint: {
+      fontFamily: Typography.fontFamily.medium,
       fontSize: 12,
       color: colors.text,
       opacity: 0.6,
     },
-    button: {
-      backgroundColor: colors.secondary,
-      padding: 14,
-      borderRadius: 8,
-      alignItems: 'center',
+    buttonRow: {
+      gap: 12,
+      marginTop: 8,
     },
-    buttonDisabled: {
+    submitButton: {
+      backgroundColor: colors.secondary,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center' as const,
+    },
+    submitButtonDisabled: {
       opacity: 0.5,
     },
-    buttonText: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: colors.white,
+    submitButtonText: {
+      fontFamily: Typography.fontFamily.bold,
+      fontSize: 18,
+      color: colors.buttonText,
+    },
+    cancelButton: {
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center' as const,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cancelButtonText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 16,
+      color: colors.text,
     },
   });
 
-  const isValid = documentNumber.length > 0 && birthDate.length === 6 && expiryDate.length === 6;
-
   return (
-    <BottomSheetModal
-      ref={bottomSheetRef}
-      snapPoints={['65%']}
-      enablePanDownToClose={true}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: colors.background }}
-      handleIndicatorStyle={{ backgroundColor: colors.text }}
-      onDismiss={onClose}
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore"
-      android_keyboardInputMode="adjustResize"
+    <KeyboardAvoidingView
+      style={styles.overlay}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={100}
     >
-      <BottomSheetView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Saisie manuelle MRZ</Text>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Numéro de document</Text>
-          <BottomSheetTextInput
+          <TextInput
             style={styles.input}
             value={documentNumber}
             onChangeText={setDocumentNumber}
@@ -142,7 +149,7 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date de naissance</Text>
-          <BottomSheetTextInput
+          <TextInput
             style={styles.input}
             value={birthDate}
             onChangeText={setBirthDate}
@@ -156,7 +163,7 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date d'expiration</Text>
-          <BottomSheetTextInput
+          <TextInput
             style={styles.input}
             value={expiryDate}
             onChangeText={setExpiryDate}
@@ -168,16 +175,26 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
           <Text style={styles.hint}>Format: Jour Mois Année (ex: 251229 pour 25/12/2029)</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, !isValid && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={!isValid}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>Valider</Text>
-        </TouchableOpacity>
-      </BottomSheetView>
-    </BottomSheetModal>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!isValid}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.submitButtonText}>Valider</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.cancelButtonText}>Retour au scanner</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

@@ -2,17 +2,8 @@ import { Spacing, Typography, useColors } from '@/constants/theme';
 import { Platform, StyleSheet } from 'react-native';
 
 export const createModalStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
-  bottomSheetBackground: {
-    backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: Spacing.modal.borderRadius,
-    borderTopRightRadius: Spacing.modal.borderRadius,
-  },
-  handleIndicator: {
-    backgroundColor: colors.border,
-    width: 40,
-    height: 4,
-  },
   container: {
+    flex: 1,
     flexDirection: 'column',
     justifyContent: 'flex-start',
     alignItems: 'center',
@@ -437,10 +428,8 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    height: 415,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderRadius: 24,
   },
   step9VoteTitle: {
     fontFamily: Typography.fontFamily.bold,
@@ -627,13 +616,12 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step11Container: {
+    flex: 1,
     padding: Spacing.modal.step11Padding,
-    paddingVertical: 48,
     gap: Spacing.modal.step11Gap,
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    minHeight: 200,
     backgroundColor: colors.cardBackground,
   },
   step11Loading: {
@@ -641,8 +629,10 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     height: Spacing.modal.step11LoadingHeight,
   },
   step12SuccessContainer: {
+    flex: 1,
     padding: Spacing.modal.step12SuccessPadding,
     gap: Spacing.modal.step12SuccessGap,
+    justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
     backgroundColor: colors.cardBackground,
@@ -690,8 +680,10 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step12ErrorContainer: {
+    flex: 1,
     padding: Spacing.modal.step12ErrorPadding,
     gap: Spacing.modal.step12ErrorGap,
+    justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
     backgroundColor: colors.cardBackground,

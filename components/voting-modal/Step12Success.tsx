@@ -15,7 +15,7 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, onViewRes
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
   return (
-    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
+    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step12SuccessContainer}>
         <View style={stepSpecificStyles.step12SuccessContent}>
           <Text style={stepSpecificStyles.step12SuccessTitle}>

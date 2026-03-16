@@ -1,6 +1,5 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Image, LayoutChangeEvent } from 'react-native';
-import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Image, LayoutChangeEvent, Modal } from 'react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
@@ -18,7 +17,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const confirmationModalRef = useRef<BottomSheetModal>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const questionTitle = proposalInfo?.questions[0]?.title ?? 'Vote';
   const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
@@ -28,19 +27,19 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
     if (onVoteSelect) {
       onVoteSelect(idx);
     } else {
-      confirmationModalRef.current?.present();
+      setShowConfirmation(true);
     }
   };
 
   const handleConfirm = () => {
     if (selectedIndex !== null && onVoteSubmit) {
-      confirmationModalRef.current?.dismiss();
+      setShowConfirmation(false);
       onVoteSubmit(selectedIndex);
     }
   };
 
   const handleCancelConfirmation = () => {
-    confirmationModalRef.current?.dismiss();
+    setShowConfirmation(false);
     setSelectedIndex(null);
   };
 
@@ -48,18 +47,6 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
     if (selectedIndex === null) return '';
     return variants[selectedIndex] ?? '';
   };
-
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
 
   return (
     <>
@@ -92,14 +79,20 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
       </View>
     </View>
 
-      <BottomSheetModal
-        ref={confirmationModalRef}
-        snapPoints={[415]}
-        backdropComponent={renderBackdrop}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: colors.white, borderRadius: 32 }}
-        handleIndicatorStyle={{ backgroundColor: colors.border }}
-      >
+    {/* Vote confirmation dialog */}
+    <Modal
+      visible={showConfirmation}
+      transparent
+      animationType="fade"
+      onRequestClose={handleCancelConfirmation}
+    >
+      <View style={{
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+      }}>
         <View style={stepSpecificStyles.step9VoteConfirmationCard}>
           <Text style={stepSpecificStyles.step9VoteTitle}>
             Vous êtes sûr de vouloir voter: {getVoteText()} ?
@@ -131,7 +124,8 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
             </TouchableOpacity>
           </View>
         </View>
-      </BottomSheetModal>
+      </View>
+    </Modal>
     </>
   );
 };

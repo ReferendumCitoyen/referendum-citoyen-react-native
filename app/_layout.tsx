@@ -125,6 +125,13 @@ function RootLayoutNav() {
               presentation: 'card'
             }}
           />
+          <Stack.Screen
+            name="voting-screen"
+            options={{
+              presentation: 'modal',
+              gestureEnabled: false,
+            }}
+          />
         </Stack>
       </BottomSheetModalProvider>
     </ThemeProvider>

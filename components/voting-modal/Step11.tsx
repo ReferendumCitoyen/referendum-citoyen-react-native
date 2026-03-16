@@ -95,7 +95,7 @@ const Step11: React.FC<Step11Props> = ({
   }, [hasStarted, canSubmitReal, freedomTool, rarime, passport, proposalInfo, answerIndex, onSuccess, onError]);
 
   return (
-    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
+    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step11Container}>
         <LottieView
           source={require('@/assets/animations/loading.json')}
