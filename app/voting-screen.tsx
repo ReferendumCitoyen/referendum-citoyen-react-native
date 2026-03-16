@@ -9,13 +9,13 @@ import React, {
 import {
   Animated,
   Easing,
-  Modal,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from "@rarimo/rarime-rn-sdk";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
@@ -26,22 +26,22 @@ import {
   DEFAULT_PROPOSAL_ID,
   withRetry,
 } from "@/constants/rarime-config";
-import Step1 from "./Step1";
-import Step10 from "./Step10";
-import Step11 from "./Step11";
-import Step12Error from "./Step12Error";
-import Step12Success from "./Step12Success";
-import Step2 from "./Step2";
-import Step3 from "./Step3";
-import Step4 from "./Step4";
-import Step5 from "./Step5";
-import Step6 from "./Step6";
-import Step7 from "./Step7";
-import Step8 from "./Step8";
-import Step9Vote from "./Step9Vote";
-import Step9Error from "./Step9Error";
-import ManualMRZInput from "./ManualMRZInput";
-import { createModalStyles } from "./styles";
+import Step1 from "@/components/voting-modal/Step1";
+import Step10 from "@/components/voting-modal/Step10";
+import Step11 from "@/components/voting-modal/Step11";
+import Step12Error from "@/components/voting-modal/Step12Error";
+import Step12Success from "@/components/voting-modal/Step12Success";
+import Step2 from "@/components/voting-modal/Step2";
+import Step3 from "@/components/voting-modal/Step3";
+import Step4 from "@/components/voting-modal/Step4";
+import Step5 from "@/components/voting-modal/Step5";
+import Step6 from "@/components/voting-modal/Step6";
+import Step7 from "@/components/voting-modal/Step7";
+import Step8 from "@/components/voting-modal/Step8";
+import Step9Vote from "@/components/voting-modal/Step9Vote";
+import Step9Error from "@/components/voting-modal/Step9Error";
+import ManualMRZInput from "@/components/voting-modal/ManualMRZInput";
+import { createModalStyles } from "@/components/voting-modal/styles";
 
 interface NFCScanResult {
   personDetails?: {
@@ -58,16 +58,13 @@ interface NFCScanResult {
   aaSignature?: string;
 }
 
-interface VotingModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  proposalId?: string;
-}
-
-const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalId: proposalIdProp }) => {
+export default function VotingScreen() {
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { proposalId: proposalIdParam } = useLocalSearchParams<{ proposalId: string }>();
+
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<
     "success" | "error" | null
@@ -102,6 +99,19 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
     useModalVideoPlayers();
   const { player1, player2, player3, player4, player5 } = players;
 
+  const onClose = useCallback(() => router.back(), [router]);
+
+  // Init step 1 on mount, pause videos on unmount
+  const pauseAllRef = useRef(pauseAll);
+  pauseAllRef.current = pauseAll;
+  const handleStepChangeRef = useRef(handleStepChange);
+  handleStepChangeRef.current = handleStepChange;
+
+  useEffect(() => {
+    handleStepChangeRef.current(1);
+    return () => { pauseAllRef.current(); };
+  }, []);
+
   // Init Rarime + FreedomTool + load proposal
   useEffect(() => {
     (async () => {
@@ -119,7 +129,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
         });
         const ft = new FT(FREEDOM_TOOL_CONFIG);
         freedomToolRef.current = ft;
-        const pid = proposalIdProp || DEFAULT_PROPOSAL_ID;
+        const pid = proposalIdParam || DEFAULT_PROPOSAL_ID;
         console.log("[FreedomTool] Loading proposal", pid);
         const info = await withRetry(
           () => ft.getProposalInfo(pid),
@@ -131,32 +141,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
         console.error("[FreedomTool] Init error:", err);
       }
     })();
-  }, [proposalIdProp]);
-
-  useEffect(() => {
-    if (isVisible) {
-      setCurrentStep(1);
-      setVerificationResult(null);
-      setVoteSubmissionResult(null);
-      setMRZData(null);
-      setNFCData(null);
-      slideAnim.setValue(0);
-      progressOpacity1.setValue(1);
-      progressOpacity2.setValue(0.25);
-      progressOpacity3.setValue(0.25);
-      handleStepChange(1);
-    } else {
-      pauseAll();
-    }
-  }, [
-    isVisible,
-    slideAnim,
-    progressOpacity1,
-    progressOpacity2,
-    progressOpacity3,
-    handleStepChange,
-    pauseAll,
-  ]);
+  }, [proposalIdParam]);
 
   const handleNext = useCallback(() => {
     if (currentStep < 12) {
@@ -198,7 +183,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
   ]);
 
   const handleGoBackToMRZScan = useCallback(() => {
-    console.log("[VotingModal] Going back to MRZ scan");
+    console.log("[VotingScreen] Going back to MRZ scan");
     setCurrentStep(5);
     setMRZData(null);
 
@@ -236,6 +221,27 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
     }).start();
   }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
+  const handleVoteCancelToStep8 = useCallback(() => {
+    setCurrentStep(8);
+    Animated.timing(slideAnim, {
+      toValue: -7 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
+
+  const handleVoteCancelToStep9 = useCallback(() => {
+    setCurrentStep(9);
+    setSelectedVote(0);
+    Animated.timing(slideAnim, {
+      toValue: -8 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideAnim, containerWidth]);
+
   const handleVoteSelect = useCallback((answerIndex: number) => {
     setSelectedVote(answerIndex);
     setCurrentStep(10);
@@ -271,21 +277,21 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
   }, [slideAnim, containerWidth]);
 
   const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("[VotingModal] MRZ data scanned:", data);
+    console.log("[VotingScreen] MRZ data scanned:", data);
     setMRZData(data);
     handleNext();
   }, [handleNext]);
 
   const handleNFCSuccess = useCallback((data: NFCScanResult) => {
-    console.log("[VotingModal] NFC scan successful");
+    console.log("[VotingScreen] NFC scan successful");
     setNFCData(data);
 
     if (data.dg1Bytes && data.sodBytes) {
       (async () => {
         try {
           const { RarimePassport: RP } = await import("@rarimo/rarime-rn-sdk");
-          const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes, "base64"));
-          const sod = new Uint8Array(Buffer.from(data.sodBytes, "base64"));
+          const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes!, "base64"));
+          const sod = new Uint8Array(Buffer.from(data.sodBytes!, "base64"));
           passportRef.current = new RP({ dataGroup1: dg1, sod });
           console.log("[FreedomTool] RarimePassport created from NFC data");
         } catch (err) {
@@ -298,7 +304,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
   }, [handleNext]);
 
   const handleNFCError = useCallback(() => {
-    console.log("[VotingModal] NFC scan failed");
+    console.log("[VotingScreen] NFC scan failed");
     handleNext();
   }, [handleNext]);
 
@@ -311,51 +317,32 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
   }, []);
 
   const handleManualInputSubmit = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("[VotingModal] Manual MRZ data submitted:", data);
+    console.log("[VotingScreen] Manual MRZ data submitted:", data);
     setIsManualInputVisible(false);
     handleMRZScanned(data);
   }, [handleMRZScanned]);
 
   return (
     <>
-    <Modal
-      visible={isVisible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+      <Stack.Screen
+        options={{
+          title: currentStep < 4 ? 'Processus de vote' : '',
+          gestureEnabled: false,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={{ fontSize: 17, color: colors.secondary }}>Fermer</Text>
+            </TouchableOpacity>
+          ),
+        }}
+      />
+
       <View
-        style={[modalStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+        style={[modalStyles.container, { paddingBottom: insets.bottom }]}
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
-        {/* Navigation bar */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-          height: 44,
-          paddingHorizontal: 16,
-          backgroundColor: colors.cardBackground,
-        }}>
-          <View style={{ width: 70 }} />
-          <Text style={{
-            flex: 1,
-            textAlign: 'center',
-            fontSize: 17,
-            fontWeight: '600',
-            color: colors.text,
-          }}>{currentStep < 4 ? 'Processus de vote' : ''}</Text>
-          <TouchableOpacity
-            style={{ width: 70, alignItems: 'flex-end' }}
-            activeOpacity={0.6}
-            onPress={onClose}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={{ fontSize: 17, color: colors.secondary }}>Fermer</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Sliding Container with All Steps */}
         <View style={[modalStyles.slidingWrapper, { flex: 1 }]}>
           <Animated.View
@@ -426,7 +413,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
             <Step9Vote
               containerWidth={containerWidth}
               onVoteSelect={handleVoteSelect}
-              onCancel={onClose}
+              onCancel={handleVoteCancelToStep8}
               proposalInfo={proposalInfo ?? undefined}
             />
             {/* Step 10 - Vote confirmation */}
@@ -435,7 +422,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
               player={player3}
               selectedVote={selectedVote}
               proposalInfo={proposalInfo ?? undefined}
-              onCancel={onClose}
+              onCancel={handleVoteCancelToStep9}
               onConfirm={handleNext}
             />
             {/* Step 11 - Vote submission loading */}
@@ -510,15 +497,14 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Manual MRZ input overlay */}
+        <ManualMRZInput
+          isVisible={isManualInputVisible}
+          onClose={handleManualInputClose}
+          onSubmit={handleManualInputSubmit}
+        />
       </View>
-    </Modal>
-    <ManualMRZInput
-      isVisible={isManualInputVisible}
-      onClose={handleManualInputClose}
-      onSubmit={handleManualInputSubmit}
-    />
     </>
   );
-};
-
-export default VotingModal;
+}
