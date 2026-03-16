@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 
 interface Step10Props {
   containerWidth: number;
@@ -10,25 +11,20 @@ interface Step10Props {
   onCancel?: () => void;
   onConfirm?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
-  selectedVote?: 'oui' | 'blanc' | 'non';
+  selectedVote?: number;
+  proposalInfo?: ProposalInfo;
 }
 
-const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout, selectedVote = 'oui' }) => {
+const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout, selectedVote = 0, proposalInfo }) => {
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
 
-  const getVoteText = () => {
-    if (selectedVote === 'oui') return 'OUI';
-    if (selectedVote === 'non') return 'NON';
-    return 'BLANC';
-  };
+  const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
+  const variantName = variants[selectedVote] ?? '';
 
-  const getButtonText = () => {
-    if (selectedVote === 'oui') return 'Voter Oui';
-    if (selectedVote === 'non') return 'Voter Non';
-    return 'Voter Blanc';
-  };
+  const getVoteText = () => variantName.toUpperCase();
+  const getButtonText = () => `Voter ${variantName}`;
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>

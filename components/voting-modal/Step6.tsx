@@ -104,7 +104,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         setTimeout(() => reject(new Error('NFC scan timeout - aucune carte détectée')), 30000);
       });
 
-      const scanPromise = scanDocument('P', {
+      const scanPromise = scanDocument('I', {
         documentNumber: mrzData.documentNumber,
         dateOfBirth: mrzData.birthDate,
         dateOfExpiry: mrzData.expiryDate,

@@ -152,6 +152,7 @@ export default function FrenchIDTestScreen() {
   const [isScanning, setIsScanning] = React.useState(false);
   const [scanStatus, setScanStatus] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const [mrzScanProgress, setMrzScanProgress] = React.useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
   const [tagData, setTagData] = React.useState<any>(null);
 
   const [nfcProgress, setNfcProgress] = React.useState(0);
@@ -350,10 +351,23 @@ export default function FrenchIDTestScreen() {
     return null;
   }, []);
 
+  const isMRZLike = (line: string): boolean => {
+    const cleaned = line.replaceAll('\u00AB', '<<').replaceAll(' ', '').toUpperCase();
+    return (cleaned.includes('<<') || cleaned.startsWith('ID')) && cleaned.length >= 20;
+  };
+
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     try {
+      const mrzLikeCount = lines.filter(isMRZLike).length;
+      if (mrzLikeCount > 0 && mrzLikeCount < 3) {
+        setMrzScanProgress('partial');
+      } else if (mrzLikeCount === 0) {
+        setMrzScanProgress('scanning');
+      }
+
       const result = parseMRZ(lines);
       if (result?.valid) {
+        setMrzScanProgress('success');
         setDocumentNo(
           (result.fields.documentNumber || "").trim().toUpperCase()
         );
@@ -361,8 +375,10 @@ export default function FrenchIDTestScreen() {
         setExpiryDate(
           convertMRZDateToFrench(result.fields.expirationDate || "")
         );
-        setShowCamera(false);
-        setError(null);
+        setTimeout(() => {
+          setShowCamera(false);
+          setError(null);
+        }, 500);
       }
     } catch {}
   });
@@ -400,6 +416,7 @@ export default function FrenchIDTestScreen() {
       }
     }
     setShowCamera(true);
+    setMrzScanProgress('idle');
     setError(null);
   };
 
@@ -965,17 +982,60 @@ export default function FrenchIDTestScreen() {
               isActive={showCamera}
               frameProcessor={frameProcessor}
             />
+            {/* ID card overlay guide */}
+            <View style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 60,
+              justifyContent: 'center', alignItems: 'center',
+            }}>
+              <View style={{
+                width: '88%',
+                aspectRatio: 1.586,
+                borderWidth: mrzScanProgress === 'success' ? 4 : mrzScanProgress === 'partial' ? 3 : 2,
+                borderColor: mrzScanProgress === 'success' ? '#10B981' : mrzScanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
+                borderRadius: 12,
+                backgroundColor: mrzScanProgress === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.25)',
+                justifyContent: 'space-between',
+                padding: 12,
+              }}>
+                <Text style={{
+                  color: 'rgba(255,255,255,0.5)',
+                  fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
+                  alignSelf: 'flex-end',
+                }}>CARTE D'IDENTITÉ</Text>
+                <View style={{
+                  backgroundColor: mrzScanProgress === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                  borderWidth: 1,
+                  borderColor: mrzScanProgress === 'success' ? '#10B981' : mrzScanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.4)',
+                  borderRadius: 4, padding: 6,
+                }}>
+                  <Text style={{ color: mrzScanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                    IDFRA{'<'.repeat(25)}
+                  </Text>
+                  <Text style={{ color: mrzScanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                    1234567890FRA9001011M{'<'.repeat(9)}
+                  </Text>
+                  <Text style={{ color: mrzScanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                    NOM{'<'.repeat(2)}PRENOM{'<'.repeat(19)}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{
+                color: '#fff', fontSize: 14, fontWeight: '600',
+                textAlign: 'center', marginTop: 12,
+                textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
+              }}>
+                {mrzScanProgress === 'idle' && 'Positionnez le dos de la carte'}
+                {mrzScanProgress === 'scanning' && 'Recherche du MRZ...'}
+                {mrzScanProgress === 'partial' && 'MRZ partiellement détecté...'}
+                {mrzScanProgress === 'success' && '✅ MRZ détecté !'}
+              </Text>
+            </View>
             <TouchableOpacity
               style={styles.closeCameraButton}
               onPress={() => setShowCamera(false)}
             >
               <Text style={styles.closeCameraText}>Fermer</Text>
             </TouchableOpacity>
-            <View style={styles.cameraOverlay}>
-              <Text style={styles.cameraInstructions}>
-                Scannez les 3 lignes MRZ au dos de la carte d'identite
-              </Text>
-            </View>
           </View>
         )}
 

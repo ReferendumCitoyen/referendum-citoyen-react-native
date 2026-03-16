@@ -63,7 +63,7 @@ export default function VotingFlowScreen() {
   const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
-  const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non'>('oui');
+  const [selectedVote, setSelectedVote] = useState<number>(0);
 
   // Rarime / FreedomTool state
   const [privateKey, setPrivateKey] = useState<string | null>(null);
@@ -243,8 +243,8 @@ export default function VotingFlowScreen() {
     handleStepChange(9);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVoteSelect = useCallback((vote: 'oui' | 'blanc' | 'non') => {
-    setSelectedVote(vote);
+  const handleVoteSelect = useCallback((answerIndex: number) => {
+    setSelectedVote(answerIndex);
     setCurrentStep(10);
     Animated.timing(slideAnim, {
       toValue: -9 * containerWidth,
@@ -366,11 +366,13 @@ export default function VotingFlowScreen() {
               containerWidth={containerWidth}
               onVoteSelect={handleVoteSelect}
               onCancel={handleStep9Cancel}
+              proposalInfo={proposalInfo ?? undefined}
             />
             <Step10
               containerWidth={containerWidth}
               player={player3}
               selectedVote={selectedVote}
+              proposalInfo={proposalInfo ?? undefined}
               onCancel={handleStep9Cancel}
               onConfirm={handleStep9Confirm}
             />
@@ -383,7 +385,7 @@ export default function VotingFlowScreen() {
               rarime={rarimeRef.current ?? undefined}
               passport={passportRef.current ?? undefined}
               proposalInfo={proposalInfo ?? undefined}
-              answerIndex={selectedVote === 'oui' ? 0 : selectedVote === 'non' ? 2 : 1}
+              answerIndex={selectedVote}
             />
             <Step12Success
               containerWidth={containerWidth}

@@ -14,9 +14,9 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   },
   container: {
     flexDirection: 'column',
-    justifyContent: Platform.OS === 'android' ? 'flex-start' : 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.cardBackground,
   },
   titleSection: {
     flexDirection: 'row',
@@ -58,13 +58,13 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   contentSection: {
     flexDirection: 'column',
     alignItems: 'flex-start',
-    paddingTop: Platform.OS === 'android' ? Spacing.l : Spacing.modal.contentPadding,
-    paddingBottom: Platform.OS === 'android' ? 0 : Spacing.modal.contentPadding,
+    paddingTop: Platform.OS === 'android' ? Spacing.l : Spacing.l,
+    paddingBottom: Platform.OS === 'android' ? 0 : Spacing.l,
     paddingHorizontal: Spacing.modal.contentPaddingHorizontal,
     gap: Platform.OS === 'android' ? 0 : Spacing.modal.contentGap,
-    backgroundColor: colors.background,
+    backgroundColor: colors.cardBackground,
     width: '100%',
-    height: Platform.OS === 'android' ? 'auto' : Spacing.modal.contentSectionHeight,
+    height: Platform.OS === 'android' ? 'auto' : 'auto',
   },
   stepContent: {
     flexDirection: 'column',
@@ -115,7 +115,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
     paddingBottom: Spacing.modal.footerPadding,
     paddingHorizontal: Spacing.modal.footerPaddingHorizontal,
     gap: Spacing.modal.footerGap,
-    backgroundColor: colors.background,
+    backgroundColor: colors.cardBackground,
     width: '100%',
   },
   progressContainer: {
@@ -160,6 +160,7 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
   },
   step4Container: {
     padding: Spacing.modal.step4Padding,
+    paddingBottom: 40,
     gap: Spacing.modal.step4Gap,
     alignItems: 'center',
     width: '100%',
@@ -207,9 +208,10 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step5Container: {
-    paddingVertical: Spacing.modal.step5Padding,
+    paddingTop: Spacing.modal.step5Padding,
+    paddingBottom: 32,
     paddingHorizontal: 0,
-    gap: Spacing.modal.step5Gap,
+    gap: 16,
     alignItems: 'center',
     width: '100%',
     backgroundColor: colors.cardBackground,
@@ -226,6 +228,7 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
   step5Camera: {
     width: '100%',
     height: Spacing.modal.step5CameraHeight,
+    overflow: 'visible',
   },
   step5CameraOverlay: {
     position: 'absolute',
@@ -289,10 +292,15 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step5Button: {
-    paddingVertical: Spacing.modal.step5ButtonPaddingVertical,
+    paddingVertical: 16,
+    marginHorizontal: 24,
+    marginBottom: 16,
     backgroundColor: colors.cardBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
     alignItems: 'center',
-    width: '100%',
+    width: 'auto',
   },
   step5ButtonText: {
     fontFamily: Typography.fontFamily.bold,
@@ -416,14 +424,12 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step9VoteContainer: {
-    padding: 32,
-    gap: 24,
+    padding: 24,
+    gap: 16,
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
     backgroundColor: colors.cardBackground,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
   },
   step9VoteConfirmationCard: {
     padding: 32,
@@ -621,12 +627,13 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     textAlign: 'center',
   },
   step11Container: {
-    flex: 1,
     padding: Spacing.modal.step11Padding,
+    paddingVertical: 48,
     gap: Spacing.modal.step11Gap,
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
+    minHeight: 200,
     backgroundColor: colors.cardBackground,
   },
   step11Loading: {

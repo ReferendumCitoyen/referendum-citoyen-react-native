@@ -37,7 +37,12 @@ export const DEFAULT_PROPOSAL_ID = "236";
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  { maxRetries = 2, delayMs = 3000, label = "RPC call" } = {}
+  { maxRetries = 2, delayMs = 3000, label = "RPC call", onRetry }: {
+    maxRetries?: number;
+    delayMs?: number;
+    label?: string;
+    onRetry?: (attempt: number, maxAttempts: number, error: unknown) => void;
+  } = {}
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -50,6 +55,7 @@ export async function withRetry<T>(
           `[withRetry] ${label} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`,
           err
         );
+        onRetry?.(attempt + 1, maxRetries + 1, err);
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }
