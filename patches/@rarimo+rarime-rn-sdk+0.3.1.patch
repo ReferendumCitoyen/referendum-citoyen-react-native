@@ -1,0 +1,273 @@
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
+index fd0ba76..8d4766e 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
+@@ -82,50 +82,25 @@ export class Rarime {
+             throw new Error(`profile key mismatch. profileKey = ${profileKey}, passportInfo.activeIdentity = ${passportInfo[0].activeIdentity}`);
+         }
+         const smtProof = await this.getSMTProof(passport);
+-        const isAndroid = Platform.OS === "android";
+         const inputs = {
+-            event_id: isAndroid
+-                ? toPaddedHex32(queryProofParams.eventId)
+-                : queryProofParams.eventId, //from input
+-            event_data: isAndroid
+-                ? toPaddedHex32(queryProofParams.eventData)
+-                : queryProofParams.eventData,
+-            id_state_root: smtProof.root, //from SMT
+-            selector: isAndroid
+-                ? toPaddedHex32(queryProofParams.selector)
+-                : queryProofParams.selector, //from input
++            event_id: toPaddedHex32(queryProofParams.eventId),
++            event_data: toPaddedHex32(queryProofParams.eventData),
++            id_state_root: smtProof.root,
++            selector: toPaddedHex32(queryProofParams.selector),
+             current_date: hexlify(toUtf8Bytes(new Time().format("YYMMDD"))),
+-            timestamp_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.timestampLowerbound)
+-                : queryProofParams.timestampLowerbound, //from input
+-            timestamp_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.timestampUpperbound)
+-                : queryProofParams.timestampUpperbound, //from input
+-            identity_count_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.identityCountLowerbound)
+-                : queryProofParams.identityCountLowerbound, //from input
+-            identity_count_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.identityCountUpperbound)
+-                : queryProofParams.identityCountUpperbound, //from input
+-            birth_date_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.birthDateLowerbound)
+-                : queryProofParams.birthDateLowerbound, //from input
+-            birth_date_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.birthDateUpperbound)
+-                : queryProofParams.birthDateUpperbound, //from input
+-            expiration_date_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.expirationDateLowerbound)
+-                : queryProofParams.expirationDateLowerbound, //from input
+-            expiration_date_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.expirationDateUpperbound)
+-                : queryProofParams.expirationDateUpperbound, //from input
+-            citizenship_mask: isAndroid
+-                ? toPaddedHex32(queryProofParams.citizenshipMask)
+-                : queryProofParams.citizenshipMask, //from input
++            timestamp_lowerbound: toPaddedHex32(queryProofParams.timestampLowerbound),
++            timestamp_upperbound: toPaddedHex32(queryProofParams.timestampUpperbound),
++            identity_count_lowerbound: toPaddedHex32(queryProofParams.identityCountLowerbound),
++            identity_count_upperbound: toPaddedHex32(queryProofParams.identityCountUpperbound),
++            birth_date_lowerbound: toPaddedHex32(queryProofParams.birthDateLowerbound),
++            birth_date_upperbound: toPaddedHex32(queryProofParams.birthDateUpperbound),
++            expiration_date_lowerbound: toPaddedHex32(queryProofParams.expirationDateLowerbound),
++            expiration_date_upperbound: toPaddedHex32(queryProofParams.expirationDateUpperbound),
++            citizenship_mask: toPaddedHex32(queryProofParams.citizenshipMask),
+             sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+             pk_passport_hash: toPaddedHex32(passport.getPassportKey()),
+-            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), isAndroid),
+-            siblings: smtProof.siblings, //from SMT
++            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), true),
++            siblings: smtProof.siblings,
+             timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
+             identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
+         };
+@@ -164,9 +139,8 @@ export class Rarime {
+         const circuit = NoirCircuitParams.fromName("register_light_" + hashLength);
+         await NoirCircuitParams.downloadTrustedSetup();
+         const byteCode = await circuit.downloadByteCode();
+-        const isAndroid = Platform.OS === "android";
+         let inputs = {
+-            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), isAndroid),
++            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), true),
+             sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+         };
+         return circuit.prove(JSON.stringify(inputs), byteCode);
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
+index c63669b..fe870a5 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
+@@ -95,35 +95,30 @@ export class RarimePassport {
+     }
+     getMRZData() {
+         const mrz = DG1.load(this.dataGroup1);
+-        /**
+-         * Example of MRZ String
+-         *
+-         * IDUTO<<<<<<<<<<<<<<<<<<<<<<<<<<
+-         * 1234567897UTO9001019M3001018<<
+-         * JOHN<<DOE<<<<<<<<<<<<<<<<<<<
+-         *
+-         */
++
++        if (mrz.length >= 88 && mrz.length < 90) {
++            // TD3 passport (2 lines x 44 chars)
++            const documentType = mrz.slice(0, 2);
++            const namesPart = mrz.slice(5, 44);
++            const [lastName = "", firstName = ""] = namesPart.split("<<");
++            const documentNumber = mrz.slice(44, 53);
++            const issuingCountry = mrz.slice(54, 57);
++            const birthDate = mrz.slice(57, 63);
++            const sex = mrz.charAt(64);
++            const expiryDate = mrz.slice(65, 71);
++            return { documentType, issuingCountry, documentNumber, birthDate, sex, expiryDate, lastName, firstName };
++        }
++
++        // TD1 ID card (3 lines x 30 chars)
+         const documentType = mrz.slice(0, 2);
+         const issuingCountry = mrz.slice(2, 5);
+         const documentNumber = mrz.slice(5, 14);
+         const birthDate = mrz.slice(30, 36);
+-        const sexChar = mrz.charAt(37);
+-        const sex = sexChar;
++        const sex = mrz.charAt(37);
+         const expiryDate = mrz.slice(38, 44);
+         const namesPart = mrz.slice(60);
+-        // split by '<<' like in Rust .split("<<")
+         const [firstName = "", lastName = ""] = namesPart.split("<<");
+-        const result = {
+-            documentType,
+-            issuingCountry,
+-            documentNumber,
+-            birthDate,
+-            sex,
+-            expiryDate,
+-            lastName: firstName,
+-            firstName: lastName,
+-        };
+-        return result;
++        return { documentType, issuingCountry, documentNumber, birthDate, sex, expiryDate, lastName: firstName, firstName: lastName };
+     }
+     getCertificate() {
+         const buffer = Buffer.from(this.sod);
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
+index 741f34f..dfa985b 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
+@@ -1,4 +1,4 @@
+-import * as FileSystem from 'expo-file-system';
++import * as FileSystem from 'expo-file-system/legacy';
+ import { default as NoirModule } from './src/NoirModule';
+ export class NoirCircuitParams {
+     name;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
+index dea6423..00490d6 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
++++ b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
+@@ -66,15 +66,18 @@ public class RnNoirModule: Module {
+       }
+ 
+       // Generate proof
++      print("[RnNoir] === Attempting circuit.prove() ===")
+       do {
+         let proof = try circuit.prove(inputsMap, proof_type: "plonk")
+ 
+-        print("Generated proof: \(proof)")
++        print("[RnNoir] Proof generated successfully")
+         let hexProof = proof.proof.map { String(format: "%02x", $0) }.joined()
+ 
+         return hexProof
+       } catch {
+-        print("Error generating proof: \(error)")
++        print("[RnNoir] Prove FAILED: \(error)")
++        print("[RnNoir] Prove error type: \(type(of: error))")
++        print("[RnNoir] Prove error description: \(error.localizedDescription)")
+         throw error
+       }
+     }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
+index 02b4873..b68e832 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
+@@ -181,55 +181,30 @@ export class Rarime {
+ 
+     const smtProof = await this.getSMTProof(passport);
+ 
+-    const isAndroid = Platform.OS === "android";
+     const inputs = {
+-      event_id: isAndroid
+-        ? toPaddedHex32(queryProofParams.eventId)
+-        : queryProofParams.eventId, //from input
+-      event_data: isAndroid
+-        ? toPaddedHex32(queryProofParams.eventData)
+-        : queryProofParams.eventData,
+-      id_state_root: smtProof.root, //from SMT
+-      selector: isAndroid
+-        ? toPaddedHex32(queryProofParams.selector)
+-        : queryProofParams.selector, //from input
++      event_id: toPaddedHex32(queryProofParams.eventId),
++      event_data: toPaddedHex32(queryProofParams.eventData),
++      id_state_root: smtProof.root,
++      selector: toPaddedHex32(queryProofParams.selector),
+       current_date: hexlify(toUtf8Bytes(new Time().format("YYMMDD"))),
+-      timestamp_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.timestampLowerbound)
+-        : queryProofParams.timestampLowerbound, //from input
+-      timestamp_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.timestampUpperbound)
+-        : queryProofParams.timestampUpperbound, //from input
+-      identity_count_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.identityCountLowerbound)
+-        : queryProofParams.identityCountLowerbound, //from input
+-      identity_count_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.identityCountUpperbound)
+-        : queryProofParams.identityCountUpperbound, //from input
+-      birth_date_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.birthDateLowerbound)
+-        : queryProofParams.birthDateLowerbound, //from input
+-      birth_date_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.birthDateUpperbound)
+-        : queryProofParams.birthDateUpperbound, //from input
+-      expiration_date_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.expirationDateLowerbound)
+-        : queryProofParams.expirationDateLowerbound, //from input
+-      expiration_date_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.expirationDateUpperbound)
+-        : queryProofParams.expirationDateUpperbound, //from input
+-      citizenship_mask: isAndroid
+-        ? toPaddedHex32(queryProofParams.citizenshipMask)
+-        : queryProofParams.citizenshipMask, //from input
++      timestamp_lowerbound: toPaddedHex32(queryProofParams.timestampLowerbound),
++      timestamp_upperbound: toPaddedHex32(queryProofParams.timestampUpperbound),
++      identity_count_lowerbound: toPaddedHex32(queryProofParams.identityCountLowerbound),
++      identity_count_upperbound: toPaddedHex32(queryProofParams.identityCountUpperbound),
++      birth_date_lowerbound: toPaddedHex32(queryProofParams.birthDateLowerbound),
++      birth_date_upperbound: toPaddedHex32(queryProofParams.birthDateUpperbound),
++      expiration_date_lowerbound: toPaddedHex32(queryProofParams.expirationDateLowerbound),
++      expiration_date_upperbound: toPaddedHex32(queryProofParams.expirationDateUpperbound),
++      citizenship_mask: toPaddedHex32(queryProofParams.citizenshipMask),
+       sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+       pk_passport_hash: toPaddedHex32(passport.getPassportKey()),
+       dg1: NoirCircuitParams.formatArray(
+         Array.from(passport.dataGroup1).map((byteValue) =>
+           byteValue.toString()
+         ),
+-        isAndroid
++        true
+       ),
+-      siblings: smtProof.siblings, //from SMT
++      siblings: smtProof.siblings,
+       timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
+       identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
+     };
+@@ -296,13 +271,12 @@ export class Rarime {
+ 
+     const byteCode = await circuit.downloadByteCode();
+ 
+-    const isAndroid = Platform.OS === "android";
+     let inputs = {
+       dg1: NoirCircuitParams.formatArray(
+         Array.from(passport.dataGroup1).map((byteValue) =>
+           byteValue.toString()
+         ),
+-        isAndroid
++        true
+       ),
+       sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+     };
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts b/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
+index a1aae99..6b6b2c9 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
+@@ -1,4 +1,4 @@
+-import * as FileSystem from 'expo-file-system';
++import * as FileSystem from 'expo-file-system/legacy';
+ import {default as NoirModule} from './src/NoirModule';
+ 
+ export type NoirZKProof = {

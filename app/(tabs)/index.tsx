@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import VotingModal from '@/components/voting-modal/VotingModal';
+import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+
+const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
+const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
+const bigintReviver = (_: string, v: any) => typeof v === 'string' && /^\d+n$/.test(v) ? BigInt(v.slice(0, -1)) : v;
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -17,20 +24,66 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
   </Svg>
 );
 
+// --- Helpers ---
+
+const isActive = (p: ProposalInfo): boolean => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  return now >= p.startTimestamp && now <= p.startTimestamp + p.duration;
+};
+
+const formatTimeRemaining = (endTimestamp: bigint): string => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (now >= endTimestamp) return 'Terminé';
+  const diff = Number(endTimestamp - now);
+  const days = Math.floor(diff / 86400);
+  const hours = Math.floor((diff % 86400) / 3600);
+  const minutes = Math.floor((diff % 3600) / 60);
+  return `${days}J ${hours}H ${minutes}M`;
+};
+
+const formatTimeAgo = (timestamp: bigint): string => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (now < timestamp) return 'Bientôt';
+  const diff = Number(now - timestamp);
+  if (diff < 60) return 'À l\'instant';
+  if (diff < 3600) return `Il y a ${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)}h`;
+  const days = Math.floor(diff / 86400);
+  if (days === 1) return 'Il y a 1 jour';
+  if (days < 30) return `Il y a ${days} jours`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return 'Il y a 1 mois';
+  return `Il y a ${months} mois`;
+};
+
+const computeVoteResults = (votingResults: bigint[][]) => {
+  if (!votingResults || votingResults.length === 0 || !votingResults[0]) {
+    return { labels: [], percents: [], counts: [], total: 0 };
+  }
+  const results = votingResults[0];
+  const total = results.reduce((sum, v) => sum + v, 0n);
+  const percents = results.map(v => total > 0n ? Number(v * 10000n / total) / 100 : 0);
+  const counts = results.map(v => Number(v));
+  return { percents, counts, total: Number(total) };
+};
+
+// --- VoteResults component (dynamic variants) ---
+
 interface VoteResultsProps {
-  ouiPercent: number;
-  blancPercent: number;
-  nonPercent: number;
-  ouiCount: number;
-  blancCount: number;
-  nonCount: number;
+  variants: string[];
+  percents: number[];
+  counts: number[];
 }
 
-const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCount, nonCount }: VoteResultsProps) => {
+const barColors = ['#22C55E', '#94A3B8', '#EF4444', '#3B82F6', '#F59E0B'];
+
+const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
   const colors = useColors();
   const styles = createStyles(colors);
   const maxHeight = 64;
   const minHeight = 2;
+  const total = counts.reduce((s, c) => s + c, 0);
+  const hasVotes = total > 0;
 
   const calculateHeight = (percent: number) => {
     if (percent === 0) return minHeight;
@@ -40,32 +93,35 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
   return (
     <View style={styles.resultsContainer}>
       <View style={styles.barsContainer}>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(ouiPercent), backgroundColor: colors.voteBarOui }]}>
-            <Text style={styles.barPercent}>{ouiPercent}%</Text>
+        {variants.map((_, idx) => (
+          <View key={idx} style={styles.barWrapper}>
+            <View style={[
+              styles.bar,
+              {
+                height: hasVotes ? calculateHeight(percents[idx] ?? 0) : 24,
+                backgroundColor: barColors[idx % barColors.length],
+                opacity: hasVotes ? 1 : 0.4,
+              },
+            ]}>
+              {hasVotes && (
+                <Text style={styles.barPercent}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
+              )}
+            </View>
           </View>
-        </View>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(blancPercent), backgroundColor: colors.voteBarBlanc }]}>
-            <Text style={styles.barPercent}>{blancPercent}%</Text>
-          </View>
-        </View>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(nonPercent), backgroundColor: colors.voteBarNon }]}>
-            <Text style={styles.barPercent}>{nonPercent}%</Text>
-          </View>
-        </View>
+        ))}
       </View>
       <View style={styles.labelsContainer}>
-        <Text style={styles.barLabel}>Oui</Text>
-        <Text style={styles.barLabel}>Blanc</Text>
-        <Text style={styles.barLabel}>Non</Text>
+        {variants.map((v, idx) => (
+          <Text key={idx} style={styles.barLabel}>{v}</Text>
+        ))}
       </View>
-      <View style={styles.countsContainer}>
-        <Text style={styles.barCount}>{ouiCount.toLocaleString()}</Text>
-        <Text style={styles.barCount}>{blancCount.toLocaleString()}</Text>
-        <Text style={styles.barCount}>{nonCount.toLocaleString()}</Text>
-      </View>
+      {hasVotes && (
+        <View style={styles.countsContainer}>
+          {counts.map((c, idx) => (
+            <Text key={idx} style={styles.barCount}>{c.toLocaleString()}</Text>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
@@ -75,140 +131,199 @@ export default function AccueilScreen() {
   const styles = createStyles(colors);
   const router = useRouter();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | undefined>();
+  const [proposals, setProposals] = useState<ProposalInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAllList, setShowAllList] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleVoterPress = () => {
+  const fetchProposals = useCallback(async (refresh = false) => {
+    try {
+      // Show cached data instantly (unless pull-to-refresh)
+      if (!refresh) {
+        try {
+          const cached = await AsyncStorage.getItem(PROPOSALS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached, bigintReviver) as ProposalInfo[];
+            setProposals(parsed);
+            setIsLoading(false);
+            console.log(`[Accueil] Loaded ${parsed.length} proposals from cache`);
+          }
+        } catch {}
+      }
+
+      if (refresh) setIsRefreshing(true);
+      setLoadError(null);
+      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
+      const ft = new FreedomTool(FREEDOM_TOOL_CONFIG);
+
+      // Get the latest proposal ID via a single contract call
+      const { JsonRpcProvider, Contract } = await import('ethers');
+      const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
+      const contract = new Contract(
+        FREEDOM_TOOL_CONFIG.contracts.proposalStateAddress,
+        ['function lastProposalId() view returns (uint256)'],
+        provider
+      );
+      const lastId = Number(await contract.lastProposalId());
+      console.log(`[Accueil] lastProposalId: ${lastId}`);
+
+      // Fetch the 10 most recent in parallel
+      const ids = Array.from({ length: Math.min(10, lastId) }, (_, i) => lastId - i);
+      const results = await Promise.allSettled(
+        ids.map(id => ft.getProposalInfo(String(id)))
+      );
+
+      const loaded = results
+        .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
+        .map(r => r.value)
+        .sort((a, b) => Number(b.id) - Number(a.id));
+
+      console.log(`[Accueil] Fetched ${loaded.length} proposals from network`);
+      setProposals(loaded);
+
+      // Cache for next open
+      try {
+        await AsyncStorage.setItem(PROPOSALS_CACHE_KEY, JSON.stringify(loaded, bigintReplacer));
+      } catch {}
+    } catch (err) {
+      console.error('[Accueil] Failed to load proposals:', err);
+      setLoadError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchProposals(); }, [fetchProposals]);
+
+  const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
+
+  const handleVoterPress = (proposalId: string) => {
+    setSelectedProposalId(proposalId);
     if (Platform.OS === 'android') {
-      // On Android, navigate to full-screen voting flow
       router.push('/voting-flow');
     } else {
-      // On iOS, show bottom sheet modal
       setIsModalVisible(true);
     }
   };
 
-  return (
-    <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
-        {/* Vote List Section */}
-        <View style={styles.voteListSection}>
-          <View style={styles.voteListHeader}>
-            <Text style={styles.voteListTitle}>Les votes en cours</Text>
-          </View>
+  const activeProposals = useMemo(() => proposals.filter(isActive), [proposals]);
 
-          <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>Les Zones à Fortes Emission (ZFE)</Text>
-            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
-          </TouchableOpacity>
+  const renderHeader = useCallback(() => (
+    <View style={styles.voteListSection}>
+      <View style={styles.voteListHeader}>
+        <Text style={styles.voteListTitle}>Les votes en cours</Text>
+      </View>
 
-          <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>La Politique Pluriannuelle de l'Energie (PPE)</Text>
-            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
-          </TouchableOpacity>
+      {isLoading && (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color={colors.secondary} />
+          <Text style={[styles.voteListItemText, { textAlign: 'center', marginTop: 8 }]}>
+            Chargement des propositions...
+          </Text>
         </View>
+      )}
 
-        {/* Active Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
+      {loadError && (
+        <Text style={[styles.voteListItemText, { color: '#EF4444', paddingVertical: 12 }]}>
+          Erreur: {loadError}
+        </Text>
+      )}
+
+      {!isLoading && activeProposals.length === 0 && !loadError && (
+        <Text style={[styles.voteListItemText, { paddingVertical: 12 }]}>
+          Aucune proposition trouvée
+        </Text>
+      )}
+
+      {(showAllList ? activeProposals : activeProposals.slice(0, 3)).map((p) => (
+        <TouchableOpacity key={p.id} style={styles.voteListItem} activeOpacity={0.7}>
+          <Text style={styles.voteListItemText} numberOfLines={2}>{p.title}</Text>
+          <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
+        </TouchableOpacity>
+      ))}
+
+      {activeProposals.length > 3 && (
+        <TouchableOpacity
+          style={styles.voteListItem}
+          activeOpacity={0.7}
+          onPress={() => setShowAllList(!showAllList)}
+        >
+          <Text style={[styles.voteListItemText, { color: colors.secondary }]}>
+            {showAllList ? 'Voir moins' : `Voir plus (${activeProposals.length - 3})`}
+          </Text>
+          <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
+        </TouchableOpacity>
+      )}
+    </View>
+  ), [activeProposals, showAllList, isLoading, loadError, colors, styles]);
+
+  const renderItem = useCallback(({ item: p }: { item: ProposalInfo }) => {
+    const { percents, counts, total } = computeVoteResults(p.votingResults);
+    const variants = p.questions[0]?.variants ?? [];
+    const endTime = p.startTimestamp + p.duration;
+    return (
+      <View style={styles.voteCard}>
+        <View style={styles.badgeContainer}>
+          <View style={styles.badgeRow}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>Vote en cours</Text>
             </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
+            <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
           </View>
-
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Votes</Text>
-              <Text style={styles.statValue}>6,932</Text>
-            </View>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Se termine dans</Text>
-              <Text style={styles.statValue}>24J 12H 5M</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={handleVoterPress}>
-            <Text style={styles.voteButtonText}>Voter</Text>
-          </TouchableOpacity>
-
-          <VoteResults
-            ouiPercent={76.8}
-            blancPercent={4.3}
-            nonPercent={18.9}
-            ouiCount={5327}
-            blancCount={298}
-            nonCount={1308}
-          />
+          <Text style={styles.voteTitle}>{p.title}</Text>
         </View>
 
-        {/* Upcoming Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Bientôt</Text>
-            </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
+        {p.description ? (
+          <Text style={styles.voteDescription}>{p.description}</Text>
+        ) : null}
+
+        <View style={styles.statsContainer}>
+          <View style={styles.statColumn}>
+            <Text style={styles.statLabel}>Votes</Text>
+            <Text style={styles.statValue}>{total.toLocaleString()}</Text>
           </View>
-
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.{'\n\n'}
-            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Commence</Text>
-              <Text style={styles.statValue}>01 Dec 25</Text>
-            </View>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Terminé</Text>
-              <Text style={styles.statValue}>01 Feb 26</Text>
-            </View>
+          <View style={styles.statColumn}>
+            <Text style={styles.statLabel}>Se termine dans</Text>
+            <Text style={styles.statValue}>{formatTimeRemaining(endTime)}</Text>
           </View>
         </View>
 
-        {/* Finished Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Terminé</Text>
-            </View>
-            <Text style={styles.voteTitle}>Approuvez vous la troisième Programmation pluriannuelle énergétique (PPE) ?</Text>
-          </View>
+        <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
+          <Text style={styles.voteButtonText}>Voter</Text>
+        </TouchableOpacity>
 
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-          </Text>
+        {variants.length > 0 && (
+          <VoteResults variants={variants} percents={percents} counts={counts} />
+        )}
+      </View>
+    );
+  }, [styles, colors]);
 
-          <View style={styles.statsContainer}>
-            <View style={[styles.statColumn, { flex: 1 }]}>
-              <Text style={styles.statLabel}>Terminé</Text>
-              <Text style={styles.statValue}>01 Sep 25</Text>
-            </View>
-          </View>
+  const keyExtractor = useCallback((p: ProposalInfo) => p.id, []);
 
-          <VoteResults
-            ouiPercent={76.8}
-            blancPercent={4.3}
-            nonPercent={18.9}
-            ouiCount={5327}
-            blancCount={298}
-            nonCount={1308}
-          />
-        </View>
-
-        {/* Empty spacer for tab bar */}
-        <View style={styles.tabBarSpacer} />
-      </ScrollView>
+  return (
+    <View style={styles.screenContainer}>
+      <FlatList
+        data={activeProposals}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={<View style={styles.tabBarSpacer} />}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        }
+        initialNumToRender={3}
+        windowSize={5}
+      />
 
       <VotingModal
         isVisible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
+        proposalId={selectedProposalId}
       />
     </View>
   );
@@ -218,9 +333,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   screenContainer: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
   },
   contentContainer: {
     paddingBottom: Spacing.tabBar.containerHeight,
@@ -265,6 +377,17 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   },
   badgeContainer: {
     gap: Spacing.voteCard.badgeGap,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  startedAgo: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    color: colors.text,
+    opacity: 0.5,
   },
   badge: {
     alignSelf: 'flex-start',

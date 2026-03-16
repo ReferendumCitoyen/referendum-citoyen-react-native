@@ -69,9 +69,10 @@ interface NFCScanResult {
 interface VotingModalProps {
   isVisible: boolean;
   onClose: () => void;
+  proposalId?: string;
 }
 
-const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
+const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalId: proposalIdProp }) => {
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
@@ -91,7 +92,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   } | null>(null);
   const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
-  const [selectedVote, setSelectedVote] = useState<"oui" | "blanc" | "non">("oui");
+  const [selectedVote, setSelectedVote] = useState<number>(0);
 
   // Rarime / FreedomTool state
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
@@ -107,7 +108,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
 
     // Steps 1-3: tall onboarding screens
     if (currentStep <= 3) {
-      return [Platform.OS === "android" ? "96%" : "93%"];
+      return [Platform.OS === "android" ? "98%" : "96%"];
     }
 
     // Step 8 success
@@ -115,9 +116,11 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       return ["45%"];
     }
 
-    // Step 9: vote selection
+    // Step 9: vote selection — scale with number of variants
     if (currentStep === 9) {
-      return ["65%"];
+      const numVariants = proposalInfo?.questions[0]?.variants?.length ?? 3;
+      const pct = Math.min(95, 45 + numVariants * 8);
+      return [`${pct}%`];
     }
 
     // Step 10: vote confirmation
@@ -131,20 +134,20 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
 
     // Fallback heights
     let height;
-    if (currentStep === 4) height = ["60%"];
-    else if (currentStep === 5) height = ["75%"];
+    if (currentStep === 4) height = ["70%"];
+    else if (currentStep === 5) height = ["80%"];
     else if (currentStep === 6) height = ["55%"];
     else if (currentStep === 7) height = ["58%"];
     else if (currentStep === 8 && verificationResult === "success")
       height = ["35%"];
     else if (currentStep === 8 && verificationResult === "error")
       height = ["55%"];
-    else if (currentStep === 11) height = ["26%"];
-    else if (currentStep === 12 && !voteSubmissionResult) height = ["26%"];
+    else if (currentStep === 11) height = ["50%"];
+    else if (currentStep === 12 && !voteSubmissionResult) height = ["50%"];
     else if (currentStep === 12 && voteSubmissionResult === "success")
-      height = ["48%"];
+      height = ["65%"];
     else if (currentStep === 12 && voteSubmissionResult === "error")
-      height = ["45%"];
+      height = ["60%"];
     else height = ["85%"];
 
     return height;
@@ -189,9 +192,10 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         });
         const ft = new FT(FREEDOM_TOOL_CONFIG);
         freedomToolRef.current = ft;
-        console.log("[FreedomTool] Loading proposal", DEFAULT_PROPOSAL_ID);
+        const pid = proposalIdProp || DEFAULT_PROPOSAL_ID;
+        console.log("[FreedomTool] Loading proposal", pid);
         const info = await withRetry(
-          () => ft.getProposalInfo(DEFAULT_PROPOSAL_ID),
+          () => ft.getProposalInfo(pid),
           { label: "getProposalInfo" }
         );
         console.log("[FreedomTool] Proposal loaded:", info.title);
@@ -200,7 +204,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         console.error("[FreedomTool] Init error:", err);
       }
     })();
-  }, []);
+  }, [proposalIdProp]);
 
   useEffect(() => {
     if (isVisible) {
@@ -277,8 +281,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         }).start();
       }
 
-      // Force snap for vote confirmation screen
-      if (nextStep === 10) {
+      // Force snap when sheet height changes
+      if (nextStep >= 10) {
         setTimeout(() => {
           bottomSheetRef.current?.snapToIndex(0);
         }, 100);
@@ -339,8 +343,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     }).start();
   }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
-  const handleVoteSelect = useCallback((vote: "oui" | "blanc" | "non") => {
-    setSelectedVote(vote);
+  const handleVoteSelect = useCallback((answerIndex: number) => {
+    setSelectedVote(answerIndex);
     // Advance to step 10 (vote confirmation)
     setCurrentStep(10);
     Animated.timing(slideAnim, {
@@ -364,6 +368,9 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
+    setTimeout(() => {
+      bottomSheetRef.current?.snapToIndex(0);
+    }, 100);
   }, [slideAnim, containerWidth]);
 
   const handleVoteSubmissionError = useCallback(() => {
@@ -375,6 +382,9 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
+    setTimeout(() => {
+      bottomSheetRef.current?.snapToIndex(0);
+    }, 100);
   }, [slideAnim, containerWidth]);
 
   const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
@@ -551,6 +561,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               containerWidth={containerWidth}
               onVoteSelect={handleVoteSelect}
               onCancel={onClose}
+              proposalInfo={proposalInfo ?? undefined}
               onLayout={(e) =>
                 handleStepLayout("step9_vote", e.nativeEvent.layout.height)
               }
@@ -560,6 +571,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               containerWidth={containerWidth}
               player={player3}
               selectedVote={selectedVote}
+              proposalInfo={proposalInfo ?? undefined}
               onCancel={onClose}
               onConfirm={handleNext}
               onLayout={(e) =>
@@ -579,7 +591,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               rarime={rarimeRef.current ?? undefined}
               passport={passportRef.current ?? undefined}
               proposalInfo={proposalInfo ?? undefined}
-              answerIndex={selectedVote === "oui" ? 0 : selectedVote === "non" ? 2 : 1}
+              answerIndex={selectedVote}
             />
             {/* Step 11 position - shows either success or error based on vote submission result */}
             {voteSubmissionResult === "success" ? (

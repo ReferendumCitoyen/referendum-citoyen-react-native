@@ -27,37 +27,29 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
+  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
 
-  console.log('📹 Step5 render:', { isActive, hasPermission, hasDevice: !!device });
-
-  // Reset hasScanned when step becomes active
+  // Reset when step becomes active
   useEffect(() => {
-    console.log('📹 Step5 isActive changed:', isActive);
     if (isActive) {
       setHasScanned(false);
+      setScanProgress('idle');
     }
   }, [isActive]);
 
   // MRZ Parser
   const parseMRZ = useCallback((lines: string[]) => {
+    if (lines.length < 3) return null;
     try {
-      const numlinesToCheck = 2;
-      const possibleMRZLines = lines?.slice(-numlinesToCheck);
-
-      if (!possibleMRZLines?.length || possibleMRZLines.length !== numlinesToCheck) return;
-
-      const tdLength = 44;
-      const sanitizedMRZLines = possibleMRZLines.map(el => {
-        return el.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+      const td1Lines = lines.slice(-3);
+      const sanitized = td1Lines.map(el => {
+        const cleaned = el.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+        return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned.padEnd(30, '<');
       });
-
-      sanitizedMRZLines[0] = sanitizedMRZLines[0].padEnd(tdLength, '<').toUpperCase();
-
-      return parse(sanitizedMRZLines, { autocorrect: true });
-    } catch (err) {
-      console.log("MRZ parse error:", err);
-      return null;
-    }
+      const result = parse(sanitized, { autocorrect: true });
+      if (result?.valid && result.format === 'TD1') return result;
+    } catch {}
+    return null;
   }, []);
 
   // Convert YYMMDD to YYYY-MM-DD
@@ -94,18 +86,31 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return `${yy}${mm}${dd}`;
   };
 
+  const isMRZLike = (line: string): boolean => {
+    const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+    return (cleaned.includes('<<') || cleaned.startsWith('ID')) && cleaned.length >= 20;
+  };
+
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     if (hasScanned) return;
 
     try {
+      // Check for partial MRZ-like lines
+      const mrzLikeCount = lines.filter(isMRZLike).length;
+      if (mrzLikeCount > 0 && mrzLikeCount < 3) {
+        setScanProgress('partial');
+      } else if (mrzLikeCount === 0) {
+        setScanProgress('scanning');
+      }
+
       const result = parseMRZ(lines);
 
       if (result?.valid) {
         console.log("✅ MRZ Detected in voting modal:", result.fields);
+        setScanProgress('success');
         setHasScanned(true);
 
         if (onMRZScanned) {
-          // Pass the data in BAC format (YYMMDD) for NFC reading
           onMRZScanned({
             documentNumber: result.fields.documentNumber || "",
             birthDate: convertToMRZFormat(convertMRZDate(result.fields.birthDate || "")),
@@ -153,10 +158,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
+          <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-              <Text style={stepSpecificStyles.step5Title}>Permission requise pour accéder à la caméra</Text>
+              <Text style={stepSpecificStyles.step5Title}>Permission caméra requise</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -176,10 +181,11 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
+          <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
               <Text style={stepSpecificStyles.step5Title}>Caméra non disponible</Text>
+
             </View>
           </View>
           <TouchableOpacity
@@ -199,43 +205,62 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step5Container}>
-        <Text style={stepSpecificStyles.step5Title}>Analyse MRZ</Text>
-        <View style={stepSpecificStyles.step5Camera}>
+        <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
+        <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
           <Camera
             style={{ flex: 1 }}
             device={device}
             isActive={isActive || false}
             frameProcessor={frameProcessor}
-          >
-            <View style={stepSpecificStyles.step5CameraOverlay}>
-              <View style={stepSpecificStyles.step5ScanArea}>
-                {/* Top-left corner */}
-                <Svg width={40} height={40} style={stepSpecificStyles.step5CornerTopLeft}>
-                  <Path d="M 8 0 L 4 0 Q 0 0 0 4 L 0 8" stroke={colors.white} strokeWidth={4} fill="none" strokeLinecap="round" />
-                </Svg>
-                {/* Top-right corner */}
-                <Svg width={40} height={40} style={stepSpecificStyles.step5CornerTopRight}>
-                  <Path d="M 32 0 L 36 0 Q 40 0 40 4 L 40 8" stroke={colors.white} strokeWidth={4} fill="none" strokeLinecap="round" />
-                </Svg>
-                {/* Bottom-left corner */}
-                <Svg width={40} height={40} style={stepSpecificStyles.step5CornerBottomLeft}>
-                  <Path d="M 0 32 L 0 36 Q 0 40 4 40 L 8 40" stroke={colors.white} strokeWidth={4} fill="none" strokeLinecap="round" />
-                </Svg>
-                {/* Bottom-right corner */}
-                <Svg width={40} height={40} style={stepSpecificStyles.step5CornerBottomRight}>
-                  <Path d="M 40 32 L 40 36 Q 40 40 36 40 L 32 40" stroke={colors.white} strokeWidth={4} fill="none" strokeLinecap="round" />
-                </Svg>
-                <View style={stepSpecificStyles.step5MrzContainer}>
-                  <Text style={stepSpecificStyles.step5MrzText}>
-                    IDFRAAB123456{'<'}7{'<'.repeat(21)}
-                  </Text>
-                  <Text style={stepSpecificStyles.step5MrzText}>
-                    9001011M2901015FRA{'<'.repeat(14)}08
-                  </Text>
-                </View>
+          />
+          {/* ID card overlay — sibling of Camera, not child */}
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            justifyContent: 'center', alignItems: 'center',
+          }}>
+            <View style={{
+              width: '88%',
+              aspectRatio: 1.586,
+              borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' ? 3 : 2,
+              borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
+              borderRadius: 12,
+              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.25)',
+              justifyContent: 'space-between',
+              padding: 12,
+            }}>
+              <Text style={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
+                alignSelf: 'flex-end',
+              }}>CARTE D'IDENTITÉ</Text>
+              <View style={{
+                backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                borderWidth: 1,
+                borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.4)',
+                borderRadius: 4, padding: 6,
+              }}>
+                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                  IDFRA{'<'.repeat(25)}
+                </Text>
+                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                  1234567890FRA9001011M{'<'.repeat(9)}
+                </Text>
+                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                  NOM{'<'.repeat(2)}PRENOM{'<'.repeat(19)}
+                </Text>
               </View>
             </View>
-          </Camera>
+            <Text style={{
+              color: '#fff', fontSize: 14, fontWeight: '600',
+              textAlign: 'center', marginTop: 12,
+              textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
+            }}>
+              {scanProgress === 'idle' && 'Positionnez le dos de la carte'}
+              {scanProgress === 'scanning' && 'Recherche du MRZ...'}
+              {scanProgress === 'partial' && 'MRZ partiellement détecté...'}
+              {scanProgress === 'success' && '✅ MRZ détecté !'}
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
           style={stepSpecificStyles.step5Button}

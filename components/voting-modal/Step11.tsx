@@ -73,7 +73,12 @@ const Step11: React.FC<Step11Props> = ({
               rarime,
               passport,
             }),
-          { label: 'submitProposal' }
+          {
+            label: 'submitProposal',
+            onRetry: (attempt, max) => {
+              setStatusText(`Erreur réseau — nouvelle tentative (${attempt}/${max})...`);
+            },
+          }
         );
 
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);

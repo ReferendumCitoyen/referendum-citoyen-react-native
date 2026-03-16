@@ -1,48 +1,52 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Image, LayoutChangeEvent } from 'react-native';
 import { BottomSheetModal, BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { createStepSpecificStyles } from './styles';
-import { useColors, Typography } from '@/constants/theme';
+import { useColors } from '@/constants/theme';
+import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 
 interface Step9VoteProps {
   containerWidth: number;
-  onVoteSubmit?: (vote: 'oui' | 'blanc' | 'non') => void;
+  onVoteSubmit?: (answerIndex: number) => void;
   onCancel?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
-  onVoteSelect?: (vote: 'oui' | 'blanc' | 'non') => void;
+  onVoteSelect?: (answerIndex: number) => void;
+  proposalInfo?: ProposalInfo;
 }
 
-const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect }) => {
+const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect, proposalInfo }) => {
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
-  const [selectedVote, setSelectedVote] = useState<'oui' | 'blanc' | 'non' | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const confirmationModalRef = useRef<BottomSheetModal>(null);
 
-  const handleVoteSelect = (vote: 'oui' | 'blanc' | 'non') => {
-    setSelectedVote(vote);
+  const questionTitle = proposalInfo?.questions[0]?.title ?? 'Vote';
+  const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
+
+  const handleVoteSelect = (idx: number) => {
+    setSelectedIndex(idx);
     if (onVoteSelect) {
-      onVoteSelect(vote);
+      onVoteSelect(idx);
     } else {
       confirmationModalRef.current?.present();
     }
   };
 
   const handleConfirm = () => {
-    if (selectedVote && onVoteSubmit) {
+    if (selectedIndex !== null && onVoteSubmit) {
       confirmationModalRef.current?.dismiss();
-      onVoteSubmit(selectedVote);
+      onVoteSubmit(selectedIndex);
     }
   };
 
   const handleCancelConfirmation = () => {
     confirmationModalRef.current?.dismiss();
-    setSelectedVote(null);
+    setSelectedIndex(null);
   };
 
   const getVoteText = () => {
-    if (selectedVote === 'oui') return 'OUI';
-    if (selectedVote === 'non') return 'NON';
-    return 'BLANC';
+    if (selectedIndex === null) return '';
+    return variants[selectedIndex] ?? '';
   };
 
   const renderBackdrop = useCallback(
@@ -62,33 +66,20 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step9VoteContainer}>
         <Text style={stepSpecificStyles.step9VoteTitle}>
-          Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?
+          {questionTitle}
         </Text>
 
         <View style={stepSpecificStyles.step9VoteOptionsContainer}>
-          <TouchableOpacity
-            style={stepSpecificStyles.step9VoteOptionButton}
-            activeOpacity={0.8}
-            onPress={() => handleVoteSelect('oui')}
-          >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>OUI</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={stepSpecificStyles.step9VoteOptionButton}
-            activeOpacity={0.8}
-            onPress={() => handleVoteSelect('blanc')}
-          >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>BLANC</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={stepSpecificStyles.step9VoteOptionButton}
-            activeOpacity={0.8}
-            onPress={() => handleVoteSelect('non')}
-          >
-            <Text style={stepSpecificStyles.step9VoteOptionButtonText}>NON</Text>
-          </TouchableOpacity>
+          {variants.map((variant, idx) => (
+            <TouchableOpacity
+              key={idx}
+              style={stepSpecificStyles.step9VoteOptionButton}
+              activeOpacity={0.8}
+              onPress={() => handleVoteSelect(idx)}
+            >
+              <Text style={stepSpecificStyles.step9VoteOptionButtonText}>{variant}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         <TouchableOpacity
@@ -135,7 +126,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
               onPress={handleConfirm}
             >
               <Text style={stepSpecificStyles.step9VoteConfirmButtonText}>
-                Voter {getVoteText() === 'OUI' ? 'Oui' : getVoteText() === 'NON' ? 'Non' : 'Blanc'}
+                Voter {getVoteText()}
               </Text>
             </TouchableOpacity>
           </View>
