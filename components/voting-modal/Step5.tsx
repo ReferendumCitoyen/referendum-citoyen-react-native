@@ -7,6 +7,7 @@ import { parse } from 'mrz';
 import { Svg, Path } from 'react-native-svg';
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step5Props {
   containerWidth: number;
@@ -21,6 +22,7 @@ interface Step5Props {
 }
 
 const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const device = useCameraDevice('back');
@@ -212,10 +214,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
+          <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-              <Text style={stepSpecificStyles.step5Title}>Permission caméra requise</Text>
+              <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraPermission')}</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -223,7 +225,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             activeOpacity={0.8}
             onPress={onManualFill || (() => console.log('Manual fill'))}
           >
-            <Text style={stepSpecificStyles.step5ButtonText}>Remplir manuellement</Text>
+            <Text style={stepSpecificStyles.step5ButtonText}>{t('common.manualFill')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -235,11 +237,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
+          <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-              <Text style={stepSpecificStyles.step5Title}>Caméra non disponible</Text>
-
+              <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraUnavailable')}</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -247,7 +248,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             activeOpacity={0.8}
             onPress={onManualFill || (() => console.log('Manual fill'))}
           >
-            <Text style={stepSpecificStyles.step5ButtonText}>Remplir manuellement</Text>
+            <Text style={stepSpecificStyles.step5ButtonText}>{t('common.manualFill')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -259,7 +260,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step5Container}>
-        <Text style={stepSpecificStyles.step5Title}>Scanner le MRZ de votre carte d'identité</Text>
+        <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
         <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
           <Camera
             style={{ flex: 1 }}
@@ -321,7 +322,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
           activeOpacity={0.8}
           onPress={onManualFill || (() => console.log('Manual fill'))}
         >
-          <Text style={stepSpecificStyles.step5ButtonText}>Remplir manuellement</Text>
+          <Text style={stepSpecificStyles.step5ButtonText}>{t('common.manualFill')}</Text>
         </TouchableOpacity>
       </View>
     </View>

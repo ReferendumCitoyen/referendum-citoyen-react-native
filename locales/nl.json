@@ -1,0 +1,217 @@
+{
+  "tabs": {
+    "comprendre": "Begrijpen",
+    "accueil": "Home",
+    "parametres": "Instellingen"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "nl": "Nederlands",
+    "pl": "Polski",
+    "es": "Español"
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "retry": "Opnieuw proberen",
+    "analyze": "Analyseren",
+    "manualFill": "Handmatig invullen",
+    "open": "Openen",
+    "select": "Selecteren",
+    "backToHome": "Terug naar home",
+    "yes": "Ja",
+    "no": "Nee",
+    "blank": "Blanco"
+  },
+  "navigation": {
+    "nfcTest": "NFC-test",
+    "nfcScan": "NFC-scan",
+    "back": "Terug",
+    "votingProcess": "Stemproces",
+    "oops": "Oeps!"
+  },
+  "settings": {
+    "title": "Instellingen",
+    "darkMode": "Donkere modus",
+    "language": "Taal",
+    "rpc": "RPC",
+    "smartContract": "Smart contract",
+    "nfcTest": "NFC-test",
+    "version": "Versie {{version}} ({{build}})"
+  },
+  "home": {
+    "yes": "Ja",
+    "blank": "Blanco",
+    "no": "Nee",
+    "ongoingVotes": "Lopende stemmingen",
+    "badgeOngoing": "Lopend",
+    "badgeSoon": "Binnenkort",
+    "badgeFinished": "Afgerond",
+    "votes": "Stemmen",
+    "endsIn": "Eindigt over",
+    "starts": "Start",
+    "ended": "Beëindigd",
+    "voteButton": "Stemmen"
+  },
+  "voting": {
+    "title": "Stemproces",
+    "step1Title": "Scan uw identiteitskaart anoniem",
+    "step1Description": "Scan uw identiteitskaart om uw leeftijd en nationaliteit te valideren. Uw gegevens zijn versleuteld en niet traceerbaar. U bent 100% anoniem.",
+    "step2Title": "Controleer leeftijd en nationaliteit lokaal op uw apparaat",
+    "step2Description": "Deze app controleert gegevens van de NFC-chip in uw identiteitskaart. Gegevens worden niet verzonden en niet opgeslagen op servers van derden.",
+    "step3Title": "Anonieme stem",
+    "step3Description": "Zodra uw gegevens zijn geverifieerd en authentiek zijn, genereert de app een anonieme token waarmee u kunt stemmen.",
+    "step4Title": "Analyse van identiteitskaart",
+    "step4Description": "Houd uw apparaat boven uw identiteitskaart",
+    "step4Start": "Analyse starten",
+    "step5Title": "MRZ-analyse",
+    "step5CameraPermission": "Cameratoestemming is vereist",
+    "step5CameraUnavailable": "Camera niet beschikbaar",
+    "step6Title": "NFC-lezer",
+    "step6MissingMrz": "MRZ-gegevens ontbreken. Scan eerst MRZ.",
+    "step6Init": "🔄 Initialiseren...",
+    "step6PresentCard": "📱 Houd uw identiteitskaart tegen de telefoon",
+    "step6Authenticating": "🔐 Authenticeren...",
+    "step6Reading": "📖 Gegevens lezen...",
+    "step6ActiveAuth": "✅ Actieve authenticatie...",
+    "step6ReadSuccess": "✅ Lezen geslaagd!",
+    "step6ReadError": "❌ Leesfout",
+    "step6Now": "📱 Houd nu uw kaart tegen de telefoon...",
+    "step6InvalidMrz": "❌ Ongeldige MRZ-gegevens. Terug naar scanner...",
+    "step6ErrorWithMessage": "❌ Fout: {{message}}. Probeer opnieuw.",
+    "step6Scanning": "Scannen bezig...",
+    "step7Title": "Lokale verificatie",
+    "step7Description": "Leeftijd en nationaliteit worden lokaal op uw apparaat geverifieerd. Even geduld…",
+    "step7NameUnavailable": "Naam niet beschikbaar",
+    "step7BornOn": "Geboren op: {{date}}",
+    "step7Nationality": "Nationaliteit: {{value}}",
+    "step8Ready": "U bent klaar",
+    "step8VoteNow": "Nu stemmen",
+    "step9Confirm": "Weet u zeker dat u wilt stemmen: {{vote}}?",
+    "step9VoteAction": "Stem {{vote}}",
+    "step9ErrorTitle": "Deze identiteit kan niet worden gebruikt",
+    "step9ErrorDescription": "De eigenaar van deze identiteitskaart heeft al gestemd of heeft aangegeven niet te willen stemmen",
+    "step10Confirm": "Weet u zeker dat u wilt stemmen: {{vote}}?",
+    "step10VoteYes": "Stem Ja",
+    "step10VoteNo": "Stem Nee",
+    "step10VoteBlank": "Stem Blanco",
+    "step11Status": "{{countdown}} ({{status}})",
+    "step11Success": "Succes",
+    "step11Fail": "Mislukt",
+    "step12SuccessTitle": "Klaar! Uw stem is geregistreerd.",
+    "step12SuccessDescription": "De gegevens van uw identiteitskaart zijn van dit apparaat verwijderd.",
+    "step12SuccessButton": "Resultaten bekijken",
+    "step12ErrorTitle": "Er is een fout opgetreden.",
+    "step12ErrorDescription": "Probeer opnieuw."
+  },
+  "nfcScan": {
+    "title": "NFC-scan",
+    "missingMrz": "MRZ-gegevens ontbreken",
+    "instruction": "Houd uw identiteitskaart tegen de achterkant van uw telefoon"
+  },
+  "mrzManual": {
+    "title": "Handmatige MRZ-invoer",
+    "documentNumber": "Documentnummer",
+    "birthDate": "Geboortedatum",
+    "expiryDate": "Vervaldatum",
+    "documentPlaceholder": "Bijv: AB123456",
+    "datePlaceholder": "DDMMJJ",
+    "birthHint": "Formaat: Dag Maand Jaar (bijv. 150790 voor 15/07/1990)",
+    "expiryHint": "Formaat: Dag Maand Jaar (bijv. 251229 voor 25/12/2029)",
+    "submit": "Valideren"
+  },
+  "nfcTest": {
+    "closeCamera": "✕ Sluiten",
+    "scanMrzInstructions": "Scan de 3 MRZ-regels op de achterkant van de identiteitskaart",
+    "rarimeTestnet": "Rarime Testnet",
+    "profileKey": "Profielsleutel:",
+    "loading": "Laden...",
+    "notRegistered": "⚪ Niet geregistreerd",
+    "registeredOwnKey": "✅ Geregistreerd (uw sleutel)",
+    "registeredOtherKey": "⚠️ Geregistreerd (andere sleutel)",
+    "checkingStatus": "Status controleren op testnet...",
+    "registering": "Registreren (~5s)...",
+    "registerIdentity": "Identiteit registreren op testnet",
+    "txHash": "TX-hash:",
+    "resetPrivateKey": "🔄 Privésleutel resetten",
+    "mrzData": "MRZ-gegevens (achterzijde paspoort)",
+    "scanWithCamera": "📷 Scannen met camera",
+    "orManualInput": "of handmatig invoeren:",
+    "documentNumberPlaceholder": "Documentnummer (bijv. 12AB34567)",
+    "birthDatePlaceholder": "Geboortedatum (JJMMDD)",
+    "expiryDatePlaceholder": "Vervaldatum (JJMMDD)",
+    "fullPassportRead": "Volledige paspoortlezing:",
+    "scanInProgress": "Scannen...",
+    "edocumentModule": "📄 EDocument-module",
+    "basicNfcTests": "Basis NFC-tests:",
+    "scanNdefTag": "Scan NDEF-tag",
+    "scanIsoDepPassport": "Scan IsoDep (Paspoort)",
+    "errorLabel": "Fout:",
+    "passportScannedSuccess": "✅ Paspoort succesvol gescand",
+    "lastName": "Achternaam:",
+    "firstName": "Voornaam:",
+    "birthDate": "Geboortedatum:",
+    "nationality": "Nationaliteit:",
+    "documentNumber": "Documentnr.:",
+    "expiryDate": "Vervaldatum:",
+    "passportDataInLogs": "Paspoortgegevens beschikbaar in logs",
+    "viewRawData": "📋 Ruwe gegevens bekijken (logs)",
+    "instruction": "Tik op een knop en houd een NFC-tag bij uw apparaat.",
+    "errors": {
+      "cameraPermissionDenied": "Cameratoestemming geweigerd",
+      "missingPassportOrKey": "Geen paspoort gescand of privésleutel niet beschikbaar",
+      "registrationFailed": "Registratie mislukt: {{message}}",
+      "unknown": "Onbekende fout",
+      "fillAllMrzFields": "Vul alle MRZ-velden in"
+    },
+    "status": {
+      "presentPassport": "📱 Houd uw paspoort bij de telefoon",
+      "authenticatingPassport": "🔐 Authenticeren met paspoort...",
+      "readingPassportData": "📖 Paspoortgegevens lezen...",
+      "scanCompleted": "✅ Scan succesvol voltooid!"
+    }
+  },
+  "notFound": {
+    "title": "Dit scherm bestaat niet.",
+    "goHome": "Ga naar het startscherm"
+  },
+  "comprendre": {
+    "welcome": {
+      "title": "Welkom!",
+      "text": "We nodigen alle burgers uit om te stemmen in referenda over actuele onderwerpen."
+    },
+    "accordions": [
+      {
+        "title": "Een unieke, manipulatiebestendige stem",
+        "content": "Stemmen gebeurt door lokaal op uw telefoon de chip van uw identiteitskaart te lezen (niet van het paspoort, om dubbele stemmen te voorkomen), om te garanderen:\n1. U bent Frans en meerderjarig\n2. Niemand kan twee keer stemmen"
+      },
+      {
+        "title": "Een gegarandeerd anonieme stem",
+        "content": "Het is onmogelijk te weten wie wat heeft gestemd, omdat gegevens lokaal op uw telefoon worden versleuteld voordat ze naar een openbaar register worden verzonden, waar geen link bestaat tussen uw naam en uw stem."
+      },
+      {
+        "title": "Een transparante stemming",
+        "content": "Alle on-chain zichtbare stemmen zijn verifieerbaar, waardoor iedereen de aanwezigheid van zijn stem en de legitimiteit van andere stemmen kan controleren. Het register is openbaar en transparant. Het kan niet worden gewijzigd zodra gegevens zijn opgeslagen."
+      },
+      {
+        "title": "Anderen kunnen in uw referendum stemmen",
+        "content": "De app maakt het mogelijk dat meerdere mensen over hetzelfde referendum stemmen. U kunt uw eigen referendum maken en anderen uitnodigen om deel te nemen."
+      },
+      {
+        "title": "Wat gebeurt er na het tellen van de stemmen?",
+        "content": "Er is geen centrale computer die stemmen verzamelt. Stemmen worden opgeslagen op duizenden computers. Als de app wordt geblokkeerd of uit appstores wordt verwijderd, kan ze worden gedupliceerd om verder te stemmen."
+      }
+    ],
+    "origin": {
+      "title": "Waar het vandaan komt",
+      "content": "Alexandre Jardin (schrijver, oprichter van #LesGueux) werd door zijn zoon Robinson Jardin (ex-NordVPN, nu Nym) overtuigd van het potentieel van blockchain voor directe democratie.\n\nZe werkten samen met Alexis Roussel (Zwitserse voorvechter van digitale democratie, medeoprichter van Nym), die de vereisten van de applicatie vastlegde.\n\nOpen-source app\nGehost door de Zwitserse Piratenpartij\nLokale gegevensverwerking - AVG"
+    }
+  },
+  "placeholderSteps": {
+    "title": "Stap {{step}}",
+    "content": "Inhoud voor stap {{step}}",
+    "continue": "Doorgaan"
+  }
+}

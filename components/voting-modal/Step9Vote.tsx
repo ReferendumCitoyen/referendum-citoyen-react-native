@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, LayoutChangeEvent, Modal } from 'r
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 interface Step9VoteProps {
   containerWidth: number;
@@ -14,6 +15,7 @@ interface Step9VoteProps {
 }
 
 const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onCancel, onLayout, onVoteSelect, proposalInfo }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -74,7 +76,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
           activeOpacity={0.8}
           onPress={onCancel}
         >
-          <Text style={stepSpecificStyles.step9VoteCancelButtonText}>Annuler</Text>
+          <Text style={stepSpecificStyles.step9VoteCancelButtonText}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -95,7 +97,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
       }}>
         <View style={stepSpecificStyles.step9VoteConfirmationCard}>
           <Text style={stepSpecificStyles.step9VoteTitle}>
-            Vous êtes sûr de vouloir voter: {getVoteText()} ?
+            {t('voting.step9Confirm', { vote: getVoteText().toUpperCase() })}
           </Text>
 
           <Image
@@ -110,7 +112,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
               activeOpacity={0.8}
               onPress={handleCancelConfirmation}
             >
-              <Text style={stepSpecificStyles.step9VoteCancelButtonText}>Annuler</Text>
+              <Text style={stepSpecificStyles.step9VoteCancelButtonText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -119,7 +121,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
               onPress={handleConfirm}
             >
               <Text style={stepSpecificStyles.step9VoteConfirmButtonText}>
-                Voter {getVoteText()}
+                {t('voting.step9VoteAction', { vote: getVoteText() })}
               </Text>
             </TouchableOpacity>
           </View>

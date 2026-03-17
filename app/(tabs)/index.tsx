@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
 const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
@@ -120,6 +121,7 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
 };
 
 export default function AccueilScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
@@ -216,14 +218,14 @@ export default function AccueilScreen() {
   const renderHeader = useCallback(() => (
     <View style={styles.voteListSection}>
       <View style={styles.voteListHeader}>
-        <Text style={styles.voteListTitle}>Les votes en cours</Text>
+        <Text style={styles.voteListTitle}>{t('home.ongoingVotes')}</Text>
       </View>
 
       {isLoading && (
         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
           <ActivityIndicator size="small" color={colors.secondary} />
           <Text style={[styles.voteListItemText, { textAlign: 'center', marginTop: 8 }]}>
-            Chargement des propositions...
+            {t('home.loading')}
           </Text>
         </View>
       )}
@@ -271,7 +273,7 @@ export default function AccueilScreen() {
         <View style={styles.badgeContainer}>
           <View style={styles.badgeRow}>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Vote en cours</Text>
+              <Text style={styles.badgeText}>{t('home.badgeOngoing')}</Text>
             </View>
             <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
           </View>
@@ -284,17 +286,17 @@ export default function AccueilScreen() {
 
         <View style={styles.statsContainer}>
           <View style={styles.statColumn}>
-            <Text style={styles.statLabel}>Votes</Text>
+            <Text style={styles.statLabel}>{t('home.votes')}</Text>
             <Text style={styles.statValue}>{total.toLocaleString()}</Text>
           </View>
           <View style={styles.statColumn}>
-            <Text style={styles.statLabel}>Se termine dans</Text>
+            <Text style={styles.statLabel}>{t('home.endsIn')}</Text>
             <Text style={styles.statValue}>{formatTimeRemaining(endTime)}</Text>
           </View>
         </View>
 
         <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
-          <Text style={styles.voteButtonText}>Voter</Text>
+          <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
         </TouchableOpacity>
 
         {variants.length > 0 && (

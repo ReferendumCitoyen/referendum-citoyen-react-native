@@ -15,6 +15,7 @@ import {
   withRetry,
   formatRpcError,
 } from '@/constants/rarime-config';
+import { useTranslation } from 'react-i18next';
 
 // Import all steps
 import Step1 from '@/components/voting-modal/Step1';
@@ -51,6 +52,7 @@ interface NFCScanResult {
 }
 
 export default function VotingFlowScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -309,7 +311,7 @@ export default function VotingFlowScreen() {
         {/* Title Section - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
           <View style={modalStyles.titleSection}>
-            <Text style={modalStyles.title}>Processus de vote</Text>
+            <Text style={modalStyles.title}>{t('voting.title')}</Text>
           </View>
         )}
 

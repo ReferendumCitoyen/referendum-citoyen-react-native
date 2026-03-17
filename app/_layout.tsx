@@ -16,6 +16,7 @@ import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 
 export {
@@ -93,6 +94,7 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -106,16 +108,23 @@ function RootLayoutNav() {
           <Stack.Screen
             name="nfc-test"
             options={{
-              title: 'Test NFC',
-              headerBackTitle: 'Retour'
+              title: t('navigation.nfcTest'),
+              headerBackTitle: t('navigation.back')
             }}
           />
           <Stack.Screen
             name="nfc-scan-modal"
             options={{
-              title: 'Lecture NFC',
-              headerBackTitle: 'Retour',
+              title: t('navigation.nfcScan'),
+              headerBackTitle: t('navigation.back'),
               presentation: 'modal'
+            }}
+          />
+          <Stack.Screen
+            name="language-select"
+            options={{
+              title: t('settings.language'),
+              headerBackTitle: t('navigation.back'),
             }}
           />
           <Stack.Screen

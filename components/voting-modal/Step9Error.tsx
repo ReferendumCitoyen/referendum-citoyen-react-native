@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step9ErrorProps {
   containerWidth: number;
@@ -11,6 +12,7 @@ interface Step9ErrorProps {
 }
 
 const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -19,11 +21,11 @@ const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLay
       <View style={stepSpecificStyles.step9ErrorContainer}>
         <View style={stepSpecificStyles.step9ErrorContent}>
           <Text style={stepSpecificStyles.step9ErrorTitle}>
-            Cet identifiant ne peut pas être utilisé
+            {t('voting.step9ErrorTitle')}
           </Text>
 
           <Text style={stepSpecificStyles.step9ErrorDescription}>
-            Le propriétaire de cette carte d'identité a déjà voté ou nous a informé qu'il refuse de voter
+            {t('voting.step9ErrorDescription')}
           </Text>
 
           <LottieView
@@ -39,7 +41,7 @@ const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLay
           activeOpacity={0.8}
           onPress={onGoHome || (() => console.log('Go home'))}
         >
-          <Text style={stepSpecificStyles.step9ErrorButtonText}>Retour à l'écran d'accueil</Text>
+          <Text style={stepSpecificStyles.step9ErrorButtonText}>{t('common.backToHome')}</Text>
         </TouchableOpacity>
       </View>
     </View>

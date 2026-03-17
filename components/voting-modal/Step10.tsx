@@ -4,6 +4,7 @@ import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 interface Step10Props {
   containerWidth: number;
@@ -16,6 +17,7 @@ interface Step10Props {
 }
 
 const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout, selectedVote = 0, proposalInfo }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -24,14 +26,14 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
   const variantName = variants[selectedVote] ?? '';
 
   const getVoteText = () => variantName.toUpperCase();
-  const getButtonText = () => `Voter ${variantName}`;
+  const getButtonText = () => t('voting.step10VoteAction', { vote: variantName });
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step10Container}>
         <View style={stepSpecificStyles.step10Content}>
           <Text style={stepSpecificStyles.step10Title}>
-            Vous êtes sûr de vouloir voter: {getVoteText()} ?
+            {t('voting.step10Confirm', { vote: getVoteText() })}
           </Text>
 
           {Platform.OS === 'android' ? (
@@ -57,7 +59,7 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
             activeOpacity={0.8}
             onPress={onCancel || (() => console.log('Cancel'))}
           >
-            <Text style={stepSpecificStyles.step10CancelButtonText}>Annuler</Text>
+            <Text style={stepSpecificStyles.step10CancelButtonText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

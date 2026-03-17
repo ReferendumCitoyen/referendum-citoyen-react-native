@@ -26,6 +26,7 @@ import {
   DEFAULT_PROPOSAL_ID,
   withRetry,
 } from "@/constants/rarime-config";
+import { useTranslation } from "react-i18next";
 import Step1 from "./Step1";
 import Step10 from "./Step10";
 import Step11 from "./Step11";
@@ -65,6 +66,7 @@ interface VotingModalProps {
 }
 
 const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalId: proposalIdProp }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
@@ -345,14 +347,14 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
             fontSize: 17,
             fontWeight: '600',
             color: colors.text,
-          }}>{currentStep < 4 ? 'Processus de vote' : ''}</Text>
+          }}>{currentStep < 4 ? t('voting.title') : ''}</Text>
           <TouchableOpacity
             style={{ width: 70, alignItems: 'flex-end' }}
             activeOpacity={0.6}
             onPress={onClose}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={{ fontSize: 17, color: colors.secondary }}>Fermer</Text>
+            <Text style={{ fontSize: 17, color: colors.secondary }}>{t('common.close')}</Text>
           </TouchableOpacity>
         </View>
 

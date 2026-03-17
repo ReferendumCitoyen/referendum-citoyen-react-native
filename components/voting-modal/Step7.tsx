@@ -5,6 +5,7 @@ import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
 import { withRetry, formatRpcError } from '@/constants/rarime-config';
 import type { Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 interface NFCPersonDetails {
   firstName?: string;
@@ -48,6 +49,7 @@ const Step7: React.FC<Step7Props> = ({
   passport,
   freedomTool,
 }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [statusText, setStatusText] = useState('Vérification en cours...');
@@ -113,7 +115,7 @@ const Step7: React.FC<Step7Props> = ({
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step7Container}>
-        <Text style={stepSpecificStyles.step7Title}>Vérification locale</Text>
+        <Text style={stepSpecificStyles.step7Title}>{t('voting.step7Title')}</Text>
 
         {Platform.OS === 'android' ? (
           <Image
@@ -143,7 +145,7 @@ const Step7: React.FC<Step7Props> = ({
               color: colors.text,
               marginBottom: 8,
             }}>
-              {`${nfcData.personDetails.firstName || ''} ${nfcData.personDetails.lastName || ''}`.trim() || 'Nom non disponible'}
+              {`${nfcData.personDetails.firstName || ''} ${nfcData.personDetails.lastName || ''}`.trim() || t('voting.step7NameUnavailable')}
             </Text>
             <Text style={{
               fontFamily: Typography.fontFamily.medium,
@@ -151,9 +153,11 @@ const Step7: React.FC<Step7Props> = ({
               color: colors.text,
               opacity: 0.7,
             }}>
-              Né(e) le: {nfcData.personDetails.dateOfBirth ?
-                `${nfcData.personDetails.dateOfBirth.slice(4, 6)}/${nfcData.personDetails.dateOfBirth.slice(2, 4)}/${nfcData.personDetails.dateOfBirth.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.dateOfBirth.slice(0, 2)}`
-                : 'N/A'}
+              {t('voting.step7BornOn', {
+                date: nfcData.personDetails.dateOfBirth
+                  ? `${nfcData.personDetails.dateOfBirth.slice(4, 6)}/${nfcData.personDetails.dateOfBirth.slice(2, 4)}/${nfcData.personDetails.dateOfBirth.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.dateOfBirth.slice(0, 2)}`
+                  : 'N/A',
+              })}
             </Text>
             <Text style={{
               fontFamily: Typography.fontFamily.medium,
@@ -161,7 +165,7 @@ const Step7: React.FC<Step7Props> = ({
               color: colors.text,
               opacity: 0.7,
             }}>
-              Nationalité: {nfcData.personDetails.nationality || 'N/A'}
+              {t('voting.step7Nationality', { value: nfcData.personDetails.nationality || 'N/A' })}
             </Text>
           </View>
         )}
