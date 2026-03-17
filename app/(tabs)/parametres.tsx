@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
-import { supportedLanguages, getCurrentLanguageCode } from '@/locales';
+import { getCurrentLanguageCode } from '@/locales';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -21,12 +21,10 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 
 export default function ParametresScreen() {
   const router = useRouter();
-  const { i18n, t } = useTranslation();
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const colors = useColors();
   const styles = createStyles(colors);
-  const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
-
   const darkModeEnabled = theme === 'dark';
 
   const currentLanguageCode = getCurrentLanguageCode();
@@ -57,42 +55,16 @@ export default function ParametresScreen() {
           </View>
 
           {/* Language Row */}
-          <View style={styles.languageContainer}>
-            <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>{t('settings.language')}</Text>
-              <TouchableOpacity
-                style={styles.settingValueContainer}
-                activeOpacity={0.7}
-                onPress={() => setIsLanguageDropdownOpen((prev) => !prev)}
-              >
-                <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
-                <Text style={styles.dropdownCaret}>{isLanguageDropdownOpen ? '^' : 'v'}</Text>
-              </TouchableOpacity>
-            </View>
-            {isLanguageDropdownOpen ? (
-              <View style={styles.dropdownMenu}>
-                {supportedLanguages.map((langCode) => {
-                  const label = t(`languages.${langCode}`, { defaultValue: langCode.toUpperCase() });
-                  const isSelected = langCode === currentLanguageCode;
-
-                  return (
-                    <TouchableOpacity
-                      key={langCode}
-                      style={styles.dropdownItem}
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        i18n.changeLanguage(langCode);
-                        setIsLanguageDropdownOpen(false);
-                      }}
-                    >
-                      <Text style={[styles.dropdownItemText, isSelected && styles.dropdownItemTextSelected]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>{t('settings.language')}</Text>
+            <TouchableOpacity
+              style={styles.settingValueContainer}
+              activeOpacity={0.7}
+              onPress={() => router.push('/language-select')}
+            >
+              <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
+              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+            </TouchableOpacity>
           </View>
 
           {/* RPC Row */}
@@ -171,9 +143,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   settingsContainer: {
     gap: Spacing.settingRow.gap,
   },
-  languageContainer: {
-    backgroundColor: colors.cardBackground,
-  },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -202,34 +171,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
     color: colors.text,
-  },
-  dropdownCaret: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
-    letterSpacing: Typography.letterSpacing.body,
-    color: colors.text,
-  },
-  dropdownMenu: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  dropdownItem: {
-    paddingHorizontal: Spacing.settingRow.paddingHorizontal,
-    paddingVertical: Spacing.settingRow.paddingVertical,
-  },
-  dropdownItemText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
-    letterSpacing: Typography.letterSpacing.body,
-    color: colors.text,
-    opacity: 0.8,
-  },
-  dropdownItemTextSelected: {
-    opacity: 1,
   },
   versionContainer: {
     paddingVertical: Spacing.screen.gap,

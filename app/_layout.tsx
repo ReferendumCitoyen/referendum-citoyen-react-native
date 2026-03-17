@@ -114,6 +114,13 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
+            name="language-select"
+            options={{
+              title: t('settings.language'),
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
             name="voting-flow"
             options={{
               headerShown: false,
