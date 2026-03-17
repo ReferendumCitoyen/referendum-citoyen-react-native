@@ -1,3 +1,41 @@
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
+index 2719106..a30463a 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
+@@ -1,3 +1,4 @@
++import { Buffer } from "buffer";
+ import { AbiCoder, JsonRpcProvider, keccak256, toBeHex, toBigInt, zeroPadValue, } from "ethers";
+ import { IDCardVoting__factory, PoseidonSMT__factory, ProposalsState__factory, } from "./types";
+ import { Time } from "@distributedlab/tools";
+@@ -65,7 +66,7 @@ export class FreedomTool {
+     async submitProposal({ answers, proposalInfo: proposalInfo, rarime, passport, }) {
+         await this.verify(proposalInfo, passport, rarime);
+         const passportInfo = await rarime.getPassportInfo(passport);
+-        const queryProofParams = await this.buildQueryProofParams(answers, proposalInfo, passportInfo);
++        const queryProofParams = await this.buildQueryProofParams(answers, proposalInfo, passportInfo, passport);
+         const queryProof = await rarime.generateQueryProof(queryProofParams, passport);
+         const txCallData = await this.buildProposalCallData(answers, proposalInfo, rarime, passport, queryProof, passportInfo);
+         const txHash = await this.sendProposalRequest(txCallData, proposalInfo);
+@@ -112,7 +113,7 @@ export class FreedomTool {
+         const proposalsState = ProposalsState__factory.connect(this.config.contracts.proposalStateAddress, provider);
+         return proposalsState.getProposalEventId(proposalInfo.id);
+     }
+-    async buildQueryProofParams(answers, proposalInfo, passportInfo) {
++    async buildQueryProofParams(answers, proposalInfo, passportInfo, passport) {
+         const eventId = await this.getEventId(proposalInfo);
+         const eventData = this.getEventData(answers);
+         let timestampUpperbound = proposalInfo.criteria.timestampUpperbound - ROOT_VALIDITY;
+@@ -133,7 +134,9 @@ export class FreedomTool {
+             birthDateUpperbound: proposalInfo.criteria.birthDateUpperbound.toString(),
+             expirationDateLowerbound: proposalInfo.criteria.expirationDateLowerbound.toString(),
+             expirationDateUpperbound: MRZ_ZERO_DATE.toString(),
+-            citizenshipMask: "0",
++            citizenshipMask: passport
++                ? BigInt("0x" + Buffer.from(passport.getMRZData().issuingCountry).toString("hex")).toString()
++                : "0",
+         };
+         return queryProofParams;
+     }
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 index fd0ba76..8d4766e 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
@@ -171,6 +209,49 @@ index dea6423..00490d6 100644
          throw error
        }
      }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
+index e7a8d48..7f18d64 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
+@@ -18,6 +18,7 @@ import { ProposalInfo, ProposalQuestion } from "./types/proposal";
+ import { BaseVoting } from "./types/contracts/IDCardVoting";
+ import { Rarime } from "./Rarime";
+ import { RarimePassport } from "./RarimePassport";
++import { Buffer } from "buffer";
+ import { Time } from "@distributedlab/tools";
+ import { createIDCardVotingContract } from "./helpers/contracts";
+ import { NoirZKProof } from "./RnNoirModule";
+@@ -161,7 +162,8 @@ export class FreedomTool {
+     const queryProofParams = await this.buildQueryProofParams(
+       answers,
+       proposalInfo,
+-      passportInfo
++      passportInfo,
++      passport
+     );
+ 
+     const queryProof = await rarime.generateQueryProof(
+@@ -266,7 +268,8 @@ export class FreedomTool {
+     passportInfo: [
+       StateKeeper.PassportInfoStructOutput,
+       StateKeeper.IdentityInfoStructOutput
+-    ]
++    ],
++    passport?: RarimePassport
+   ): Promise<QueryProofParams> {
+     const eventId = await this.getEventId(proposalInfo);
+ 
+@@ -295,7 +298,9 @@ export class FreedomTool {
+       expirationDateLowerbound:
+         proposalInfo.criteria.expirationDateLowerbound.toString(),
+       expirationDateUpperbound: MRZ_ZERO_DATE.toString(),
+-      citizenshipMask: "0",
++      citizenshipMask: passport
++        ? BigInt("0x" + Buffer.from(passport.getMRZData().issuingCountry).toString("hex")).toString()
++        : "0",
+     };
+ 
+     return queryProofParams;
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
 index 02b4873..b68e832 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts

@@ -332,6 +332,8 @@ export default function FrenchIDTestScreen() {
 
   // --- MRZ Parser ---
 
+  const mrzHistoryRef = React.useRef<string[][]>([]);
+
   const parseMRZ = React.useCallback((lines: string[]) => {
     if (lines.length < 3) return null;
     try {
@@ -351,34 +353,81 @@ export default function FrenchIDTestScreen() {
     return null;
   }, []);
 
+  const sanitizeMRZLine = (line: string): string => {
+    const cleaned = line.replaceAll('\u00AB', '<').replaceAll(' ', '').toUpperCase();
+    return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned.padEnd(30, '<');
+  };
+
+  const buildConsensus = React.useCallback((history: string[][]): string[] => {
+    return [0, 1, 2].map(lineIdx => {
+      let result = '';
+      for (let pos = 0; pos < 30; pos++) {
+        const chars: Record<string, number> = {};
+        for (const read of history) {
+          const ch = read[lineIdx]?.[pos] || '<';
+          chars[ch] = (chars[ch] || 0) + 1;
+        }
+        result += Object.entries(chars).sort((a, b) => b[1] - a[1])[0][0];
+      }
+      return result;
+    });
+  }, []);
+
   const isMRZLike = (line: string): boolean => {
     const cleaned = line.replaceAll('\u00AB', '<<').replaceAll(' ', '').toUpperCase();
     return (cleaned.includes('<<') || cleaned.startsWith('ID')) && cleaned.length >= 20;
   };
 
+  const handleMRZSuccess = React.useCallback((result: ReturnType<typeof parse>) => {
+    setMrzScanProgress('success');
+    setDocumentNo(
+      (result.fields.documentNumber || "").trim().toUpperCase()
+    );
+    setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
+    setExpiryDate(
+      convertMRZDateToFrench(result.fields.expirationDate || "")
+    );
+    setTimeout(() => {
+      setShowCamera(false);
+      setError(null);
+    }, 500);
+  }, []);
+
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     try {
-      const mrzLikeCount = lines.filter(isMRZLike).length;
+      const mrzLikeLines = lines.filter(isMRZLike);
+      const mrzLikeCount = mrzLikeLines.length;
       if (mrzLikeCount > 0 && mrzLikeCount < 3) {
         setMrzScanProgress('partial');
       } else if (mrzLikeCount === 0) {
         setMrzScanProgress('scanning');
       }
 
+      // Try parsing the raw single frame directly
       const result = parseMRZ(lines);
       if (result?.valid) {
-        setMrzScanProgress('success');
-        setDocumentNo(
-          (result.fields.documentNumber || "").trim().toUpperCase()
-        );
-        setBirthDate(convertMRZDateToFrench(result.fields.birthDate || ""));
-        setExpiryDate(
-          convertMRZDateToFrench(result.fields.expirationDate || "")
-        );
-        setTimeout(() => {
-          setShowCamera(false);
-          setError(null);
-        }, 500);
+        handleMRZSuccess(result);
+        return;
+      }
+
+      // Accumulate for consensus if we have 3 MRZ-like lines
+      if (mrzLikeCount >= 3) {
+        const sanitized = mrzLikeLines.slice(-3).map(sanitizeMRZLine);
+        mrzHistoryRef.current.push(sanitized);
+        if (mrzHistoryRef.current.length > 15) {
+          mrzHistoryRef.current = mrzHistoryRef.current.slice(-15);
+        }
+
+        if (mrzHistoryRef.current.length >= 3) {
+          const consensus = buildConsensus(mrzHistoryRef.current);
+          console.log(`[MRZ Consensus] (${mrzHistoryRef.current.length} reads):`, consensus);
+          try {
+            const consensusResult = parse(consensus, { autocorrect: true });
+            if (consensusResult?.valid && consensusResult.format === 'TD1') {
+              handleMRZSuccess(consensusResult);
+            }
+          } catch {}
+        }
       }
     } catch {}
   });
@@ -417,6 +466,7 @@ export default function FrenchIDTestScreen() {
     }
     setShowCamera(true);
     setMrzScanProgress('idle');
+    mrzHistoryRef.current = [];
     setError(null);
   };
 
@@ -724,6 +774,11 @@ export default function FrenchIDTestScreen() {
       const queryProofParams = await ft.buildQueryProofParams(
         [selectedAnswer], proposalInfo, passportInfo
       );
+      // Fix: set citizenshipMask from passport nationality instead of hardcoded "0"
+      const mrzData = passport.getMRZData();
+      queryProofParams.citizenshipMask = BigInt(
+        "0x" + Buffer.from(mrzData.issuingCountry).toString("hex")
+      ).toString();
       console.log("[FreedomTool] QueryProofParams built");
       console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
 
