@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from 'react-native-vision-camera';
 import { useTextRecognition } from 'react-native-vision-camera-text-recognition';
@@ -28,12 +28,14 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
   const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
+  const mrzHistoryRef = useRef<string[][]>([]);
 
   // Reset when step becomes active
   useEffect(() => {
     if (isActive) {
       setHasScanned(false);
       setScanProgress('idle');
+      mrzHistoryRef.current = [];
     }
   }, [isActive]);
 
@@ -86,36 +88,88 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return `${yy}${mm}${dd}`;
   };
 
+  const sanitizeMRZLine = (line: string): string => {
+    const cleaned = line.replaceAll('«', '<').replaceAll(' ', '').toUpperCase();
+    return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned.padEnd(30, '<');
+  };
+
+  const buildConsensus = useCallback((history: string[][]): string[] => {
+    return [0, 1, 2].map(lineIdx => {
+      let result = '';
+      for (let pos = 0; pos < 30; pos++) {
+        const chars: Record<string, number> = {};
+        for (const read of history) {
+          const ch = read[lineIdx]?.[pos] || '<';
+          chars[ch] = (chars[ch] || 0) + 1;
+        }
+        result += Object.entries(chars).sort((a, b) => b[1] - a[1])[0][0];
+      }
+      return result;
+    });
+  }, []);
+
   const isMRZLike = (line: string): boolean => {
     const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
     return (cleaned.includes('<<') || cleaned.startsWith('ID')) && cleaned.length >= 20;
   };
 
+  const handleMRZSuccess = useCallback((result: ReturnType<typeof parse>) => {
+    console.log("✅ MRZ Detected:", JSON.stringify(result.fields, null, 2));
+    setScanProgress('success');
+    setHasScanned(true);
+
+    if (onMRZScanned) {
+      const mrzOut = {
+        documentNumber: result.fields.documentNumber || "",
+        birthDate: convertToMRZFormat(convertMRZDate(result.fields.birthDate || "")),
+        expiryDate: convertToMRZFormat(convertMRZDate(result.fields.expirationDate || "")),
+      };
+      console.log("[Step5] Sending MRZ to next step:", mrzOut);
+      onMRZScanned(mrzOut);
+    }
+  }, [onMRZScanned]);
+
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     if (hasScanned) return;
 
     try {
-      // Check for partial MRZ-like lines
-      const mrzLikeCount = lines.filter(isMRZLike).length;
+      const mrzLikeLines = lines.filter(isMRZLike);
+      const mrzLikeCount = mrzLikeLines.length;
+      console.log(`[Step5 OCR] ${lines.length} lines, ${mrzLikeCount} MRZ-like:`);
+      mrzLikeLines.forEach((l, i) => console.log(`  MRZ[${i}]: "${l}"`));
+
       if (mrzLikeCount > 0 && mrzLikeCount < 3) {
         setScanProgress('partial');
       } else if (mrzLikeCount === 0) {
         setScanProgress('scanning');
       }
 
+      // Try parsing the raw single frame directly
       const result = parseMRZ(lines);
-
       if (result?.valid) {
-        console.log("✅ MRZ Detected in voting modal:", result.fields);
-        setScanProgress('success');
-        setHasScanned(true);
+        handleMRZSuccess(result);
+        return;
+      }
 
-        if (onMRZScanned) {
-          onMRZScanned({
-            documentNumber: result.fields.documentNumber || "",
-            birthDate: convertToMRZFormat(convertMRZDate(result.fields.birthDate || "")),
-            expiryDate: convertToMRZFormat(convertMRZDate(result.fields.expirationDate || "")),
-          });
+      // Accumulate for consensus if we have 3 MRZ-like lines
+      if (mrzLikeCount >= 3) {
+        const sanitized = mrzLikeLines.slice(-3).map(sanitizeMRZLine);
+        mrzHistoryRef.current.push(sanitized);
+        // Cap at 15 reads to avoid stale data
+        if (mrzHistoryRef.current.length > 15) {
+          mrzHistoryRef.current = mrzHistoryRef.current.slice(-15);
+        }
+
+        // Try consensus after ≥3 accumulated reads
+        if (mrzHistoryRef.current.length >= 3) {
+          const consensus = buildConsensus(mrzHistoryRef.current);
+          console.log(`[Step5 Consensus] (${mrzHistoryRef.current.length} reads):`, consensus);
+          try {
+            const consensusResult = parse(consensus, { autocorrect: true });
+            if (consensusResult?.valid && consensusResult.format === 'TD1') {
+              handleMRZSuccess(consensusResult);
+            }
+          } catch {}
         }
       }
     } catch (err) {
