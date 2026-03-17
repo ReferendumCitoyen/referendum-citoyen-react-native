@@ -287,7 +287,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 color: 'rgba(255,255,255,0.5)',
                 fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                 alignSelf: 'flex-end',
-              }}>CARTE D'IDENTITÉ</Text>
+              }}>{t('voting.step5CardOverlay')}</Text>
               <View style={{
                 backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
                 borderWidth: 1,
@@ -310,10 +310,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               textAlign: 'center', marginTop: 12,
               textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
             }}>
-              {scanProgress === 'idle' && 'Positionnez le dos de la carte'}
-              {scanProgress === 'scanning' && 'Recherche du MRZ...'}
-              {scanProgress === 'partial' && 'MRZ partiellement détecté...'}
-              {scanProgress === 'success' && '✅ MRZ détecté !'}
+              {scanProgress === 'idle' && t('voting.step5Positioning')}
+              {scanProgress === 'scanning' && t('voting.step5Scanning')}
+              {scanProgress === 'partial' && t('voting.step5Partial')}
+              {scanProgress === 'success' && t('voting.step5Success')}
             </Text>
           </View>
         </View>

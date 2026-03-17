@@ -232,13 +232,13 @@ export default function AccueilScreen() {
 
       {loadError && (
         <Text style={[styles.voteListItemText, { color: '#EF4444', paddingVertical: 12 }]}>
-          Erreur: {loadError}
+          {t('home.error', { message: loadError })}
         </Text>
       )}
 
       {!isLoading && activeProposals.length === 0 && !loadError && (
         <Text style={[styles.voteListItemText, { paddingVertical: 12 }]}>
-          Aucune proposition trouvée
+          {t('home.noProposals')}
         </Text>
       )}
 
@@ -256,7 +256,7 @@ export default function AccueilScreen() {
           onPress={() => setShowAllList(!showAllList)}
         >
           <Text style={[styles.voteListItemText, { color: colors.secondary }]}>
-            {showAllList ? 'Voir moins' : `Voir plus (${activeProposals.length - 3})`}
+            {showAllList ? t('home.showLess') : t('home.showMore', { count: activeProposals.length - 3 })}
           </Text>
           <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
         </TouchableOpacity>
