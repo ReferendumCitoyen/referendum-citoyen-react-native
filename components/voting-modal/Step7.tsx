@@ -52,7 +52,7 @@ const Step7: React.FC<Step7Props> = ({
   const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
-  const [statusText, setStatusText] = useState('Vérification en cours...');
+  const [statusText, setStatusText] = useState(t('voting.step7Verifying'));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasCalledCallback = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
@@ -61,7 +61,7 @@ const Step7: React.FC<Step7Props> = ({
     if (isActive && !hasStarted) {
       setHasStarted(true);
       hasCalledCallback.current = false;
-      setStatusText('Vérification en cours...');
+      setStatusText(t('voting.step7Verifying'));
       setErrorMessage(null);
     } else if (!isActive && hasStarted) {
       setHasStarted(false);
@@ -74,7 +74,7 @@ const Step7: React.FC<Step7Props> = ({
 
     if (!rarime || !passport) {
       hasCalledCallback.current = true;
-      setErrorMessage("Données d'identité manquantes. Veuillez rescanner votre carte.");
+      setErrorMessage(t('voting.step7MissingData'));
       onError?.();
       return;
     }
@@ -82,7 +82,7 @@ const Step7: React.FC<Step7Props> = ({
     (async () => {
       try {
         // Step 1: Check document registration status
-        setStatusText('Vérification du statut...');
+        setStatusText(t('voting.step7CheckingStatus'));
         const status = await withRetry(
           () => rarime.getDocumentStatus(passport),
           { label: 'getDocumentStatus' }
@@ -92,7 +92,7 @@ const Step7: React.FC<Step7Props> = ({
         // Step 2: Register identity if not already registered
         const { DocumentStatus } = await import('@rarimo/rarime-rn-sdk');
         if (status === DocumentStatus.NotRegistered) {
-          setStatusText('Enregistrement de votre identité...');
+          setStatusText(t('voting.step7Registering'));
           await withRetry(
             () => rarime.registerIdentity(passport),
             { label: 'registerIdentity' }
@@ -101,7 +101,7 @@ const Step7: React.FC<Step7Props> = ({
         }
 
         hasCalledCallback.current = true;
-        setStatusText('Vérification réussie !');
+        setStatusText(t('voting.step7Verified'));
         onSuccess?.();
       } catch (err) {
         console.error('[Step7] Verification error:', err);

@@ -45,7 +45,7 @@ const Step11: React.FC<Step11Props> = ({
     if (isActive && !hasStarted) {
       setHasStarted(true);
       hasCalledCallback.current = false;
-      setStatusText('Préparation...');
+      setStatusText(t('voting.step11Preparing'));
     } else if (!isActive && hasStarted) {
       setHasStarted(false);
       hasCalledCallback.current = false;
@@ -57,14 +57,14 @@ const Step11: React.FC<Step11Props> = ({
 
     if (!canSubmitReal) {
       hasCalledCallback.current = true;
-      setStatusText("Erreur : scannez d'abord votre carte d'identité.");
+      setStatusText(t('voting.step11MissingData'));
       onError?.();
       return;
     }
 
     (async () => {
       try {
-        setStatusText('Génération de la preuve ZK...');
+        setStatusText(t('voting.step11GeneratingProof'));
         console.log('[FreedomTool] Step11: Submitting vote...');
 
         const txHash = await withRetry(
@@ -78,14 +78,14 @@ const Step11: React.FC<Step11Props> = ({
           {
             label: 'submitProposal',
             onRetry: (attempt, max) => {
-              setStatusText(`Erreur réseau — nouvelle tentative (${attempt}/${max})...`);
+              setStatusText(t('voting.step11NetworkRetry', { attempt, max }));
             },
           }
         );
 
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
         hasCalledCallback.current = true;
-        setStatusText('Vote soumis !');
+        setStatusText(t('voting.step11VoteSubmitted'));
         onSuccess?.();
       } catch (err) {
         console.error('[FreedomTool] Step11: Vote error:', err);
