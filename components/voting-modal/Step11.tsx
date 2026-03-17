@@ -5,6 +5,7 @@ import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
 import { withRetry, formatRpcError } from '@/constants/rarime-config';
 import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 interface Step11Props {
   containerWidth: number;
@@ -31,6 +32,7 @@ const Step11: React.FC<Step11Props> = ({
   proposalInfo,
   answerIndex,
 }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [statusText, setStatusText] = useState('');

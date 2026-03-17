@@ -3,6 +3,7 @@ import { View, Text, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step1Props {
   player: any;
@@ -11,6 +12,7 @@ interface Step1Props {
 }
 
 const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -40,10 +42,10 @@ const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout }) => {
             <View style={modalStyles.numberCircle}>
               <Text style={modalStyles.numberText}>1</Text>
             </View>
-            <Text style={modalStyles.stepTitle}>Scannez votre Carte d'identité anonymement</Text>
+            <Text style={modalStyles.stepTitle}>{t('voting.step1Title')}</Text>
           </View>
           <Text style={modalStyles.stepDescription}>
-            Scannez votre Carte d'identité pour valider votre âge et votre nationalité. Vos données sont chiffrées et non traçables. Vous êtes 100% anonyme.
+            {t('voting.step1Description')}
           </Text>
         </View>
       </View>

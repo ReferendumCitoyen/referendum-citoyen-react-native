@@ -84,6 +84,10 @@ npm test
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
+You can support with donations: 
+- XMR: 8AJcjG2wi9M98sAmCnwQp3FtQqeTNns1TM9qatAN149gguYNBorFDwjVgCZtGMCyNHAwM5kvD4sTw4NSr5JEMSEH69HFSYX 
+- BTC: bc1qvgu3emmlusemt8q9l8pueg70auny88pgvsg7fp
+
 ## License
 
 [MIT](./LICENSE)

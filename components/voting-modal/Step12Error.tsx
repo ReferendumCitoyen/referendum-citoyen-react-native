@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step12ErrorProps {
   containerWidth: number;
@@ -11,6 +12,7 @@ interface Step12ErrorProps {
 }
 
 const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -19,11 +21,11 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
       <View style={stepSpecificStyles.step12ErrorContainer}>
         <View style={stepSpecificStyles.step12ErrorContent}>
           <Text style={stepSpecificStyles.step12ErrorTitle}>
-            Une erreur est survenue.
+            {t('voting.step12ErrorTitle')}
           </Text>
 
           <Text style={stepSpecificStyles.step12ErrorDescription}>
-            Veuillez recommencer.
+            {t('voting.step12ErrorDescription')}
           </Text>
 
           <LottieView
@@ -39,7 +41,7 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
           activeOpacity={0.8}
           onPress={onGoHome || (() => console.log('Go home'))}
         >
-          <Text style={stepSpecificStyles.step12ErrorButtonText}>Retour à l'écran d'accueil</Text>
+          <Text style={stepSpecificStyles.step12ErrorButtonText}>{t('common.backToHome')}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -4,7 +4,7 @@ import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
-import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 interface Step6Props {
   containerWidth: number;
@@ -22,10 +22,10 @@ interface Step6Props {
 }
 
 const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyze, onNFCSuccess, onNFCError, onGoBack, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
-  const router = useRouter();
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
 
@@ -39,22 +39,22 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
-            setScanStatus("📱 Approchez votre carte d'identité du téléphone");
+            setScanStatus(t('voting.step6PresentCard'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
-            setScanStatus("🔐 Authentification...");
+            setScanStatus(t('voting.step6Authenticating'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
-            setScanStatus("📖 Lecture des données...");
+            setScanStatus(t('voting.step6Reading'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
-            setScanStatus("✅ Authentification active...");
+            setScanStatus(t('voting.step6ActiveAuth'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
-            setScanStatus("✅ Lecture réussie !");
+            setScanStatus(t('voting.step6ReadSuccess'));
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
-            setScanStatus("❌ Erreur de lecture");
+            setScanStatus(t('voting.step6ReadError'));
           }),
         ];
       } catch (_error) {
@@ -77,14 +77,14 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
   const handleAnalyzePress = async () => {
     if (!mrzData) {
-      setScanStatus("❌ Données MRZ manquantes. Scannez d'abord le MRZ.");
+      setScanStatus(t('voting.step6MissingMrz'));
       return;
     }
 
     // Scan NFC on the same screen for both platforms
     try {
       setIsScanning(true);
-      setScanStatus("🔄 Initialisation...");
+      setScanStatus(t('voting.step6Init'));
 
       const eDocModule = await import('@/modules/e-document');
       const { scanDocument } = eDocModule;
@@ -97,7 +97,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      setScanStatus("📱 Approchez votre carte maintenant...");
+      setScanStatus(t('voting.step6Now'));
 
       // Add timeout for Android NFC (30 seconds)
       const timeoutPromise = new Promise((_, reject) => {
@@ -112,7 +112,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
       const result = await Promise.race([scanPromise, timeoutPromise]);
 
-      setScanStatus("✅ Scan terminé !");
+      setScanStatus(t('voting.step6ReadSuccess'));
       setIsScanning(false);
 
       // Proceed to next step on success
@@ -124,7 +124,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     } catch (error: any) {
       // If it's an invalid MRZ key error, go back to camera step
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
-        setScanStatus("❌ Données MRZ invalides. Retour au scanner...");
+        setScanStatus(t('voting.step6InvalidMrz'));
         setIsScanning(false);
 
         if (onGoBack) {
@@ -136,7 +136,11 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
 
       // For other errors, show message and let user retry
-      setScanStatus(`❌ Erreur: ${error.message || error.code || 'Lecture échouée'}. Réessayez.`);
+      setScanStatus(
+        t('voting.step6ErrorWithMessage', {
+          message: error.message || error.code || t('voting.step6ReadError'),
+        })
+      );
       setIsScanning(false);
     }
   };
@@ -144,7 +148,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step6Container}>
-        <Text style={stepSpecificStyles.step6Title}>Lecteur NFC</Text>
+        <Text style={stepSpecificStyles.step6Title}>{t('voting.step6Title')}</Text>
 
         <View style={stepSpecificStyles.step6ImageContainer}>
           {Platform.OS === 'android' ? (
@@ -183,7 +187,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>
-              {isScanning ? 'Scan en cours...' : 'Analyse'}
+              {isScanning ? t('voting.step6Scanning') : t('common.analyze')}
             </Text>
           </TouchableOpacity>
         </View>

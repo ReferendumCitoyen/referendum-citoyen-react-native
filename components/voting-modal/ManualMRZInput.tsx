@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useColors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface ManualMRZInputProps {
   isVisible: boolean;
@@ -18,6 +19,7 @@ interface ManualMRZInputProps {
 }
 
 const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const [documentNumber, setDocumentNumber] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -133,46 +135,46 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Saisie manuelle MRZ</Text>
+        <Text style={styles.title}>{t('mrzManual.title')}</Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Numéro de document</Text>
+          <Text style={styles.label}>{t('mrzManual.documentNumber')}</Text>
           <TextInput
             style={styles.input}
             value={documentNumber}
             onChangeText={setDocumentNumber}
-            placeholder="Ex: AB123456"
+            placeholder={t('mrzManual.documentPlaceholder')}
             placeholderTextColor={colors.text + '80'}
             autoCapitalize="characters"
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date de naissance</Text>
+          <Text style={styles.label}>{t('mrzManual.birthDate')}</Text>
           <TextInput
             style={styles.input}
             value={birthDate}
             onChangeText={setBirthDate}
-            placeholder="JJMMAA"
+            placeholder={t('mrzManual.datePlaceholder')}
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
             maxLength={6}
           />
-          <Text style={styles.hint}>Format: Jour Mois Année (ex: 150790 pour 15/07/1990)</Text>
+          <Text style={styles.hint}>{t('mrzManual.birthHint')}</Text>
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date d'expiration</Text>
+          <Text style={styles.label}>{t('mrzManual.expiryDate')}</Text>
           <TextInput
             style={styles.input}
             value={expiryDate}
             onChangeText={setExpiryDate}
-            placeholder="JJMMAA"
+            placeholder={t('mrzManual.datePlaceholder')}
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
             maxLength={6}
           />
-          <Text style={styles.hint}>Format: Jour Mois Année (ex: 251229 pour 25/12/2029)</Text>
+          <Text style={styles.hint}>{t('mrzManual.expiryHint')}</Text>
         </View>
 
         <View style={styles.buttonRow}>
@@ -182,7 +184,7 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
             disabled={!isValid}
             activeOpacity={0.8}
           >
-            <Text style={styles.submitButtonText}>Valider</Text>
+            <Text style={styles.submitButtonText}>{t('mrzManual.submit')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -190,7 +192,7 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
             onPress={onClose}
             activeOpacity={0.8}
           >
-            <Text style={styles.cancelButtonText}>Retour au scanner</Text>
+            <Text style={styles.cancelButtonText}>{t('common.backToScanner')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
