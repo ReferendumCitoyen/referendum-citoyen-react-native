@@ -78,6 +78,7 @@ public class EDocumentModule: Module {
                         mrzKey: mrzKey,
                         can: canKey,
                         tags: tagsToRead,
+                        skipPACE: documentType == "P",
                         customDisplayMessage: { displayMessage in
                             // Forked from NFCViewDisplayMessage
                             func drawProgressBar(_ progress: Int) -> String {
