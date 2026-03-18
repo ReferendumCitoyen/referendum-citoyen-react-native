@@ -56,6 +56,9 @@ Thumbs.db
 # build outputs (all levels)
 build/
 **/build/
+# Keep plugin build outputs (needed for Expo config plugins)
+!plugins/**/build/
+!modules/**/plugin/build/
 coverage/
 **/coverage/
 
