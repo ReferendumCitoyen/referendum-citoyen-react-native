@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { getCurrentLanguageCode } from '@/locales';
+import { useDevMode } from '@/contexts/DevModeContext';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -26,20 +27,7 @@ export default function ParametresScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const darkModeEnabled = theme === 'dark';
-  const [devMode, setDevMode] = useState(false);
-  const tapCountRef = useRef(0);
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleVersionTap = useCallback(() => {
-    tapCountRef.current += 1;
-    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
-    if (tapCountRef.current >= 7) {
-      tapCountRef.current = 0;
-      setDevMode(true);
-    } else {
-      tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 2000);
-    }
-  }, []);
+  const { devMode, setDevMode, handleVersionTap } = useDevMode();
 
   const currentLanguageCode = getCurrentLanguageCode();
   const currentLanguageLabel = t(`languages.${currentLanguageCode}`, {
