@@ -72,7 +72,7 @@ const Step11: React.FC<Step11Props> = ({
         console.log(`[FreedomTool] Step11: proposal=#${proposalInfo.id} "${proposalInfo.title}"`);
         console.log(`[FreedomTool] Step11: answerIndex=${answerIndex}, variant="${proposalInfo.questions[0]?.variants?.[answerIndex]}"`);
         console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
-        console.log(`[FreedomTool] Step11: citizenshipWhitelist=${JSON.stringify(proposalInfo.criteria.citizenshipWhitelist)}`);
+        console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposalInfo.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
         console.log(`[FreedomTool] Step11: selector=${proposalInfo.criteria.selector}, sendVoteContract=${proposalInfo.sendVoteContractAddress}`);
 
         const txHash = await withRetry(
