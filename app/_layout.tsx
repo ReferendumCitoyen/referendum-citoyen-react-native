@@ -144,6 +144,34 @@ function RootLayoutNav() {
               gestureEnabled: false,
             }}
           />
+          <Stack.Screen
+            name="french-id-test"
+            options={{
+              title: 'Test French ID',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="id-test"
+            options={{
+              title: 'Test ID',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="passport-test"
+            options={{
+              title: 'Test Passport',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="can-scan"
+            options={{
+              title: 'Scan CAN',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
         </Stack>
       </BottomSheetModalProvider>
     </ThemeProvider>
