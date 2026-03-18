@@ -30,7 +30,7 @@ index 2719106..a30463a 100644
              expirationDateLowerbound: proposalInfo.criteria.expirationDateLowerbound.toString(),
              expirationDateUpperbound: MRZ_ZERO_DATE.toString(),
 -            citizenshipMask: "0",
-+            citizenshipMask: passport
++            citizenshipMask: passport && proposalInfo.criteria.citizenshipWhitelist.length > 0
 +                ? BigInt("0x" + Buffer.from(passport.getMRZData().issuingCountry).toString("hex")).toString()
 +                : "0",
          };
@@ -246,7 +246,7 @@ index e7a8d48..7f18d64 100644
          proposalInfo.criteria.expirationDateLowerbound.toString(),
        expirationDateUpperbound: MRZ_ZERO_DATE.toString(),
 -      citizenshipMask: "0",
-+      citizenshipMask: passport
++      citizenshipMask: passport && proposalInfo.criteria.citizenshipWhitelist.length > 0
 +        ? BigInt("0x" + Buffer.from(passport.getMRZData().issuingCountry).toString("hex")).toString()
 +        : "0",
      };
