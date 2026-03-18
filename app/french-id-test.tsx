@@ -774,11 +774,6 @@ export default function FrenchIDTestScreen() {
       const queryProofParams = await ft.buildQueryProofParams(
         [selectedAnswer], proposalInfo, passportInfo
       );
-      // Fix: set citizenshipMask from passport nationality instead of hardcoded "0"
-      const mrzData = passport.getMRZData();
-      queryProofParams.citizenshipMask = BigInt(
-        "0x" + Buffer.from(mrzData.issuingCountry).toString("hex")
-      ).toString();
       console.log("[FreedomTool] QueryProofParams built");
       console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
 
