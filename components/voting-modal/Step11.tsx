@@ -6,6 +6,7 @@ import { useColors, Typography } from '@/constants/theme';
 import { withRetry, formatRpcError } from '@/constants/rarime-config';
 import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
+import { Buffer } from 'buffer';
 
 interface Step11Props {
   containerWidth: number;
@@ -65,7 +66,14 @@ const Step11: React.FC<Step11Props> = ({
     (async () => {
       try {
         setStatusText(t('voting.step11GeneratingProof'));
-        console.log('[FreedomTool] Step11: Submitting vote...');
+        const mrzData = passport.getMRZData();
+        const citizenshipHex = BigInt("0x" + Buffer.from(mrzData.issuingCountry).toString("hex")).toString();
+        console.log(`[FreedomTool] Step11: Submitting vote...`);
+        console.log(`[FreedomTool] Step11: proposal=#${proposalInfo.id} "${proposalInfo.title}"`);
+        console.log(`[FreedomTool] Step11: answerIndex=${answerIndex}, variant="${proposalInfo.questions[0]?.variants?.[answerIndex]}"`);
+        console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
+        console.log(`[FreedomTool] Step11: citizenshipWhitelist=${JSON.stringify(proposalInfo.criteria.citizenshipWhitelist)}`);
+        console.log(`[FreedomTool] Step11: selector=${proposalInfo.criteria.selector}, sendVoteContract=${proposalInfo.sendVoteContractAddress}`);
 
         const txHash = await withRetry(
           () =>
@@ -87,8 +95,9 @@ const Step11: React.FC<Step11Props> = ({
         hasCalledCallback.current = true;
         setStatusText(t('voting.step11VoteSubmitted'));
         onSuccess?.();
-      } catch (err) {
+      } catch (err: any) {
         console.error('[FreedomTool] Step11: Vote error:', err);
+        console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));
         hasCalledCallback.current = true;
         setStatusText(formatRpcError(err));
         onError?.();

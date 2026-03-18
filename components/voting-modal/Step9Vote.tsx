@@ -25,6 +25,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
   const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
 
   const handleVoteSelect = (idx: number) => {
+    console.log(`[Step9] Vote option tapped: "${variants[idx]}" (index ${idx}) — proposal #${proposalInfo?.id}, variants: [${variants.join(', ')}]`);
     setSelectedIndex(idx);
     if (onVoteSelect) {
       onVoteSelect(idx);

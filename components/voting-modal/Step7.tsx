@@ -82,6 +82,8 @@ const Step7: React.FC<Step7Props> = ({
     (async () => {
       try {
         // Step 1: Check document registration status
+        const mrzInfo = passport.getMRZData();
+        console.log(`[Step7] Passport MRZ — nationality: ${mrzInfo.issuingCountry}, docNo: ${mrzInfo.documentNumber}, birthDate: ${mrzInfo.birthDate}`);
         setStatusText(t('voting.step7CheckingStatus'));
         const status = await withRetry(
           () => rarime.getDocumentStatus(passport),
@@ -101,6 +103,7 @@ const Step7: React.FC<Step7Props> = ({
         }
 
         hasCalledCallback.current = true;
+        console.log('[Step7] Verification complete — calling onSuccess');
         setStatusText(t('voting.step7Verified'));
         onSuccess?.();
       } catch (err) {

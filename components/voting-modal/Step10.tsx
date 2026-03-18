@@ -25,6 +25,7 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
   const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
   const variantName = variants[selectedVote] ?? '';
 
+  console.log(`[Step10] Confirming vote: "${variantName}" (index ${selectedVote}) for proposal #${proposalInfo?.id}`);
   const getVoteText = () => variantName.toUpperCase();
   const getButtonText = () => t('voting.step10VoteAction', { vote: variantName });
 

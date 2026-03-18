@@ -146,6 +146,7 @@ export default function VotingScreen() {
   const handleNext = useCallback(() => {
     if (currentStep < 12) {
       const nextStep = currentStep + 1;
+      console.log(`[VotingScreen] Step ${currentStep} → Step ${nextStep}`);
       setCurrentStep(nextStep);
 
       Animated.timing(slideAnim, {
@@ -198,6 +199,7 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleVerificationSuccess = useCallback(() => {
+    console.log("[VotingScreen] Verification SUCCESS → Step 8 (ready to vote)");
     setVerificationResult("success");
     setCurrentStep(8);
     pauseVerificationVideo();
@@ -210,6 +212,7 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
   const handleVerificationError = useCallback(() => {
+    console.log("[VotingScreen] Verification ERROR → Step 8");
     setVerificationResult("error");
     setCurrentStep(8);
     pauseVerificationVideo();
@@ -243,6 +246,8 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth]);
 
   const handleVoteSelect = useCallback((answerIndex: number) => {
+    const variantName = proposalInfo?.questions[0]?.variants?.[answerIndex] ?? `index=${answerIndex}`;
+    console.log(`[VotingScreen] Vote selected: "${variantName}" (index ${answerIndex}) for proposal #${proposalInfo?.id}`);
     setSelectedVote(answerIndex);
     setCurrentStep(10);
     Animated.timing(slideAnim, {
@@ -255,6 +260,7 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleVoteSubmissionSuccess = useCallback(() => {
+    console.log("[VotingScreen] Vote submission SUCCESS → Step 12");
     setVoteSubmissionResult("success");
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -266,6 +272,7 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth]);
 
   const handleVoteSubmissionError = useCallback(() => {
+    console.log("[VotingScreen] Vote submission ERROR → Step 12");
     setVoteSubmissionResult("error");
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -293,7 +300,8 @@ export default function VotingScreen() {
           const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes!, "base64"));
           const sod = new Uint8Array(Buffer.from(data.sodBytes!, "base64"));
           passportRef.current = new RP({ dataGroup1: dg1, sod });
-          console.log("[FreedomTool] RarimePassport created from NFC data");
+          const mrzData = passportRef.current.getMRZData();
+          console.log(`[FreedomTool] RarimePassport created — nationality: ${mrzData.issuingCountry}, docNo: ${mrzData.documentNumber}`);
         } catch (err) {
           console.error("[FreedomTool] Failed to create RarimePassport:", err);
         }
