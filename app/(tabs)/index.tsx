@@ -326,13 +326,30 @@ export default function AccueilScreen() {
                 <Text style={styles.badgeText}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
               </View>
               {devMode && (
-                <TouchableOpacity
-                  style={styles.devBadge}
-                  activeOpacity={0.7}
-                  onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
-                >
-                  <Text style={styles.devBadgeText}>#{p.id}</Text>
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={styles.devBadge}
+                    activeOpacity={0.7}
+                    onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
+                  >
+                    <Text style={styles.devBadgeText}>#{p.id}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.devInfoBadge}>
+                    <Text style={styles.devInfoText}>
+                      {Number(p.criteria.selector) === 6689 ? 'ID' : 'PP'}
+                      {p.criteria.citizenshipWhitelist.length > 0
+                        ? ' ' + p.criteria.citizenshipWhitelist.map(c => {
+                            try {
+                              const hex = BigInt(c).toString(16);
+                              const bytes = [];
+                              for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substring(i, i + 2), 16));
+                              return String.fromCharCode(...bytes);
+                            } catch { return String(c); }
+                          }).join(',')
+                        : ' ALL'}
+                    </Text>
+                  </View>
+                </>
               )}
               <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
             </View>
@@ -501,6 +518,17 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   devBadgeText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
+    color: '#FFFFFF',
+  },
+  devInfoBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    backgroundColor: '#6366F1',
+    borderRadius: 8,
+  },
+  devInfoText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 10,
     color: '#FFFFFF',
   },
   voteTitle: {
