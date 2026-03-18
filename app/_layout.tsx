@@ -109,13 +109,6 @@ function RootLayoutNav() {
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
-            name="nfc-test"
-            options={{
-              title: t('navigation.nfcTest'),
-              headerBackTitle: t('navigation.back')
-            }}
-          />
-          <Stack.Screen
             name="nfc-scan-modal"
             options={{
               title: t('navigation.nfcScan'),
