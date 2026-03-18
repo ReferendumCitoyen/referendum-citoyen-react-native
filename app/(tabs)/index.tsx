@@ -7,6 +7,7 @@ import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
+import { useDevMode } from '@/contexts/DevModeContext';
 
 const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
 const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
@@ -122,6 +123,7 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
 
 export default function AccueilScreen() {
   const { t } = useTranslation();
+  const { devMode } = useDevMode();
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
@@ -275,6 +277,11 @@ export default function AccueilScreen() {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{t('home.badgeOngoing')}</Text>
             </View>
+            {devMode && (
+              <View style={styles.devBadge}>
+                <Text style={styles.devBadgeText}>#{p.id}</Text>
+              </View>
+            )}
             <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
           </View>
           <Text style={styles.voteTitle}>{p.title}</Text>
@@ -402,6 +409,17 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
     color: colors.text,
+  },
+  devBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+  },
+  devBadgeText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    color: '#FFFFFF',
   },
   voteTitle: {
     fontFamily: Typography.fontFamily.bold,

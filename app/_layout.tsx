@@ -14,6 +14,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { DevModeProvider } from '@/contexts/DevModeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -85,7 +86,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <CustomThemeProvider>
-          <RootLayoutNav />
+          <DevModeProvider>
+            <RootLayoutNav />
+          </DevModeProvider>
         </CustomThemeProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
