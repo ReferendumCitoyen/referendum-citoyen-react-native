@@ -100,7 +100,7 @@ export default function ParametresScreen() {
 
               {/* French ID Test Row */}
               <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test French ID</Text>
+                <Text style={styles.settingLabel}>Test Carte d'identité</Text>
                 <TouchableOpacity
                   style={styles.settingValueContainer}
                   activeOpacity={0.7}
@@ -113,7 +113,7 @@ export default function ParametresScreen() {
 
               {/* ID Test Row */}
               <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test ID</Text>
+                <Text style={styles.settingLabel}>Test ID (générique)</Text>
                 <TouchableOpacity
                   style={styles.settingValueContainer}
                   activeOpacity={0.7}
@@ -126,7 +126,7 @@ export default function ParametresScreen() {
 
               {/* Passport Test Row */}
               <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test Passport</Text>
+                <Text style={styles.settingLabel}>Test Passeport</Text>
                 <TouchableOpacity
                   style={styles.settingValueContainer}
                   activeOpacity={0.7}

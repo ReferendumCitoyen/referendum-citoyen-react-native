@@ -80,7 +80,8 @@ public class EDocumentModule: Module {
                         tags: tagsToRead,
                         skipPACE: documentType == "P",
                         customDisplayMessage: { displayMessage in
-                            // Forked from NFCViewDisplayMessage
+                            let docName = documentType == "I" ? "carte d'identité" : "passeport"
+
                             func drawProgressBar(_ progress: Int) -> String {
                                 let itemsCount = (progress / 20)
                                 let full = String(repeating: "🟢 ", count: itemsCount)
@@ -88,38 +89,37 @@ public class EDocumentModule: Module {
                                 return "\(full)\(empty)"
                             }
 
-                            let message: LocalizedStringResource?
+                            let message: String?
                             switch displayMessage {
                             case .requestPresentPassport:
                                 self.sendEvent(DocumentScanEvents.requestPresentPassport.rawValue)
-                                message = "Hold your iPhone near an NFC enabled passport.\n";
+                                message = "Approchez votre \(docName) du téléphone\n"
                             case .authenticatingWithPassport(let progress):
-//                                self.sendEvent(DocumentScanEvents.scanStarted.rawValue)
                                 self.sendEvent(DocumentScanEvents.authenticatingWithPassport.rawValue)
-                                message = "Authenticating with passport...\n\n\(drawProgressBar(progress))"
+                                message = "Authentification en cours...\n\n\(drawProgressBar(progress))"
                             case .activeAuthentication:
                                 self.sendEvent(DocumentScanEvents.activeAuthentication.rawValue)
-                                message = "Authenticating with passport..."
+                                message = "Authentification en cours..."
                             case .readingDataGroupProgress(let dataGroup, let progress):
                                 self.sendEvent(DocumentScanEvents.readingDataGroupProgress.rawValue)
-                                message = "Reading passport data (\(dataGroup.getName()))...\n\n\(drawProgressBar(progress))"
+                                message = "Lecture des données (\(dataGroup.getName()))...\n\n\(drawProgressBar(progress))"
                             case .error(let tagError):
                                 self.sendEvent(DocumentScanEvents.scanError.rawValue)
                                 switch tagError {
-                                case .TagNotValid: message = "Tag not valid."
-                                case .MoreThanOneTagFound: message = "More than 1 tag was found. Please present only 1 tag."
-                                case .ConnectionError: message = "Connection error. Please try again."
-                                case .InvalidMRZKey: message = "MRZ Key not valid for this document."
+                                case .TagNotValid: message = "Tag invalide."
+                                case .MoreThanOneTagFound: message = "Plusieurs tags détectés. Présentez un seul document."
+                                case .ConnectionError: message = "Erreur de connexion. Réessayez."
+                                case .InvalidMRZKey: message = "Données MRZ invalides pour ce document."
                                 case .ResponseError(let reason, let sw1, let sw2):
-                                    message = "Sorry, there was a problem reading the passport. \(reason). Error codes: [0x\(sw1), 0x\(sw2)]"
-                                default: message = "Sorry, there was a problem reading the passport. Please try again"
+                                    message = "Erreur de lecture : \(reason). Codes : [0x\(sw1), 0x\(sw2)]"
+                                default: message = "Erreur de lecture. Réessayez."
                                 }
                             case .successfulRead:
                                 self.sendEvent(DocumentScanEvents.successfulRead.rawValue)
-                                message = "Passport read successfully"
+                                message = "Lecture réussie !"
                             }
 
-                            return message == nil ? nil : String(localized: message!)
+                            return message
                         }
                     )
 
