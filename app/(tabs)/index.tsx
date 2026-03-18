@@ -132,10 +132,35 @@ export default function AccueilScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllList, setShowAllList] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const oldestIdRef = useRef<number>(0);
+  const ftRef = useRef<any>(null);
+
+  const PAGE_SIZE = 10;
+
+  const getFreedomTool = useCallback(async () => {
+    if (!ftRef.current) {
+      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
+      ftRef.current = new FreedomTool(FREEDOM_TOOL_CONFIG);
+    }
+    return ftRef.current;
+  }, []);
+
+  const fetchBatch = useCallback(async (startId: number, count: number) => {
+    const ft = await getFreedomTool();
+    const ids = Array.from({ length: count }, (_, i) => startId - i).filter(id => id >= 1);
+    if (ids.length === 0) return [];
+    const results = await Promise.allSettled(
+      ids.map(id => ft.getProposalInfo(String(id)))
+    );
+    return results
+      .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
+      .map(r => r.value);
+  }, [getFreedomTool]);
 
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
-      // Show cached data instantly (unless pull-to-refresh)
       if (!refresh) {
         try {
           const cached = await AsyncStorage.getItem(PROPOSALS_CACHE_KEY);
@@ -143,17 +168,13 @@ export default function AccueilScreen() {
             const parsed = JSON.parse(cached, bigintReviver) as ProposalInfo[];
             setProposals(parsed);
             setIsLoading(false);
-            console.log(`[Accueil] Loaded ${parsed.length} proposals from cache`);
           }
         } catch {}
       }
 
       if (refresh) setIsRefreshing(true);
       setLoadError(null);
-      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
-      const ft = new FreedomTool(FREEDOM_TOOL_CONFIG);
 
-      // Get the latest proposal ID via a single contract call
       const { JsonRpcProvider, Contract } = await import('ethers');
       const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
       const contract = new Contract(
@@ -164,23 +185,16 @@ export default function AccueilScreen() {
       const lastId = Number(await contract.lastProposalId());
       console.log(`[Accueil] lastProposalId: ${lastId}`);
 
-      // Fetch the 10 most recent in parallel
-      const ids = Array.from({ length: Math.min(10, lastId) }, (_, i) => lastId - i);
-      const results = await Promise.allSettled(
-        ids.map(id => ft.getProposalInfo(String(id)))
-      );
+      const loaded = await fetchBatch(lastId, PAGE_SIZE);
+      const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
 
-      const loaded = results
-        .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
-        .map(r => r.value)
-        .sort((a, b) => Number(b.id) - Number(a.id));
+      console.log(`[Accueil] Fetched ${sorted.length} proposals from network`);
+      setProposals(sorted);
+      oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
+      setHasMore(oldestIdRef.current > 1);
 
-      console.log(`[Accueil] Fetched ${loaded.length} proposals from network`);
-      setProposals(loaded);
-
-      // Cache for next open
       try {
-        await AsyncStorage.setItem(PROPOSALS_CACHE_KEY, JSON.stringify(loaded, bigintReplacer));
+        await AsyncStorage.setItem(PROPOSALS_CACHE_KEY, JSON.stringify(sorted, bigintReplacer));
       } catch {}
     } catch (err) {
       console.error('[Accueil] Failed to load proposals:', err);
@@ -189,7 +203,30 @@ export default function AccueilScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [fetchBatch]);
+
+  const fetchMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;
+    setIsLoadingMore(true);
+    try {
+      const nextStart = oldestIdRef.current - 1;
+      console.log(`[Accueil] Loading more from ID ${nextStart}...`);
+      const loaded = await fetchBatch(nextStart, PAGE_SIZE);
+      if (loaded.length === 0) {
+        setHasMore(false);
+      } else {
+        const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
+        setProposals(prev => [...prev, ...sorted]);
+        oldestIdRef.current = Math.min(...sorted.map(p => Number(p.id)));
+        setHasMore(oldestIdRef.current > 1);
+        console.log(`[Accueil] Loaded ${sorted.length} more, oldest now: ${oldestIdRef.current}`);
+      }
+    } catch (err) {
+      console.error('[Accueil] Failed to load more:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, fetchBatch]);
 
   useEffect(() => { fetchProposals(); }, [fetchProposals]);
 
@@ -216,6 +253,8 @@ export default function AccueilScreen() {
   };
 
   const activeProposals = useMemo(() => proposals.filter(isActive), [proposals]);
+  const pastProposals = useMemo(() => proposals.filter(p => !isActive(p)), [proposals]);
+  const allProposals = useMemo(() => [...activeProposals, ...pastProposals], [activeProposals, pastProposals]);
 
   const renderHeader = useCallback(() => (
     <View style={styles.voteListSection}>
@@ -266,71 +305,94 @@ export default function AccueilScreen() {
     </View>
   ), [activeProposals, showAllList, isLoading, loadError, colors, styles]);
 
-  const renderItem = useCallback(({ item: p }: { item: ProposalInfo }) => {
+  const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
+    const active = isActive(p);
     const variants = p.questions[0]?.variants ?? [];
     const { percents, counts, total } = computeVoteResults(p.votingResults, variants.length);
     const endTime = p.startTimestamp + p.duration;
+    const showPastHeader = !active && index === activeProposals.length;
+
     return (
-      <View style={styles.voteCard}>
-        <View style={styles.badgeContainer}>
-          <View style={styles.badgeRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{t('home.badgeOngoing')}</Text>
-            </View>
-            {devMode && (
-              <TouchableOpacity
-                style={styles.devBadge}
-                activeOpacity={0.7}
-                onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
-              >
-                <Text style={styles.devBadgeText}>#{p.id}</Text>
-              </TouchableOpacity>
-            )}
-            <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
+      <>
+        {showPastHeader && (
+          <View style={styles.pastHeader}>
+            <Text style={styles.pastHeaderText}>{t('home.badgeFinished')}</Text>
           </View>
-          <Text style={styles.voteTitle}>{p.title}</Text>
-        </View>
-
-        {p.description ? (
-          <Text style={styles.voteDescription}>{p.description}</Text>
-        ) : null}
-
-        <View style={styles.statsContainer}>
-          <View style={styles.statColumn}>
-            <Text style={styles.statLabel}>{t('home.votes')}</Text>
-            <Text style={styles.statValue}>{total.toLocaleString()}</Text>
-          </View>
-          <View style={styles.statColumn}>
-            <Text style={styles.statLabel}>{t('home.endsIn')}</Text>
-            <Text style={styles.statValue}>{formatTimeRemaining(endTime)}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
-          <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
-        </TouchableOpacity>
-
-        {variants.length > 0 && (
-          <VoteResults variants={variants} percents={percents} counts={counts} />
         )}
-      </View>
+        <View style={[styles.voteCard, !active && styles.voteCardPast]}>
+          <View style={styles.badgeContainer}>
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, !active && { backgroundColor: colors.border }]}>
+                <Text style={styles.badgeText}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
+              </View>
+              {devMode && (
+                <TouchableOpacity
+                  style={styles.devBadge}
+                  activeOpacity={0.7}
+                  onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
+                >
+                  <Text style={styles.devBadgeText}>#{p.id}</Text>
+                </TouchableOpacity>
+              )}
+              <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
+            </View>
+            <Text style={styles.voteTitle}>{p.title}</Text>
+          </View>
+
+          {p.description ? (
+            <Text style={styles.voteDescription}>{p.description}</Text>
+          ) : null}
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statColumn}>
+              <Text style={styles.statLabel}>{t('home.votes')}</Text>
+              <Text style={styles.statValue}>{total.toLocaleString()}</Text>
+            </View>
+            <View style={styles.statColumn}>
+              <Text style={styles.statLabel}>{active ? t('home.endsIn') : t('home.badgeFinished')}</Text>
+              <Text style={styles.statValue}>{active ? formatTimeRemaining(endTime) : formatTimeAgo(endTime)}</Text>
+            </View>
+          </View>
+
+          {active && (
+            <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
+              <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
+            </TouchableOpacity>
+          )}
+
+          {variants.length > 0 && (
+            <VoteResults variants={variants} percents={percents} counts={counts} />
+          )}
+        </View>
+      </>
     );
-  }, [styles, colors]);
+  }, [styles, colors, activeProposals.length, devMode]);
 
   const keyExtractor = useCallback((p: ProposalInfo) => p.id, []);
 
   return (
     <View style={styles.screenContainer}>
       <FlatList
-        data={activeProposals}
+        data={allProposals}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
-        ListFooterComponent={<View style={styles.tabBarSpacer} />}
+        ListFooterComponent={
+          <View>
+            {isLoadingMore && (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={colors.secondary} />
+              </View>
+            )}
+            <View style={styles.tabBarSpacer} />
+          </View>
+        }
         contentContainerStyle={styles.contentContainer}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
         }
+        onEndReached={fetchMore}
+        onEndReachedThreshold={0.5}
         initialNumToRender={3}
         windowSize={5}
       />
@@ -419,6 +481,22 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     paddingHorizontal: 6,
     backgroundColor: '#EF4444',
     borderRadius: 8,
+  },
+  pastHeader: {
+    paddingHorizontal: Spacing.voteList.paddingHorizontal,
+    paddingTop: Spacing.screen.sectionGap,
+    paddingBottom: 8,
+  },
+  pastHeaderText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
+    letterSpacing: Typography.letterSpacing.h1,
+    color: colors.text,
+    opacity: 0.5,
+  },
+  voteCardPast: {
+    opacity: 0.7,
   },
   devBadgeText: {
     fontFamily: Typography.fontFamily.bold,
