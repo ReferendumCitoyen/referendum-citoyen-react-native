@@ -278,9 +278,13 @@ export default function AccueilScreen() {
               <Text style={styles.badgeText}>{t('home.badgeOngoing')}</Text>
             </View>
             {devMode && (
-              <View style={styles.devBadge}>
+              <TouchableOpacity
+                style={styles.devBadge}
+                activeOpacity={0.7}
+                onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
+              >
                 <Text style={styles.devBadgeText}>#{p.id}</Text>
-              </View>
+              </TouchableOpacity>
             )}
             <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
           </View>
