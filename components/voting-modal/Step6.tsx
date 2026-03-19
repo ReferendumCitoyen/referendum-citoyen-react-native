@@ -97,45 +97,56 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      setScanStatus(t('voting.step6Now'));
+      const maxAttempts = Platform.OS === 'android' ? 3 : 1;
 
-      // Add timeout for Android NFC (30 seconds)
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('NFC scan timeout - aucune carte détectée')), 30000);
-      });
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          setScanStatus(t('voting.step6Now'));
 
-      const scanPromise = scanDocument('I', {
-        documentNumber: mrzData.documentNumber,
-        dateOfBirth: mrzData.birthDate,
-        dateOfExpiry: mrzData.expiryDate,
-      }, challenge);
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
+          });
 
-      const result = await Promise.race([scanPromise, timeoutPromise]);
+          const scanPromise = scanDocument('I', {
+            documentNumber: mrzData.documentNumber,
+            dateOfBirth: mrzData.birthDate,
+            dateOfExpiry: mrzData.expiryDate,
+          }, challenge);
 
-      setScanStatus(t('voting.step6ReadSuccess'));
-      setIsScanning(false);
+          const result = await Promise.race([scanPromise, timeoutPromise]);
 
-      // Proceed to next step on success
-      if (onNFCSuccess) {
-        setTimeout(() => {
-          onNFCSuccess(result);
-        }, 500);
+          setScanStatus(t('voting.step6ReadSuccess'));
+          setIsScanning(false);
+
+          if (onNFCSuccess) {
+            setTimeout(() => { onNFCSuccess(result); }, 500);
+          }
+          return; // success — exit
+        } catch (scanErr: any) {
+          if (scanErr.message === 'InvalidMRZKey' || scanErr.code === 'InvalidMRZKey') {
+            setScanStatus(t('voting.step6InvalidMrz'));
+            setIsScanning(false);
+            if (onGoBack) { setTimeout(() => { onGoBack(); }, 1500); }
+            return;
+          }
+
+          if (attempt < maxAttempts) {
+            console.log(`[Step6] NFC attempt ${attempt}/${maxAttempts} failed, retrying...`);
+            setScanStatus(t('voting.step6ErrorWithMessage', { message: `Réessai ${attempt + 1}/${maxAttempts}...` }));
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+
+          // Final attempt failed
+          setScanStatus(
+            t('voting.step6ErrorWithMessage', {
+              message: scanErr.message || scanErr.code || t('voting.step6ReadError'),
+            })
+          );
+          setIsScanning(false);
+        }
       }
     } catch (error: any) {
-      // If it's an invalid MRZ key error, go back to camera step
-      if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
-        setScanStatus(t('voting.step6InvalidMrz'));
-        setIsScanning(false);
-
-        if (onGoBack) {
-          setTimeout(() => {
-            onGoBack();
-          }, 1500);
-        }
-        return;
-      }
-
-      // For other errors, show message and let user retry
       setScanStatus(
         t('voting.step6ErrorWithMessage', {
           message: error.message || error.code || t('voting.step6ReadError'),
