@@ -192,8 +192,12 @@ class EDocumentModule : Module() {
       val eDocument = EDocument.fromNfcDocumentModel(nfcDocument)
 
       val eDocumentJson = Gson().toJson(eDocument)
+      scanPromise = null
+      disableNfcForegroundDispatch()
       promise.resolve(eDocumentJson)
     } catch(e: Exception) {
+      scanPromise = null
+      disableNfcForegroundDispatch()
       sendEvent(DocumentScanEvents.SCAN_ERROR.value)
       promise.reject(CodedException("handleNfcIntent", e.message, e))
     }
