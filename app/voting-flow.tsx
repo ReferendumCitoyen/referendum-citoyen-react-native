@@ -294,7 +294,9 @@ export default function VotingFlowScreen() {
     handleStepChange(12);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleStep11Error = useCallback(() => {
+  const [voteErrorReason, setVoteErrorReason] = useState<string | null>(null);
+  const handleStep11Error = useCallback((reason?: string) => {
+    setVoteErrorReason(reason || null);
     setVoteSubmissionResult('error');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
@@ -401,6 +403,7 @@ export default function VotingFlowScreen() {
             <Step12Error
               containerWidth={containerWidth}
               onGoHome={handleClose}
+              errorReason={voteErrorReason}
             />
             {verificationResult === 'error' && (
               <Step9Error

@@ -9,9 +9,10 @@ interface Step12ErrorProps {
   containerWidth: number;
   onGoHome?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  errorReason?: string | null;
 }
 
-const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
+const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout, errorReason }) => {
   const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -25,7 +26,7 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
           </Text>
 
           <Text style={stepSpecificStyles.step12ErrorDescription}>
-            {t('voting.step12ErrorDescription')}
+            {errorReason || t('voting.step12ErrorDescription')}
           </Text>
 
           <LottieView
