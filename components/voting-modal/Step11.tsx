@@ -12,7 +12,7 @@ interface Step11Props {
   containerWidth: number;
   isActive?: boolean;
   onSuccess?: () => void;
-  onError?: () => void;
+  onError?: (reason?: string) => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   freedomTool?: FreedomTool;
   rarime?: Rarime;
@@ -75,7 +75,7 @@ const Step11: React.FC<Step11Props> = ({
           console.log('[FreedomTool] Step11: Already voted on this proposal');
           hasCalledCallback.current = true;
           setStatusText(t('voting.step9ErrorDescription'));
-          onError?.();
+          onError?.(t('voting.step9ErrorDescription'));
           return;
         }
 
@@ -114,8 +114,9 @@ const Step11: React.FC<Step11Props> = ({
         console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));
         hasCalledCallback.current = true;
         const isAlreadyVoted = err?.message?.includes('already voted');
-        setStatusText(isAlreadyVoted ? t('voting.step9ErrorDescription') : formatRpcError(err));
-        onError?.();
+        const errorMsg = isAlreadyVoted ? t('voting.step9ErrorDescription') : formatRpcError(err);
+        setStatusText(errorMsg);
+        onError?.(errorMsg);
       }
     })();
   }, [hasStarted, canSubmitReal, freedomTool, rarime, passport, proposalInfo, answerIndex, onSuccess, onError]);
