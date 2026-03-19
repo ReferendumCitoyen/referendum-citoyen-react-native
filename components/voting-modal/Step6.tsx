@@ -28,6 +28,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
+  const [showRetry, setShowRetry] = useState(false);
 
   // Listen to EDocument scan events
   useEffect(() => {
@@ -97,62 +98,42 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      const maxAttempts = Platform.OS === 'android' ? 3 : 1;
+      setScanStatus(t('voting.step6Now'));
 
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          setScanStatus(t('voting.step6Now'));
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
+      });
 
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
-          });
+      const scanPromise = scanDocument('I', {
+        documentNumber: mrzData.documentNumber,
+        dateOfBirth: mrzData.birthDate,
+        dateOfExpiry: mrzData.expiryDate,
+      }, challenge);
 
-          const scanPromise = scanDocument('I', {
-            documentNumber: mrzData.documentNumber,
-            dateOfBirth: mrzData.birthDate,
-            dateOfExpiry: mrzData.expiryDate,
-          }, challenge);
+      const result = await Promise.race([scanPromise, timeoutPromise]);
 
-          const result = await Promise.race([scanPromise, timeoutPromise]);
+      setScanStatus(t('voting.step6ReadSuccess'));
+      setIsScanning(false);
+      setShowRetry(false);
 
-          setScanStatus(t('voting.step6ReadSuccess'));
-          setIsScanning(false);
-
-          if (onNFCSuccess) {
-            setTimeout(() => { onNFCSuccess(result); }, 500);
-          }
-          return; // success — exit
-        } catch (scanErr: any) {
-          if (scanErr.message === 'InvalidMRZKey' || scanErr.code === 'InvalidMRZKey') {
-            setScanStatus(t('voting.step6InvalidMrz'));
-            setIsScanning(false);
-            if (onGoBack) { setTimeout(() => { onGoBack(); }, 1500); }
-            return;
-          }
-
-          if (attempt < maxAttempts) {
-            console.log(`[Step6] NFC attempt ${attempt}/${maxAttempts} failed, retrying...`);
-            setScanStatus(t('voting.step6ErrorWithMessage', { message: `Réessai ${attempt + 1}/${maxAttempts}...` }));
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            continue;
-          }
-
-          // Final attempt failed
-          setScanStatus(
-            t('voting.step6ErrorWithMessage', {
-              message: scanErr.message || scanErr.code || t('voting.step6ReadError'),
-            })
-          );
-          setIsScanning(false);
-        }
+      if (onNFCSuccess) {
+        setTimeout(() => { onNFCSuccess(result); }, 500);
       }
     } catch (error: any) {
+      if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
+        setScanStatus(t('voting.step6InvalidMrz'));
+        setIsScanning(false);
+        if (onGoBack) { setTimeout(() => { onGoBack(); }, 1500); }
+        return;
+      }
+
       setScanStatus(
         t('voting.step6ErrorWithMessage', {
           message: error.message || error.code || t('voting.step6ReadError'),
         })
       );
       setIsScanning(false);
+      setShowRetry(true);
     }
   };
 
@@ -194,11 +175,11 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           <TouchableOpacity
             style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={handleAnalyzePress}
+            onPress={() => { setShowRetry(false); handleAnalyzePress(); }}
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>
-              {isScanning ? t('voting.step6Scanning') : t('common.analyze')}
+              {isScanning ? t('voting.step6Scanning') : showRetry ? t('common.retry') : t('common.analyze')}
             </Text>
           </TouchableOpacity>
         </View>
