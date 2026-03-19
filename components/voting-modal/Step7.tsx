@@ -55,22 +55,25 @@ const Step7: React.FC<Step7Props> = ({
   const [statusText, setStatusText] = useState(t('voting.step7Verifying'));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasCalledCallback = useRef(false);
+  const isVerifying = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
 
   useEffect(() => {
     if (isActive && !hasStarted) {
       setHasStarted(true);
       hasCalledCallback.current = false;
+      isVerifying.current = false;
       setStatusText(t('voting.step7Verifying'));
       setErrorMessage(null);
     } else if (!isActive && hasStarted) {
       setHasStarted(false);
       hasCalledCallback.current = false;
+      isVerifying.current = false;
     }
   }, [isActive, hasStarted]);
 
   useEffect(() => {
-    if (!hasStarted || hasCalledCallback.current) return;
+    if (!hasStarted || hasCalledCallback.current || isVerifying.current) return;
 
     if (!rarime || !passport) {
       hasCalledCallback.current = true;
@@ -79,6 +82,7 @@ const Step7: React.FC<Step7Props> = ({
       return;
     }
 
+    isVerifying.current = true;
     (async () => {
       try {
         // Step 1: Check document registration status
