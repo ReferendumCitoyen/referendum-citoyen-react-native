@@ -37,6 +37,7 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   },
   stepSlide: {
     alignItems: 'center',
+    backgroundColor: Platform.OS === 'android' ? colors.cardBackground : undefined,
   },
   mediaContainer: {
     height: Platform.OS === 'android' ? 120 : Spacing.modal.mediaContainerHeight,
