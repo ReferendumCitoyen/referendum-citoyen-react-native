@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
@@ -52,6 +52,7 @@ interface NFCScanResult {
 }
 
 export default function VotingFlowScreen() {
+  const { proposalId: proposalIdParam } = useLocalSearchParams<{ proposalId?: string }>();
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
@@ -105,9 +106,10 @@ export default function VotingFlowScreen() {
         const ft = new FT(FREEDOM_TOOL_CONFIG);
         freedomToolRef.current = ft;
 
-        console.log('[FreedomTool] Loading proposal', DEFAULT_PROPOSAL_ID);
+        const targetProposalId = proposalIdParam || DEFAULT_PROPOSAL_ID;
+        console.log('[FreedomTool] Loading proposal', targetProposalId);
         const info = await withRetry(
-          () => ft.getProposalInfo(DEFAULT_PROPOSAL_ID),
+          () => ft.getProposalInfo(targetProposalId),
           { label: 'getProposalInfo' }
         );
         console.log('[FreedomTool] Proposal loaded:', info.title);
