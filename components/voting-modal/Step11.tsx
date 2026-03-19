@@ -68,6 +68,17 @@ const Step11: React.FC<Step11Props> = ({
     isSubmitting.current = true;
     (async () => {
       try {
+        // Pre-check: already voted?
+        setStatusText(t('voting.step11Preparing'));
+        const alreadyVoted = await freedomTool.isAlreadyVoted(proposalInfo, rarime);
+        if (alreadyVoted) {
+          console.log('[FreedomTool] Step11: Already voted on this proposal');
+          hasCalledCallback.current = true;
+          setStatusText(t('voting.step9ErrorDescription'));
+          onError?.();
+          return;
+        }
+
         setStatusText(t('voting.step11GeneratingProof'));
         const mrzData = passport.getMRZData();
         const citizenshipHex = BigInt("0x" + Buffer.from(mrzData.issuingCountry).toString("hex")).toString();
@@ -102,7 +113,8 @@ const Step11: React.FC<Step11Props> = ({
         console.error('[FreedomTool] Step11: Vote error:', err);
         console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));
         hasCalledCallback.current = true;
-        setStatusText(formatRpcError(err));
+        const isAlreadyVoted = err?.message?.includes('already voted');
+        setStatusText(isAlreadyVoted ? t('voting.step9ErrorDescription') : formatRpcError(err));
         onError?.();
       }
     })();
