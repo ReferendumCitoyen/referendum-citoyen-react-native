@@ -216,7 +216,10 @@ export default function VotingFlowScreen() {
     handleMRZScanned(data);
   }, [handleMRZScanned]);
 
+  const verificationHandledRef = useRef(false);
   const handleVerificationSuccess = useCallback(() => {
+    if (verificationHandledRef.current) return;
+    verificationHandledRef.current = true;
     setVerificationResult('success');
     // Move to step 8 (voting screen) after a brief delay
     setTimeout(() => {
