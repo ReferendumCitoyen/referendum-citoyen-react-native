@@ -410,7 +410,18 @@ class DocumentScanner(
         // Continue to try without PACE or with BAC
       }
     } else {
-      onDebugLog("=== No CAN provided, skipping PACE ===")
+      // No CAN — try PACE with MRZ key (works for French CNIe)
+      try {
+        onDebugLog("=== PACE with MRZ key (no CAN) ===")
+        val cardAccessFile = CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
+        val paceInfo = cardAccessFile.securityInfos.filterIsInstance<PACEInfo>().first()
+        val paceKey = PACEKeySpec.createMRZKey(bacKey)
+        service.doPACE(paceKey, paceInfo.objectIdentifier, PACEInfo.toParameterSpec(paceInfo.parameterId), null)
+        paceSucceeded = true
+        onDebugLog("=== PACE with MRZ key SUCCEEDED ===")
+      } catch (e: Exception) {
+        onDebugLog("PACE with MRZ key failed: ${e.message}")
+      }
     }
 
     // If PACE failed or was skipped, try BAC or direct access
