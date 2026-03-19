@@ -38,6 +38,7 @@ const Step11: React.FC<Step11Props> = ({
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [statusText, setStatusText] = useState('');
   const hasCalledCallback = useRef(false);
+  const isSubmitting = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
 
   const canSubmitReal = freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
@@ -50,11 +51,12 @@ const Step11: React.FC<Step11Props> = ({
     } else if (!isActive && hasStarted) {
       setHasStarted(false);
       hasCalledCallback.current = false;
+      isSubmitting.current = false;
     }
   }, [isActive, hasStarted]);
 
   useEffect(() => {
-    if (!hasStarted || hasCalledCallback.current) return;
+    if (!hasStarted || hasCalledCallback.current || isSubmitting.current) return;
 
     if (!canSubmitReal) {
       hasCalledCallback.current = true;
@@ -63,6 +65,7 @@ const Step11: React.FC<Step11Props> = ({
       return;
     }
 
+    isSubmitting.current = true;
     (async () => {
       try {
         setStatusText(t('voting.step11GeneratingProof'));
