@@ -246,7 +246,7 @@ export default function AccueilScreen() {
 
   const handleVoterPress = (proposalId: string) => {
     if (Platform.OS === 'android') {
-      router.push('/voting-flow');
+      router.push({ pathname: '/voting-flow', params: { proposalId } });
     } else {
       router.push({ pathname: '/voting-screen', params: { proposalId } });
     }
