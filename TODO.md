@@ -125,3 +125,34 @@
 3. Empty states design?
 4. Error screen designs?
 5. Legal/privacy screens design?
+
+
+---
+
+## QA Report - Robinson Jardin (v1.1, iOS, 2026-03-25)
+
+### Done (copy fixes in `locales/fr.json`)
+- [x] 2.1 - Comprendre intro text rewrite
+- [x] 2.2 - Typo fix "nom à votre vote" -> "nom et votre vote" + grammar
+- [x] 2.3 - Rewrite "Les autres peuvent voter" title + body
+- [x] 2.4 - Fix duplicated sentence in "Que se passe-t-il"
+- [x] 6 - Step 3 grammar: "vérifiées et authentiques" -> "vérifiées comme authentiques"
+- [x] 3 - Rename "Accueil" tab to "Votes" (all locale files)
+
+### Done - Easy
+- [x] 12 - Update "Vote transparent" text: removed individual verification claim (no Vérifier feature yet)
+
+### Done - Medium
+- [x] 8+14 - Add NFC text instruction on Step 6
+- [x] 11 - Add "Résultats à l'heure actuelle" label above charts for active referendums
+
+### TODO - Medium
+- [ ] 9 - Remove/hide language selection in production (keep behind dev mode)
+
+### Done - Large
+- [x] 5+15 - Extended voting options: chart + vote UI already dynamic, fixed label readability for 4-6 options
+
+### TODO - Large (needs design/product decisions)
+- [ ] 4+11 - Two result display modes: hidden until closing vs live (needs backend flag per proposal)
+- [ ] 2.5+10+13 - "Vérifier" tab: verify vote on-chain (scan ID -> derive token -> query blockchain). Until built, verification claims in Comprendre are misleading.
+- [ ] 7 - Multi-user same-device flow: needs real-device QA with 2 IDs 

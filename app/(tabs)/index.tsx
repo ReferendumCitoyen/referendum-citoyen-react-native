@@ -79,6 +79,9 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
   const minHeight = 2;
   const total = counts.reduce((s, c) => s + c, 0);
   const hasVotes = total > 0;
+  const many = variants.length > 3;
+  const labelSize = many ? 9 : Typography.fontSize.voteCount;
+  const percentSize = many ? 9 : Typography.fontSize.voteCount;
 
   const calculateHeight = (percent: number) => {
     if (percent === 0) return minHeight;
@@ -99,7 +102,7 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
               },
             ]}>
               {hasVotes && (
-                <Text style={styles.barPercent}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
+                <Text style={[styles.barPercent, many && { fontSize: percentSize }]}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
               )}
             </View>
           </View>
@@ -107,13 +110,13 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
       </View>
       <View style={styles.labelsContainer}>
         {variants.map((v, idx) => (
-          <Text key={idx} style={styles.barLabel}>{v}</Text>
+          <Text key={idx} style={[styles.barLabel, many && { fontSize: labelSize, lineHeight: labelSize * 1.3 }]} numberOfLines={1}>{v}</Text>
         ))}
       </View>
       {hasVotes && (
         <View style={styles.countsContainer}>
           {counts.map((c, idx) => (
-            <Text key={idx} style={styles.barCount}>{c.toLocaleString()}</Text>
+            <Text key={idx} style={[styles.barCount, many && { fontSize: 9 }]}>{c.toLocaleString()}</Text>
           ))}
         </View>
       )}
@@ -338,7 +341,7 @@ export default function AccueilScreen() {
                     <Text style={styles.devInfoText}>
                       {Number(p.criteria.selector) === 6689 ? 'ID' : 'PP'}
                       {p.criteria.citizenshipWhitelist.length > 0
-                        ? ' ' + p.criteria.citizenshipWhitelist.map(c => {
+                        ? ' ' + p.criteria.citizenshipWhitelist.map((c: string) => {
                             try {
                               const hex = BigInt(c).toString(16);
                               const bytes = [];
@@ -378,7 +381,14 @@ export default function AccueilScreen() {
           )}
 
           {variants.length > 0 && (
-            <VoteResults variants={variants} percents={percents} counts={counts} />
+            <>
+              {active && (
+                <Text style={{ fontSize: 12, color: colors.secondary || colors.text, opacity: 0.6, marginBottom: 4, marginTop: 8 }}>
+                  {t('home.resultsNow')}
+                </Text>
+              )}
+              <VoteResults variants={variants} percents={percents} counts={counts} />
+            </>
           )}
         </View>
       </>

@@ -1,7 +1,7 @@
 {
   "tabs": {
     "comprendre": "Comprendre",
-    "accueil": "Accueil",
+    "accueil": "Votes",
     "parametres": "Paramètres"
   },
   "languages": {
@@ -56,6 +56,7 @@
     "starts": "Commence",
     "ended": "Terminé",
     "voteButton": "Voter",
+    "resultsNow": "Résultats à l'heure actuelle",
     "loading": "Chargement des propositions...",
     "error": "Erreur: {{message}}",
     "noProposals": "Aucune proposition trouvée",
@@ -69,7 +70,7 @@
     "step2Title": "Vérifiez votre âge et nationalité localement sur votre appareil",
     "step2Description": "Cette application vérifie les données sur la puce NFC à l'intérieur de votre Carte d'identité. Les données ne sont pas transférées ni conservées sur un serveur tiers.",
     "step3Title": "Vote anonyme",
-    "step3Description": "Une fois vos données vérifiées et authentiques, l'application produit un jeton anonyme vous permettant de voter.",
+    "step3Description": "Une fois vos données vérifiées comme authentiques, l'application produit un jeton anonyme vous permettant de voter.",
     "step4Title": "Analyse de la Carte d'Identité",
     "step4Description": "Maintenez votre appareil sur votre Carte d'identité",
     "step4Start": "Démarrer l'analyse",
@@ -93,6 +94,7 @@
     "step6Now": "📱 Approchez votre carte maintenant...",
     "step6InvalidMrz": "❌ Données MRZ invalides. Retour au scanner...",
     "step6ErrorWithMessage": "❌ Erreur: {{message}}. Réessayez.",
+    "step6Instruction": "Apposez votre carte d'identité contre l'arrière de votre téléphone et maintenez-la pendant l'analyse.",
     "step6Scanning": "Scan en cours...",
     "step7Title": "Vérification locale",
     "step7Description": "Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter…",
@@ -203,7 +205,7 @@
   "comprendre": {
     "welcome": {
       "title": "Bienvenue!",
-      "text": "Nous appelons tous les citoyens à voter lors d'un référendum sur des sujets d'actualité"
+      "text": "Nous appelons tous les citoyens à voter lors de référendums permettant une démocratie directe en France"
     },
     "accordions": [
       {
@@ -212,19 +214,19 @@
       },
       {
         "title": "Un vote garanti anonyme",
-        "content": "Il est impossible de savoir qui a voté quoi parce que l'enregistrement se fait pas chiffré uniquement sur le téléphone localement avant d'être envoyé sur un registre public dans lequel il n'y a aucun lien entre votre nom à votre vote."
+        "content": "Il est impossible de savoir qui a voté quoi parce que l'enregistrement se fait de manière chiffrée uniquement sur le téléphone localement avant d'être envoyé sur un registre public dans lequel il n'y a aucun lien entre votre nom et votre vote."
       },
       {
         "title": "Un vote transparent",
-        "content": "Tous les votes (tous ceux visibles publiquement sur la blockchain) sont vérifiables - permettant à chacun de vérifier la présence de son vote, et le légitimité des autres votes. Le registre est public et transparent. Il ne peut pas être manipulé une fois que les données y sont."
+        "content": "Tous les votes sont enregistrés publiquement sur la blockchain et sont vérifiables. Le registre est public et transparent. Il ne peut pas être manipulé une fois que les données y sont."
       },
       {
-        "title": "Les autres peuvent voter sur votre référendum",
-        "content": "L'application permet à plusieurs personnes de voter sur la même référendum. Vous pouvez créer votre propre référendum et inviter d'autres à participer. Les résultats sont visibles par tous et ne sont pas visibles par le référendum qui a été effectué."
+        "title": "Plusieurs personnes peuvent voter sur le même référendum depuis votre téléphone",
+        "content": "L'application fonctionne comme un bureau de vote. Plusieurs personnes peuvent voter sur le même référendum depuis un même téléphone, sans que les votes soient visibles les uns par les autres."
       },
       {
         "title": "Que se passe-t-il une fois les votes comptés ?",
-        "content": "Il n'y a pas d'ordinateur central rassemblant les votes - on ne peut pas détruire les données d'un endroit. Les votes sont enregistrés sur des milliers d'ordinateurs. Si l'application venait à se faire bloquer sur des milliers d'ordinateurs. Si l'application venait à se faire bloquer ou supprimée des app stores, elle pourrait se dupliquer pour continuer les votes."
+        "content": "Il n'y a pas d'ordinateur central regroupant les votes. Les votes sont enregistrés sur des milliers d'ordinateurs. Ils ne peuvent pas être supprimés depuis un point unique.\nSi l'application était bloquée ou supprimée des app stores, elle pourrait être redéployée pour permettre la continuité des votes."
       }
     ],
     "origin": {

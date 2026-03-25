@@ -8,7 +8,7 @@
     "url": "https://github.com/ReferendumCitoyen/referendum-citoyen-react-native.git"
   },
   "author": "Referendum Citoyen",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
