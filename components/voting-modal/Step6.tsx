@@ -160,6 +160,18 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           )}
         </View>
 
+        <Text style={{
+          textAlign: 'center',
+          marginTop: 12,
+          marginBottom: 4,
+          marginHorizontal: 16,
+          fontSize: 14,
+          color: colors.textSecondary || colors.text,
+          opacity: 0.7,
+        }}>
+          {t('voting.step6Instruction')}
+        </Text>
+
         {scanStatus && (
           <Text style={{
             textAlign: 'center',
