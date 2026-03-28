@@ -1,28 +1,32 @@
 import { useColors } from "@/constants/theme";
 import { useModalVideoPlayers } from "@/hooks/useModalVideoPlayers";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
 import {
   Animated,
   Easing,
-  Platform,
+  Modal,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
+import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from "@rarimo/rarime-rn-sdk";
+import * as SecureStore from "expo-secure-store";
+import { Buffer } from "buffer";
+import {
+  RARIME_TESTNET_CONFIG,
+  FREEDOM_TOOL_CONFIG,
+  PRIVATE_KEY_STORAGE_KEY,
+  DEFAULT_PROPOSAL_ID,
+  withRetry,
+} from "@/constants/rarime-config";
+import { useTranslation } from "react-i18next";
 import Step1 from "./Step1";
 import Step10 from "./Step10";
 import Step11 from "./Step11";
@@ -40,16 +44,32 @@ import Step9Error from "./Step9Error";
 import ManualMRZInput from "./ManualMRZInput";
 import { createModalStyles } from "./styles";
 
+interface NFCScanResult {
+  personDetails?: {
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    nationality?: string;
+    documentNumber?: string;
+    dateOfExpiry?: string;
+  };
+  dg1Bytes?: string;
+  sodBytes?: string;
+  dg15Bytes?: string;
+  aaSignature?: string;
+}
+
 interface VotingModalProps {
   isVisible: boolean;
   onClose: () => void;
+  proposalId?: string;
 }
 
-const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
+const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalId: proposalIdProp }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<
     "success" | "error" | null
@@ -57,92 +77,22 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<
     "success" | "error" | null
   >(null);
-  const [stepHeights, setStepHeights] = useState<Record<string, number>>({});
   const [mrzData, setMRZData] = useState<{
     documentNumber: string;
     birthDate: string;
     expiryDate: string;
   } | null>(null);
-  const [nfcData, setNFCData] = useState<any>(null);
+  const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
-  const snapPoints = useMemo(() => {
-    // Generate unique key for current step configuration
-    let stepKey = `step${currentStep}`;
-    if (currentStep === 8) stepKey += `_${verificationResult}`;
-    if (currentStep === 11) stepKey += `_${voteSubmissionResult || "loading"}`;
+  const [selectedVote, setSelectedVote] = useState<number>(0);
 
-    // Check if we have a measured height for this step
-    const measuredHeight = stepHeights[stepKey];
-
-    // For steps 1-3, always use percentage to keep them tall
-    if (currentStep <= 3) {
-      const height = Platform.OS === "android" ? "96%" : "93%";
-      console.log(
-        `[BottomSheet] Step: ${currentStep}, Using fixed percentage: ${height}`
-      );
-      return [height];
-    }
-
-    // For Step 8 success, use fixed percentage
-    if (currentStep === 8 && verificationResult === "success") {
-      console.log(
-        `[BottomSheet] Step: ${currentStep}, Using fixed percentage: 45%`
-      );
-      return ["45%"];
-    }
-
-    // For Step 9 (vote confirmation - "voter oui"), use fixed percentage
-    if (currentStep === 9) {
-      console.log(
-        `[BottomSheet] Step: ${currentStep}, Using fixed percentage: 58%`
-      );
-      return ["58%"];
-    }
-
-    if (measuredHeight) {
-      console.log(
-        `[BottomSheet] Step: ${currentStep}, Key: ${stepKey}, Measured Height: ${measuredHeight}px`
-      );
-      return [measuredHeight];
-    }
-
-    // Fallback to percentage heights while measurements are being taken
-    let height;
-    if (currentStep <= 3) height = [Platform.OS === "android" ? "85%" : "93%"];
-    else if (currentStep === 4) height = ["60%"];
-    else if (currentStep === 5) height = ["75%"];
-    else if (currentStep === 6) height = ["55%"];
-    else if (currentStep === 7) height = ["58%"];
-    else if (currentStep === 8 && verificationResult === "success")
-      height = ["35%"];
-    else if (currentStep === 8 && verificationResult === "error")
-      height = ["55%"];
-    else if (currentStep === 9) height = ["58%"];
-    else if (currentStep === 10) height = ["45%"];
-    else if (currentStep === 11 && !voteSubmissionResult) height = ["26%"];
-    else if (currentStep === 11 && voteSubmissionResult === "success")
-      height = ["48%"];
-    else if (currentStep === 11 && voteSubmissionResult === "error")
-      height = ["45%"];
-    else height = ["85%"];
-
-    console.log(
-      `[BottomSheet] Step: ${currentStep}, Key: ${stepKey}, Fallback Height: ${height[0]}`
-    );
-    return height;
-  }, [currentStep, verificationResult, voteSubmissionResult, stepHeights]);
+  // Rarime / FreedomTool state
+  const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
+  const rarimeRef = useRef<Rarime | null>(null);
+  const freedomToolRef = useRef<FreedomTool | null>(null);
+  const passportRef = useRef<RarimePassport | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(375);
-
-  // Callback for steps to report their heights
-  const handleStepLayout = useCallback((stepKey: string, height: number) => {
-    setStepHeights((prev) => {
-      if (prev[stepKey] !== height) {
-        return { ...prev, [stepKey]: height };
-      }
-      return prev;
-    });
-  }, []);
 
   // Progress bar animations
   const progressOpacity1 = useRef(new Animated.Value(1)).current;
@@ -154,9 +104,39 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     useModalVideoPlayers();
   const { player1, player2, player3, player4, player5 } = players;
 
+  // Init Rarime + FreedomTool + load proposal
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Rarime: RarimeClass, RarimeUtils: Utils, FreedomTool: FT } =
+          await import("@rarimo/rarime-rn-sdk");
+        let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
+        if (!storedKey) {
+          storedKey = Utils.generateBJJPrivateKey();
+          await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
+        }
+        rarimeRef.current = new RarimeClass({
+          ...RARIME_TESTNET_CONFIG,
+          userConfiguration: { userPrivateKey: storedKey },
+        });
+        const ft = new FT(FREEDOM_TOOL_CONFIG);
+        freedomToolRef.current = ft;
+        const pid = proposalIdProp || DEFAULT_PROPOSAL_ID;
+        console.log("[FreedomTool] Loading proposal", pid);
+        const info = await withRetry(
+          () => ft.getProposalInfo(pid),
+          { label: "getProposalInfo" }
+        );
+        console.log("[FreedomTool] Proposal loaded:", info.title);
+        setProposalInfo(info);
+      } catch (err) {
+        console.error("[FreedomTool] Init error:", err);
+      }
+    })();
+  }, [proposalIdProp]);
+
   useEffect(() => {
     if (isVisible) {
-      bottomSheetRef.current?.present();
       setCurrentStep(1);
       setVerificationResult(null);
       setVoteSubmissionResult(null);
@@ -166,11 +146,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       progressOpacity1.setValue(1);
       progressOpacity2.setValue(0.25);
       progressOpacity3.setValue(0.25);
-      // Start playing the first video when modal opens
       handleStepChange(1);
     } else {
-      bottomSheetRef.current?.dismiss();
-      // Pause all videos when closing
       pauseAll();
     }
   }, [
@@ -183,30 +160,11 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     pauseAll,
   ]);
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
-
-  const handleDismiss = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
   const handleNext = useCallback(() => {
-    console.log(`📍 handleNext called - currentStep: ${currentStep}`);
-    if (currentStep < 11) {
+    if (currentStep < 12) {
       const nextStep = currentStep + 1;
-      console.log(`✅ Moving to step ${nextStep}`);
       setCurrentStep(nextStep);
 
-      // Slide animation
       Animated.timing(slideAnim, {
         toValue: -(nextStep - 1) * containerWidth,
         duration: 300,
@@ -214,10 +172,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
         useNativeDriver: true,
       }).start();
 
-      // Handle video playback
       handleStepChange(nextStep);
 
-      // Progress bar animations
       if (nextStep === 2) {
         Animated.timing(progressOpacity2, {
           toValue: 1,
@@ -233,13 +189,6 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
           useNativeDriver: true,
         }).start();
       }
-
-      // Force snap for step 9 (voter oui screen)
-      if (nextStep === 9) {
-        setTimeout(() => {
-          bottomSheetRef.current?.snapToIndex(0);
-        }, 100);
-      }
     }
   }, [
     currentStep,
@@ -251,20 +200,17 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   ]);
 
   const handleGoBackToMRZScan = useCallback(() => {
-    // Go back to Step 5 (MRZ camera scan)
-    console.log("🔙 Going back to MRZ scan");
+    console.log("[VotingModal] Going back to MRZ scan");
     setCurrentStep(5);
-    setMRZData(null); // Clear the invalid MRZ data
+    setMRZData(null);
 
-    // Slide animation back to step 5
     Animated.timing(slideAnim, {
-      toValue: -4 * containerWidth, // Step 5 is at index 4 (0-indexed)
+      toValue: -4 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
 
-    // Handle video playback for step 5
     handleStepChange(5);
   }, [slideAnim, containerWidth, handleStepChange]);
 
@@ -278,10 +224,6 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-    // Force snap to new height
-    setTimeout(() => {
-      bottomSheetRef.current?.snapToIndex(0);
-    }, 100);
   }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
   const handleVerificationError = useCallback(() => {
@@ -296,11 +238,23 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
     }).start();
   }, [slideAnim, containerWidth, pauseVerificationVideo]);
 
+  const handleVoteSelect = useCallback((answerIndex: number) => {
+    setSelectedVote(answerIndex);
+    setCurrentStep(10);
+    Animated.timing(slideAnim, {
+      toValue: -9 * containerWidth,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    handleStepChange(10);
+  }, [slideAnim, containerWidth, handleStepChange]);
+
   const handleVoteSubmissionSuccess = useCallback(() => {
     setVoteSubmissionResult("success");
-    setCurrentStep(11);
+    setCurrentStep(12);
     Animated.timing(slideAnim, {
-      toValue: -10 * containerWidth,
+      toValue: -11 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -309,9 +263,9 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
 
   const handleVoteSubmissionError = useCallback(() => {
     setVoteSubmissionResult("error");
-    setCurrentStep(11);
+    setCurrentStep(12);
     Animated.timing(slideAnim, {
-      toValue: -10 * containerWidth,
+      toValue: -11 * containerWidth,
       duration: 300,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
@@ -319,30 +273,38 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, [slideAnim, containerWidth]);
 
   const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("📄 MRZ Data scanned:", data);
+    console.log("[VotingModal] MRZ data scanned:", data);
     setMRZData(data);
-    // Auto-proceed to next step (Step 6 - NFC scan)
     handleNext();
   }, [handleNext]);
 
-  const handleNFCSuccess = useCallback((data: any) => {
-    console.log("✅ NFC Scan successful in voting modal");
-    const pd = data.personDetails || {};
-    console.log("→", `${pd.firstName} ${pd.lastName}`, "|", pd.birthDate);
+  const handleNFCSuccess = useCallback((data: NFCScanResult) => {
+    console.log("[VotingModal] NFC scan successful");
     setNFCData(data);
-    // Proceed to next step (Step 7 - Verification)
+
+    if (data.dg1Bytes && data.sodBytes) {
+      (async () => {
+        try {
+          const { RarimePassport: RP } = await import("@rarimo/rarime-rn-sdk");
+          const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes, "base64"));
+          const sod = new Uint8Array(Buffer.from(data.sodBytes, "base64"));
+          passportRef.current = new RP({ dataGroup1: dg1, sod });
+          console.log("[FreedomTool] RarimePassport created from NFC data");
+        } catch (err) {
+          console.error("[FreedomTool] Failed to create RarimePassport:", err);
+        }
+      })();
+    }
+
     handleNext();
   }, [handleNext]);
 
   const handleNFCError = useCallback(() => {
-    console.log("❌ NFC Scan failed in voting modal");
-    // For now, just proceed to show error in next step
-    // You can customize this behavior
+    console.log("[VotingModal] NFC scan failed");
     handleNext();
   }, [handleNext]);
 
   const handleManualInputOpen = useCallback(() => {
-    console.log("Opening manual MRZ input");
     setIsManualInputVisible(true);
   }, []);
 
@@ -351,37 +313,53 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
   }, []);
 
   const handleManualInputSubmit = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("📝 Manual MRZ data submitted:", data);
+    console.log("[VotingModal] Manual MRZ data submitted:", data);
     setIsManualInputVisible(false);
     handleMRZScanned(data);
   }, [handleMRZScanned]);
 
   return (
     <>
-    <BottomSheetModal
-      ref={bottomSheetRef}
-      snapPoints={snapPoints}
-      enablePanDownToClose={true}
-      enableContentPanningGesture={currentStep < 4}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={modalStyles.bottomSheetBackground}
-      handleIndicatorStyle={modalStyles.handleIndicator}
-      onDismiss={handleDismiss}
-      android_keyboardInputMode="adjustResize"
+    <Modal
+      visible={isVisible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
     >
-      <BottomSheetView
-        style={modalStyles.container}
+      <View
+        style={[modalStyles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
         onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
-        {/* Title Section - Hidden for Step 4, 5, and 6 */}
-        {currentStep < 4 && (
-          <View style={modalStyles.titleSection}>
-            <Text style={modalStyles.title}>Processus de vote</Text>
-          </View>
-        )}
+        {/* Navigation bar */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: 44,
+          paddingHorizontal: 16,
+          backgroundColor: colors.cardBackground,
+        }}>
+          <View style={{ width: 70 }} />
+          <Text style={{
+            flex: 1,
+            textAlign: 'center',
+            fontSize: 17,
+            fontWeight: '600',
+            color: colors.text,
+          }}>{currentStep < 4 ? t('voting.title') : ''}</Text>
+          <TouchableOpacity
+            style={{ width: 70, alignItems: 'flex-end' }}
+            activeOpacity={0.6}
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={{ fontSize: 17, color: colors.secondary }}>{t('common.close')}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Sliding Container with All Steps */}
-        <View style={modalStyles.slidingWrapper}>
+        <View style={[modalStyles.slidingWrapper, { flex: 1 }]}>
           <Animated.View
             style={[
               modalStyles.slidingContainer,
@@ -393,40 +371,25 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             <Step1
               player={player1}
               containerWidth={containerWidth}
-              onLayout={(e) =>
-                handleStepLayout("step1", e.nativeEvent.layout.height)
-              }
             />
             <Step2
               player={player2}
               containerWidth={containerWidth}
-              onLayout={(e) =>
-                handleStepLayout("step2", e.nativeEvent.layout.height)
-              }
             />
             <Step3
               player={player3}
               containerWidth={containerWidth}
-              onLayout={(e) =>
-                handleStepLayout("step3", e.nativeEvent.layout.height)
-              }
             />
             <Step4
               player={player1}
               containerWidth={containerWidth}
               onStartAnalysis={handleNext}
-              onLayout={(e) =>
-                handleStepLayout("step4", e.nativeEvent.layout.height)
-              }
             />
             <Step5
               containerWidth={containerWidth}
               isActive={currentStep === 5}
               onMRZScanned={handleMRZScanned}
               onManualFill={handleManualInputOpen}
-              onLayout={(e) =>
-                handleStepLayout("step5", e.nativeEvent.layout.height)
-              }
             />
             <Step6
               containerWidth={containerWidth}
@@ -435,9 +398,6 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               onNFCSuccess={handleNFCSuccess}
               onNFCError={handleNFCError}
               onGoBack={handleGoBackToMRZScan}
-              onLayout={(e) =>
-                handleStepLayout("step6", e.nativeEvent.layout.height)
-              }
             />
             <Step7
               containerWidth={containerWidth}
@@ -446,69 +406,62 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
               nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
-              onLayout={(e) =>
-                handleStepLayout("step7", e.nativeEvent.layout.height)
-              }
+              rarime={rarimeRef.current ?? undefined}
+              passport={passportRef.current ?? undefined}
+              freedomTool={freedomToolRef.current ?? undefined}
             />
-            {/* Step 8 position - shows either success or error based on verification result */}
+            {/* Step 8 - success or error */}
             <View style={{ width: containerWidth }}>
               {verificationResult === "success" ? (
                 <Step8
                   containerWidth={containerWidth}
                   onVoteSuccess={handleNext}
-                  onLayout={(e) =>
-                    handleStepLayout("step8_success", e.nativeEvent.layout.height)
-                  }
                 />
               ) : verificationResult === "error" ? (
                 <Step9Error
                   containerWidth={containerWidth}
                   onGoHome={onClose}
-                  onLayout={(e) =>
-                    handleStepLayout("step8_error", e.nativeEvent.layout.height)
-                  }
                 />
               ) : null}
             </View>
-            {/* Step 9 - Vote confirmation */}
+            {/* Step 9 - Vote selection */}
+            <Step9Vote
+              containerWidth={containerWidth}
+              onVoteSelect={handleVoteSelect}
+              onCancel={onClose}
+              proposalInfo={proposalInfo ?? undefined}
+            />
+            {/* Step 10 - Vote confirmation */}
             <Step10
               containerWidth={containerWidth}
               player={player3}
+              selectedVote={selectedVote}
+              proposalInfo={proposalInfo ?? undefined}
               onCancel={onClose}
               onConfirm={handleNext}
-              onLayout={(e) =>
-                handleStepLayout("step10", e.nativeEvent.layout.height)
-              }
             />
-            {/* Step 10 - Vote submission loading */}
+            {/* Step 11 - Vote submission loading */}
             <Step11
               containerWidth={containerWidth}
-              isActive={currentStep === 10}
+              isActive={currentStep === 11}
               onSuccess={handleVoteSubmissionSuccess}
               onError={handleVoteSubmissionError}
-              onLayout={(e) =>
-                handleStepLayout("step11_loading", e.nativeEvent.layout.height)
-              }
+              freedomTool={freedomToolRef.current ?? undefined}
+              rarime={rarimeRef.current ?? undefined}
+              passport={passportRef.current ?? undefined}
+              proposalInfo={proposalInfo ?? undefined}
+              answerIndex={selectedVote}
             />
-            {/* Step 11 position - shows either success or error based on vote submission result */}
+            {/* Step 12 - success or error */}
             {voteSubmissionResult === "success" ? (
               <Step12Success
                 containerWidth={containerWidth}
                 onViewResults={onClose}
-                onLayout={(e) =>
-                  handleStepLayout(
-                    "step11_success",
-                    e.nativeEvent.layout.height
-                  )
-                }
               />
             ) : voteSubmissionResult === "error" ? (
               <Step12Error
                 containerWidth={containerWidth}
                 onGoHome={onClose}
-                onLayout={(e) =>
-                  handleStepLayout("step11_error", e.nativeEvent.layout.height)
-                }
               />
             ) : (
               <View style={{ width: containerWidth }} />
@@ -516,7 +469,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
           </Animated.View>
         </View>
 
-        {/* Footer with Progress and Button - Hidden for Step 4, 5, and 6 */}
+        {/* Footer with Progress and Button - Steps 1-3 only */}
         {currentStep < 4 && (
           <View style={modalStyles.footer}>
             <View style={modalStyles.progressContainer}>
@@ -559,8 +512,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose }) => {
             </TouchableOpacity>
           </View>
         )}
-      </BottomSheetView>
-    </BottomSheetModal>
+      </View>
+    </Modal>
     <ManualMRZInput
       isVisible={isManualInputVisible}
       onClose={handleManualInputClose}

@@ -1,5 +1,11 @@
+const os = require('os');
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
+
+// Node < 18.17 lacks os.availableParallelism; Metro expects it.
+if (typeof os.availableParallelism !== 'function') {
+  os.availableParallelism = () => (os.cpus() ? os.cpus().length : 1);
+}
 
 const config = getDefaultConfig(__dirname);
 

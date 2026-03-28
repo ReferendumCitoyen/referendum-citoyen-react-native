@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
 
 interface Step10Props {
   containerWidth: number;
@@ -10,32 +12,29 @@ interface Step10Props {
   onCancel?: () => void;
   onConfirm?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
-  selectedVote?: 'oui' | 'blanc' | 'non';
+  selectedVote?: number;
+  proposalInfo?: ProposalInfo;
 }
 
-const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout, selectedVote = 'oui' }) => {
+const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onConfirm, onLayout, selectedVote = 0, proposalInfo }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
 
-  const getVoteText = () => {
-    if (selectedVote === 'oui') return 'OUI';
-    if (selectedVote === 'non') return 'NON';
-    return 'BLANC';
-  };
+  const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
+  const variantName = variants[selectedVote] ?? '';
 
-  const getButtonText = () => {
-    if (selectedVote === 'oui') return 'Voter Oui';
-    if (selectedVote === 'non') return 'Voter Non';
-    return 'Voter Blanc';
-  };
+  console.log(`[Step10] Confirming vote: "${variantName}" (index ${selectedVote}) for proposal #${proposalInfo?.id}`);
+  const getVoteText = () => variantName.toUpperCase();
+  const getButtonText = () => t('voting.step10VoteAction', { vote: variantName });
 
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step10Container}>
         <View style={stepSpecificStyles.step10Content}>
           <Text style={stepSpecificStyles.step10Title}>
-            Vous êtes sûr de vouloir voter: {getVoteText()} ?
+            {t('voting.step10Confirm', { vote: getVoteText() })}
           </Text>
 
           {Platform.OS === 'android' ? (
@@ -61,7 +60,7 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
             activeOpacity={0.8}
             onPress={onCancel || (() => console.log('Cancel'))}
           >
-            <Text style={stepSpecificStyles.step10CancelButtonText}>Annuler</Text>
+            <Text style={stepSpecificStyles.step10CancelButtonText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

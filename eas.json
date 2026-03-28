@@ -7,6 +7,9 @@
     "development:simulator": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "simulator": true,
@@ -16,6 +19,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2"
@@ -26,6 +32,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2"
@@ -37,6 +46,9 @@
     "testflight": {
       "autoIncrement": true,
       "distribution": "store",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2",
@@ -46,6 +58,9 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2",

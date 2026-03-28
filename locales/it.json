@@ -1,0 +1,240 @@
+{
+  "tabs": {
+    "comprendre": "Capire",
+    "accueil": "Voti",
+    "parametres": "Impostazioni"
+  },
+  "languages": {
+    "en": "English",
+    "fr": "Français",
+    "de": "Deutsch",
+    "it": "Italiano",
+    "nl": "Nederlands",
+    "pl": "Polski",
+    "es": "Español"
+  },
+  "common": {
+    "cancel": "Annulla",
+    "retry": "Riprova",
+    "analyze": "Analizza",
+    "manualFill": "Compila manualmente",
+    "open": "Apri",
+    "select": "Seleziona",
+    "backToHome": "Torna alla home",
+    "close": "Chiudi",
+    "backToScanner": "Torna allo scanner",
+    "yes": "Sì",
+    "no": "No",
+    "blank": "Bianco"
+  },
+  "navigation": {
+    "nfcTest": "Test NFC",
+    "nfcScan": "Scansione NFC",
+    "back": "Indietro",
+    "votingProcess": "Processo di voto",
+    "oops": "Ops!"
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "darkMode": "Modalità scura",
+    "language": "Lingua",
+    "rpc": "RPC",
+    "smartContract": "Smart contract",
+    "nfcTest": "Test NFC",
+    "version": "Versione {{version}} ({{build}})"
+  },
+  "home": {
+    "yes": "Sì",
+    "blank": "Bianco",
+    "no": "No",
+    "ongoingVotes": "Votazioni in corso",
+    "badgeOngoing": "In corso",
+    "badgeSoon": "Presto",
+    "badgeFinished": "Terminato",
+    "votes": "Voti",
+    "endsIn": "Termina tra",
+    "starts": "Inizia",
+    "ended": "Terminato",
+    "voteButton": "Vota",
+    "loading": "Caricamento proposte...",
+    "error": "Errore: {{message}}",
+    "noProposals": "Nessuna proposta trovata",
+    "showLess": "Mostra meno",
+    "showMore": "Mostra di più ({{count}})"
+  },
+  "voting": {
+    "title": "Processo di voto",
+    "step1Title": "Scansiona il tuo documento in modo anonimo",
+    "step1Description": "Scansiona il tuo documento per convalidare età e nazionalità. I tuoi dati sono cifrati e non tracciabili. Sei anonimo al 100%.",
+    "step2Title": "Verifica età e nazionalità localmente sul tuo dispositivo",
+    "step2Description": "Questa app verifica i dati del chip NFC del tuo documento. I dati non vengono trasferiti né salvati su server di terze parti.",
+    "step3Title": "Voto anonimo",
+    "step3Description": "Una volta verificati e autentici i dati, l'app genera un token anonimo che ti consente di votare.",
+    "step4Title": "Analisi del documento",
+    "step4Description": "Tieni il dispositivo sopra il documento",
+    "step4Start": "Avvia analisi",
+    "step5Title": "Analisi MRZ",
+    "step5CameraPermission": "È necessaria l'autorizzazione della fotocamera",
+    "step5CameraUnavailable": "Fotocamera non disponibile",
+    "step5CardOverlay": "CARTA D'IDENTITÀ",
+    "step5Positioning": "Posiziona il retro della carta",
+    "step5Scanning": "Ricerca MRZ...",
+    "step5Partial": "MRZ parzialmente rilevato...",
+    "step5Success": "MRZ rilevato!",
+    "step6Title": "Lettore NFC",
+    "step6MissingMrz": "Dati MRZ mancanti. Scansiona prima la MRZ.",
+    "step6Init": "🔄 Inizializzazione...",
+    "step6PresentCard": "📱 Avvicina il documento al telefono",
+    "step6Authenticating": "🔐 Autenticazione...",
+    "step6Reading": "📖 Lettura dati...",
+    "step6ActiveAuth": "✅ Autenticazione attiva...",
+    "step6ReadSuccess": "✅ Lettura riuscita!",
+    "step6ReadError": "❌ Errore di lettura",
+    "step6Now": "📱 Avvicina ora la carta...",
+    "step6InvalidMrz": "❌ Dati MRZ non validi. Ritorno allo scanner...",
+    "step6ErrorWithMessage": "❌ Errore: {{message}}. Riprova.",
+    "step6Scanning": "Scansione in corso...",
+    "step7Title": "Verifica locale",
+    "step7Description": "Verifica di età e nazionalità in locale sul dispositivo. Attendere…",
+    "step7Verifying": "Verifica in corso...",
+    "step7CheckingStatus": "Controllo dello stato...",
+    "step7Registering": "Registrazione della tua identità...",
+    "step7Verified": "Verifica riuscita!",
+    "step7MissingData": "Dati di identità mancanti. Scansiona nuovamente la carta.",
+    "step7NameUnavailable": "Nome non disponibile",
+    "step7BornOn": "Nato il: {{date}}",
+    "step7Nationality": "Nazionalità: {{value}}",
+    "step8Ready": "Sei pronto",
+    "step8VoteNow": "Vota ora",
+    "step9Confirm": "Confermi di voler votare: {{vote}}?",
+    "step9VoteAction": "Vota {{vote}}",
+    "step9ErrorTitle": "Questa identità non può essere utilizzata",
+    "step9ErrorDescription": "Il titolare di questo documento ha già votato oppure ha comunicato di non voler votare",
+    "step10Confirm": "Confermi di voler votare: {{vote}}?",
+    "step10VoteAction": "Vota {{vote}}",
+    "step10VoteYes": "Vota Sì",
+    "step10VoteNo": "Vota No",
+    "step10VoteBlank": "Vota Bianco",
+    "step11Status": "{{countdown}} ({{status}})",
+    "step11Success": "Successo",
+    "step11Fail": "Fallito",
+    "step12SuccessTitle": "Fatto! Il tuo voto è stato registrato.",
+    "step12SuccessDescription": "I dati del tuo documento sono stati eliminati da questo dispositivo.",
+    "step12SuccessButton": "Vedi risultati",
+    "step11VoteSubmitted": "Voto inviato!",
+    "step11Preparing": "Preparazione...",
+    "step11MissingData": "Errore: scansiona prima la tua carta d'identità.",
+    "step11GeneratingProof": "Generazione della prova ZK...",
+    "step11NetworkRetry": "Errore di rete — nuovo tentativo ({{attempt}}/{{max}})...",
+    "step12ErrorTitle": "Si è verificato un errore.",
+    "step12ErrorDescription": "Per favore riprova."
+  },
+  "nfcScan": {
+    "title": "Scansione NFC",
+    "missingMrz": "Dati MRZ mancanti",
+    "instruction": "Posiziona il documento sul retro del telefono"
+  },
+  "mrzManual": {
+    "title": "Inserimento MRZ manuale",
+    "documentNumber": "Numero documento",
+    "birthDate": "Data di nascita",
+    "expiryDate": "Data di scadenza",
+    "documentPlaceholder": "Es: AB123456",
+    "datePlaceholder": "GGMMAA",
+    "birthHint": "Formato: Giorno Mese Anno (es. 150790 per 15/07/1990)",
+    "expiryHint": "Formato: Giorno Mese Anno (es. 251229 per 25/12/2029)",
+    "submit": "Convalida"
+  },
+  "nfcTest": {
+    "closeCamera": "✕ Chiudi",
+    "scanMrzInstructions": "Scansiona le 3 righe MRZ sul retro del documento",
+    "rarimeTestnet": "Rarime Testnet",
+    "profileKey": "Chiave profilo:",
+    "loading": "Caricamento...",
+    "notRegistered": "⚪ Non registrato",
+    "registeredOwnKey": "✅ Registrato (la tua chiave)",
+    "registeredOtherKey": "⚠️ Registrato (chiave diversa)",
+    "checkingStatus": "Verifica stato sulla testnet...",
+    "registering": "Registrazione (~5s)...",
+    "registerIdentity": "Registra identità su testnet",
+    "txHash": "Hash TX:",
+    "resetPrivateKey": "🔄 Reimposta chiave privata",
+    "mrzData": "Dati MRZ (retro passaporto)",
+    "scanWithCamera": "📷 Scansiona con fotocamera",
+    "orManualInput": "oppure inserisci manualmente:",
+    "documentNumberPlaceholder": "Numero documento (es. 12AB34567)",
+    "birthDatePlaceholder": "Data di nascita (AAMMGG)",
+    "expiryDatePlaceholder": "Data di scadenza (AAMMGG)",
+    "fullPassportRead": "Lettura passaporto completa:",
+    "scanInProgress": "Scansione in corso...",
+    "edocumentModule": "📄 Modulo EDocument",
+    "basicNfcTests": "Test NFC di base:",
+    "scanNdefTag": "Scansiona tag NDEF",
+    "scanIsoDepPassport": "Scansiona IsoDep (Passaporto)",
+    "errorLabel": "Errore:",
+    "passportScannedSuccess": "✅ Passaporto scansionato con successo",
+    "lastName": "Cognome:",
+    "firstName": "Nome:",
+    "birthDate": "Data di nascita:",
+    "nationality": "Nazionalità:",
+    "documentNumber": "N. documento:",
+    "expiryDate": "Scadenza:",
+    "passportDataInLogs": "Dati passaporto disponibili nei log",
+    "viewRawData": "📋 Vedi dati grezzi (log)",
+    "instruction": "Tocca un pulsante e avvicina un tag NFC al dispositivo.",
+    "errors": {
+      "cameraPermissionDenied": "Permesso fotocamera negato",
+      "missingPassportOrKey": "Nessun passaporto scansionato o chiave privata non disponibile",
+      "registrationFailed": "Registrazione fallita: {{message}}",
+      "unknown": "Errore sconosciuto",
+      "fillAllMrzFields": "Compila tutti i campi MRZ"
+    },
+    "status": {
+      "presentPassport": "📱 Avvicina il passaporto al telefono",
+      "authenticatingPassport": "🔐 Autenticazione con passaporto...",
+      "readingPassportData": "📖 Lettura dati passaporto...",
+      "scanCompleted": "✅ Scansione completata con successo!"
+    }
+  },
+  "notFound": {
+    "title": "Questa schermata non esiste.",
+    "goHome": "Vai alla schermata home"
+  },
+  "comprendre": {
+    "welcome": {
+      "title": "Benvenuto!",
+      "text": "Invitiamo tutti i cittadini a votare nei referendum su temi attuali."
+    },
+    "accordions": [
+      {
+        "title": "Un voto unico e a prova di manomissione",
+        "content": "Il voto avviene leggendo localmente sul telefono il chip del tuo documento d'identità (non del passaporto, per evitare voti doppi) per garantire:\n1. Che tu sia francese e maggiorenne\n2. Che nessuno possa votare due volte"
+      },
+      {
+        "title": "Un voto anonimo garantito",
+        "content": "È impossibile sapere chi ha votato cosa, perché i dati vengono cifrati localmente sul tuo telefono prima di essere inviati a un registro pubblico, dove non esiste alcun legame tra il tuo nome e il tuo voto."
+      },
+      {
+        "title": "Un voto trasparente",
+        "content": "Tutti i voti visibili on-chain sono verificabili, consentendo a chiunque di verificare la presenza del proprio voto e la legittimità degli altri. Il registro è pubblico e trasparente. Non può essere modificato una volta registrati i dati."
+      },
+      {
+        "title": "Altri possono votare nel tuo referendum",
+        "content": "L'app consente a più persone di votare sullo stesso referendum. Puoi creare il tuo referendum e invitare altri a partecipare."
+      },
+      {
+        "title": "Cosa succede dopo il conteggio dei voti?",
+        "content": "Non esiste un computer centrale che raccolga i voti. I voti sono registrati su migliaia di computer. Se l'app viene bloccata o rimossa dagli store, può essere duplicata per continuare a votare."
+      }
+    ],
+    "origin": {
+      "title": "Da dove viene",
+      "content": "Alexandre Jardin (scrittore, fondatore di #LesGueux) è stato convinto dal figlio Robinson Jardin (ex NordVPN, ora Nym) del potenziale della blockchain per la democrazia diretta.\n\nHanno collaborato con Alexis Roussel (attivista svizzero per la democrazia digitale, cofondatore di Nym), che ha definito i requisiti dell'applicazione.\n\nApp open-source\nOspitata dal Partito Pirata Svizzero\nElaborazione dati locale - GDPR"
+    }
+  },
+  "placeholderSteps": {
+    "title": "Passo {{step}}",
+    "content": "Contenuto del passo {{step}}",
+    "continue": "Continua"
+  }
+}

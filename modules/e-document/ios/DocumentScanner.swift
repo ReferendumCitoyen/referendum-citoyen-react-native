@@ -13,6 +13,7 @@ struct BacKeyParameters: Codable {
     var documentNumber: String
     var dateOfBirth: String
     var dateOfExpiry: String
+    var can: String?
 }
 
 struct PersonDetails : Codable {
@@ -30,22 +31,22 @@ struct PersonDetails : Codable {
 struct Passport: Codable {
     var personDetails: PersonDetails
     let dg1: String // base64
-    let dg15: String // base64
+    let dg15: String? // base64 — absent on French CNIe (no Active Authentication)
     let sod: String // base64
-    let signature: String // base64
+    let signature: String? // base64 — absent when no Active Authentication
     let dg11: String? // base64
 
     static func fromNFCPassportModel(_ model: NFCPassportModel) -> Passport {
         let dg1 = model.getDataGroup(.DG1)?.data ?? []
-        let dg11 = model.getDataGroup(.DG11)?.data ?? []
-        let dg15 = model.getDataGroup(.DG15)?.data ?? []
+        let dg11 = model.getDataGroup(.DG11)?.data
+        let dg15 = model.getDataGroup(.DG15)?.data
         let sod = model.getDataGroup(.SOD)?.data ?? []
-        
+
         // HACK: For some reason Georgian passports have the first name and last name
         // joined together in the last name field
         let nameParts = model.lastName.components(separatedBy: " ")
         let hasJoinedName = model.firstName.isEmpty && nameParts.count == 2
-        
+
         let personDetails = PersonDetails(
             firstName: hasJoinedName ? nameParts[0] : model.firstName,
             lastName: hasJoinedName ? nameParts[1] : model.lastName,
@@ -60,13 +61,15 @@ struct Passport: Codable {
             nationality: model.nationality
         )
 
+        let aaSignature = model.activeAuthenticationSignature
+
         return Passport(
             personDetails: personDetails,
             dg1: Data(dg1).base64EncodedString(),
-            dg15: Data(dg15).base64EncodedString(),
+            dg15: dg15.map { Data($0).base64EncodedString() },
             sod: Data(sod).base64EncodedString(),
-            signature: Data(model.activeAuthenticationSignature).base64EncodedString(),
-            dg11: Data(dg11).base64EncodedString()
+            signature: aaSignature.isEmpty ? nil : Data(aaSignature).base64EncodedString(),
+            dg11: dg11.map { Data($0).base64EncodedString() }
         )
     }
     

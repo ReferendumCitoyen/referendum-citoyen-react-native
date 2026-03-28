@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step12SuccessProps {
   containerWidth: number;
@@ -11,19 +12,20 @@ interface Step12SuccessProps {
 }
 
 const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, onViewResults, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
   return (
-    <View style={[{ width: containerWidth }]} onLayout={onLayout}>
+    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step12SuccessContainer}>
         <View style={stepSpecificStyles.step12SuccessContent}>
           <Text style={stepSpecificStyles.step12SuccessTitle}>
-            Bravo ! Votre vote a bien été enregistré.
+            {t('voting.step12SuccessTitle')}
           </Text>
 
           <Text style={stepSpecificStyles.step12SuccessDescription}>
-            Les données de votre Carte d'Identité ont été effacées de cet appareil.
+            {t('voting.step12SuccessDescription')}
           </Text>
 
           <LottieView
@@ -39,7 +41,7 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, onViewRes
           activeOpacity={0.8}
           onPress={onViewResults || (() => console.log('View results'))}
         >
-          <Text style={stepSpecificStyles.step12SuccessButtonText}>Voir les résultats</Text>
+          <Text style={stepSpecificStyles.step12SuccessButtonText}>{t('voting.step12SuccessButton')}</Text>
         </TouchableOpacity>
       </View>
     </View>

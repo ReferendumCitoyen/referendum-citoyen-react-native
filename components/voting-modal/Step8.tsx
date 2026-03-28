@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step8Props {
   containerWidth: number;
@@ -23,6 +24,7 @@ const Step8: React.FC<Step8Props> = ({
   onClose,
   onLayout
 }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -38,7 +40,7 @@ const Step8: React.FC<Step8Props> = ({
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step8Container}>
         <View style={stepSpecificStyles.step8Content}>
-          <Text style={stepSpecificStyles.step8Title}>Vous êtes prêt</Text>
+          <Text style={stepSpecificStyles.step8Title}>{t('voting.step8Ready')}</Text>
 
           <LottieView
             source={require('@/assets/animations/success.json')}
@@ -53,7 +55,7 @@ const Step8: React.FC<Step8Props> = ({
           activeOpacity={0.8}
           onPress={handleVote}
         >
-          <Text style={stepSpecificStyles.step8ButtonText}>Votez maintenant</Text>
+          <Text style={stepSpecificStyles.step8ButtonText}>{t('voting.step8VoteNow')}</Text>
         </TouchableOpacity>
       </View>
     </View>

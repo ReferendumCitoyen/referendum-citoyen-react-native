@@ -3,13 +3,18 @@ import { StyleSheet, ScrollView, View, Text } from 'react-native';
 import { VideoView } from 'expo-video';
 import Accordion from '@/components/Accordion';
 import { useColors, Typography, Spacing } from '@/constants/theme';
-import { comprendreContent } from '@/constants/comprendreContent';
 import { useComprendreVideo } from '@/contexts/VideoContext';
+import { useTranslation } from 'react-i18next';
 
 export default function ComprendreScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const player = useComprendreVideo();
+  const accordionsRaw = t('comprendre.accordions', { returnObjects: true });
+  const accordions = Array.isArray(accordionsRaw)
+    ? (accordionsRaw as { title: string; content: string }[])
+    : [];
 
   useEffect(() => {
     if (!player) return;
@@ -70,7 +75,7 @@ export default function ComprendreScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Header Section */}
         <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>{comprendreContent.welcome.title}</Text>
+          <Text style={styles.headerTitle}>{t('comprendre.welcome.title')}</Text>
           <View style={styles.welcomeContainer}>
             <VideoView
               style={styles.characterVideo}
@@ -81,14 +86,14 @@ export default function ComprendreScreen() {
             />
             <View style={styles.welcomeTextContainer}>
               <Text style={styles.welcomeText}>
-                {comprendreContent.welcome.text}
+                {t('comprendre.welcome.text')}
               </Text>
             </View>
           </View>
         </View>
 
         {/* Accordion Sections */}
-        {comprendreContent.accordions.map((accordion, index) => (
+        {accordions.map((accordion, index) => (
           <Accordion
             key={index}
             title={accordion.title}
@@ -99,9 +104,9 @@ export default function ComprendreScreen() {
 
         {/* Final Section - D'où ça vient */}
         <View style={styles.finalSection}>
-          <Text style={styles.finalSectionTitle}>{comprendreContent.origin.title}</Text>
+          <Text style={styles.finalSectionTitle}>{t('comprendre.origin.title')}</Text>
           <Text style={styles.finalSectionContent}>
-            {comprendreContent.origin.content}
+            {t('comprendre.origin.content')}
           </Text>
         </View>
 

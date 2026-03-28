@@ -14,6 +14,10 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { DevModeProvider } from '@/contexts/DevModeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 
 export {
@@ -79,36 +83,44 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <CustomThemeProvider>
-        <RootLayoutNav />
-      </CustomThemeProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <CustomThemeProvider>
+          <DevModeProvider>
+            <RootLayoutNav />
+          </DevModeProvider>
+        </CustomThemeProvider>
+      </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 
 function RootLayoutNav() {
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
       <BottomSheetModalProvider>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar
+          style={theme === 'dark' ? 'light' : 'dark'}
+          translucent={Platform.OS === 'ios'}
+        />
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
-            name="nfc-test"
+            name="nfc-scan-modal"
             options={{
-              title: 'Test NFC',
-              headerBackTitle: 'Retour'
+              title: t('navigation.nfcScan'),
+              headerBackTitle: t('navigation.back'),
+              presentation: 'modal'
             }}
           />
           <Stack.Screen
-            name="nfc-scan-modal"
+            name="language-select"
             options={{
-              title: 'Lecture NFC',
-              headerBackTitle: 'Retour',
-              presentation: 'modal'
+              title: t('settings.language'),
+              headerBackTitle: t('navigation.back'),
             }}
           />
           <Stack.Screen
@@ -116,6 +128,41 @@ function RootLayoutNav() {
             options={{
               headerShown: false,
               presentation: 'card'
+            }}
+          />
+          <Stack.Screen
+            name="voting-screen"
+            options={{
+              presentation: 'modal',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="french-id-test"
+            options={{
+              title: 'Test French ID',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="id-test"
+            options={{
+              title: 'Test ID',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="passport-test"
+            options={{
+              title: 'Test Passport',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="can-scan"
+            options={{
+              title: 'Scan CAN',
+              headerBackTitle: t('navigation.back'),
             }}
           />
         </Stack>

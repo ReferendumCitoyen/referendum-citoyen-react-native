@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
+import { getCurrentLanguageCode } from '@/locales';
+import { useDevMode } from '@/contexts/DevModeContext';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -20,33 +22,31 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 
 export default function ParametresScreen() {
   const router = useRouter();
-  const { i18n } = useTranslation();
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const colors = useColors();
   const styles = createStyles(colors);
-
   const darkModeEnabled = theme === 'dark';
+  const { devMode, setDevMode, handleVersionTap } = useDevMode();
 
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'fr' ? 'en' : 'fr';
-    i18n.changeLanguage(newLang);
-  };
-
-  const currentLanguageLabel = i18n.language === 'fr' ? 'Français' : 'English';
+  const currentLanguageCode = getCurrentLanguageCode();
+  const currentLanguageLabel = t(`languages.${currentLanguageCode}`, {
+    defaultValue: currentLanguageCode.toUpperCase(),
+  });
 
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Header Section */}
         <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>Paramètres</Text>
+          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
         </View>
 
         {/* Settings Container */}
         <View style={styles.settingsContainer}>
           {/* Dark Mode Row */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Dark Mode</Text>
+            <Text style={styles.settingLabel}>{t('settings.darkMode')}</Text>
             <Switch
               value={darkModeEnabled}
               onValueChange={toggleTheme}
@@ -56,10 +56,14 @@ export default function ParametresScreen() {
             />
           </View>
 
-          {/* Langue Row */}
+          {/* Language Row */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Langue</Text>
-            <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7} onPress={toggleLanguage}>
+            <Text style={styles.settingLabel}>{t('settings.language')}</Text>
+            <TouchableOpacity
+              style={styles.settingValueContainer}
+              activeOpacity={0.7}
+              onPress={() => router.push('/language-select')}
+            >
               <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
               <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
@@ -67,42 +71,97 @@ export default function ParametresScreen() {
 
           {/* RPC Row */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>RPC</Text>
+            <Text style={styles.settingLabel}>{t('settings.rpc')}</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
-              <Text style={styles.settingValue}>Selectioner</Text>
+              <Text style={styles.settingValue}>{t('common.select')}</Text>
               <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
 
           {/* Smart Contract Row */}
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Smart Contract</Text>
+            <Text style={styles.settingLabel}>{t('settings.smartContract')}</Text>
             <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
-              <Text style={styles.settingValue}>Selectioner</Text>
+              <Text style={styles.settingValue}>{t('common.select')}</Text>
               <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
             </TouchableOpacity>
           </View>
 
-          {/* NFC Test Row */}
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>Test NFC</Text>
-            <TouchableOpacity
-              style={styles.settingValueContainer}
-              activeOpacity={0.7}
-              onPress={() => router.push('/nfc-test')}
-            >
-              <Text style={styles.settingValue}>Ouvrir</Text>
-              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-            </TouchableOpacity>
-          </View>
+          {devMode && (
+            <>
+              {/* Hide Dev Tools */}
+              <TouchableOpacity
+                style={[styles.settingRow, { justifyContent: 'center' }]}
+                activeOpacity={0.7}
+                onPress={() => setDevMode(false)}
+              >
+                <Text style={[styles.settingValue, { color: colors.secondary }]}>Hide Dev Tools</Text>
+              </TouchableOpacity>
+
+              {/* French ID Test Row */}
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Test Carte d'identité</Text>
+                <TouchableOpacity
+                  style={styles.settingValueContainer}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/french-id-test')}
+                >
+                  <Text style={styles.settingValue}>{t('common.open')}</Text>
+                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+                </TouchableOpacity>
+              </View>
+
+              {/* ID Test Row */}
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Test ID (générique)</Text>
+                <TouchableOpacity
+                  style={styles.settingValueContainer}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/id-test')}
+                >
+                  <Text style={styles.settingValue}>{t('common.open')}</Text>
+                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Passport Test Row */}
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Test Passeport</Text>
+                <TouchableOpacity
+                  style={styles.settingValueContainer}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/passport-test')}
+                >
+                  <Text style={styles.settingValue}>{t('common.open')}</Text>
+                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+                </TouchableOpacity>
+              </View>
+
+              {/* CAN Scan Row */}
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Scan CAN (ID)</Text>
+                <TouchableOpacity
+                  style={styles.settingValueContainer}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/can-scan')}
+                >
+                  <Text style={styles.settingValue}>{t('common.open')}</Text>
+                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Version Text */}
-        <View style={styles.versionContainer}>
+        <TouchableOpacity style={styles.versionContainer} activeOpacity={1} onPress={handleVersionTap}>
           <Text style={styles.versionText}>
-            Version {Application.nativeApplicationVersion || '1.0.0'} ({Application.nativeBuildVersion || '1'})
+            {t('settings.version', {
+              version: Application.nativeApplicationVersion || '1.0.0',
+              build: Application.nativeBuildVersion || '1',
+            })}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Empty spacer for tab bar */}
         <View style={styles.tabBarSpacer} />

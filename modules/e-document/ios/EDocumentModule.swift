@@ -10,6 +10,7 @@ enum DocumentScanEvents: String {
     case activeAuthentication = "ACTIVE_AUTHENTICATION"
     case successfulRead = "SUCCESSFUL_READ"
     case scanError = "SCAN_ERROR"
+    case debugLog = "DEBUG_LOG"
 
     case scanStopped = "SCAN_STOPPED"
 }
@@ -29,6 +30,7 @@ public class EDocumentModule: Module {
             DocumentScanEvents.activeAuthentication.rawValue,
             DocumentScanEvents.successfulRead.rawValue,
             DocumentScanEvents.scanError.rawValue,
+            DocumentScanEvents.debugLog.rawValue,
 
             DocumentScanEvents.scanStopped.rawValue
         )
@@ -40,18 +42,46 @@ public class EDocumentModule: Module {
 
         // Defines a JavaScript function that always returns a Promise and whose native code
         // is by default dispatched on the different thread than the JavaScript runtime runs on.
-        AsyncFunction("scanDocument") { (bacKeyParametersJson: String, challenge: Data) in
+        AsyncFunction("scanDocument") { (documentType: String, bacKeyParametersJson: String, challenge: Data) in
+            // Note: documentType parameter added for consistency with Android
+            // iOS NFCPassportReader currently only supports passports, not ID cards
+            // For ID cards ('I'), we'll attempt to read but may encounter limitations
+
             let bacKeyParameters = try JSONDecoder().decode(BacKeyParameters.self, from: bacKeyParametersJson.data(using: .utf8)!)
 
+            // Debug log helper
+            let debugLog: (String) -> Void = { message in
+                self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": message])
+            }
+
+            debugLog("=== iOS NFC Scan Starting ===")
+            debugLog("Document Type: \(documentType)")
+            debugLog("Document Number: \(bacKeyParameters.documentNumber)")
+
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
+            debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
+
+            let canKey = bacKeyParameters.can
+            if let can = canKey {
+                debugLog("CAN provided: \(can)")
+            }
+
+            // For ID cards, skip DG15 (not present on French CNIe)
+            let tagsToRead: [DataGroupId] = documentType == "I"
+                ? [.DG1, .DG2, .DG11, .SOD]
+                : [.DG1, .DG2, .DG11, .DG15, .SOD]
 
             do {
+                debugLog("Starting PassportReader...")
                 let nfcPassport = try await PassportReader()
                     .readPassport(
                         mrzKey: mrzKey,
-                        tags: [.DG1, .DG2, .DG11, .DG15, .SOD],
+                        can: canKey,
+                        tags: tagsToRead,
+                        skipPACE: documentType == "P",
                         customDisplayMessage: { displayMessage in
-                            // Forked from NFCViewDisplayMessage
+                            let docName = documentType == "I" ? "carte d'identité" : "passeport"
+
                             func drawProgressBar(_ progress: Int) -> String {
                                 let itemsCount = (progress / 20)
                                 let full = String(repeating: "🟢 ", count: itemsCount)
@@ -59,47 +89,54 @@ public class EDocumentModule: Module {
                                 return "\(full)\(empty)"
                             }
 
-                            let message: LocalizedStringResource?
+                            let message: String?
                             switch displayMessage {
                             case .requestPresentPassport:
                                 self.sendEvent(DocumentScanEvents.requestPresentPassport.rawValue)
-                                message = "Hold your iPhone near an NFC enabled passport.\n";
+                                message = "Approchez votre \(docName) du téléphone\n"
                             case .authenticatingWithPassport(let progress):
-//                                self.sendEvent(DocumentScanEvents.scanStarted.rawValue)
                                 self.sendEvent(DocumentScanEvents.authenticatingWithPassport.rawValue)
-                                message = "Authenticating with passport...\n\n\(drawProgressBar(progress))"
+                                message = "Authentification en cours...\n\n\(drawProgressBar(progress))"
                             case .activeAuthentication:
                                 self.sendEvent(DocumentScanEvents.activeAuthentication.rawValue)
-                                message = "Authenticating with passport..."
+                                message = "Authentification en cours..."
                             case .readingDataGroupProgress(let dataGroup, let progress):
                                 self.sendEvent(DocumentScanEvents.readingDataGroupProgress.rawValue)
-                                message = "Reading passport data (\(dataGroup.getName()))...\n\n\(drawProgressBar(progress))"
+                                message = "Lecture des données (\(dataGroup.getName()))...\n\n\(drawProgressBar(progress))"
                             case .error(let tagError):
                                 self.sendEvent(DocumentScanEvents.scanError.rawValue)
                                 switch tagError {
-                                case .TagNotValid: message = "Tag not valid."
-                                case .MoreThanOneTagFound: message = "More than 1 tag was found. Please present only 1 tag."
-                                case .ConnectionError: message = "Connection error. Please try again."
-                                case .InvalidMRZKey: message = "MRZ Key not valid for this document."
+                                case .TagNotValid: message = "Tag invalide."
+                                case .MoreThanOneTagFound: message = "Plusieurs tags détectés. Présentez un seul document."
+                                case .ConnectionError: message = "Erreur de connexion. Réessayez."
+                                case .InvalidMRZKey: message = "Données MRZ invalides pour ce document."
                                 case .ResponseError(let reason, let sw1, let sw2):
-                                    message = "Sorry, there was a problem reading the passport. \(reason). Error codes: [0x\(sw1), 0x\(sw2)]"
-                                default: message = "Sorry, there was a problem reading the passport. Please try again"
+                                    message = "Erreur de lecture : \(reason). Codes : [0x\(sw1), 0x\(sw2)]"
+                                default: message = "Erreur de lecture. Réessayez."
                                 }
                             case .successfulRead:
                                 self.sendEvent(DocumentScanEvents.successfulRead.rawValue)
-                                message = "Passport read successfully"
+                                message = "Lecture réussie !"
                             }
 
-                            return message == nil ? nil : String(localized: message!)
+                            return message
                         }
                     )
 
+                debugLog("=== NFC Read Complete ===")
                 let passport = Passport.fromNFCPassportModel(nfcPassport)
+                debugLog("DG1 size: \(passport.dg1.count) chars")
+                debugLog("DG11 size: \(passport.dg11?.count ?? 0) chars")
+                debugLog("DG15 size: \(passport.dg15?.count ?? 0) chars")
+                debugLog("SOD size: \(passport.sod.count) chars")
+                debugLog("Signature size: \(passport.signature?.count ?? 0) chars")
 
                 let passportJsonBytes = try passport.serialize()
+                debugLog("=== iOS NFC Scan SUCCESS ===")
 
                 return String(data: passportJsonBytes, encoding: .utf8)!
             } catch {
+                debugLog("[ERROR] \(error.localizedDescription)")
                 self.sendEvent(DocumentScanEvents.scanError.rawValue)
                 throw DocumentScannerError(error.localizedDescription)
             }
@@ -109,6 +146,27 @@ public class EDocumentModule: Module {
             // TODO: implement
             sendEvent(DocumentScanEvents.scanStopped.rawValue)
             throw DocumentScannerError("Not implemented")
+        }
+
+        AsyncFunction("testNfcDetection") { (timeoutSeconds: Double) -> String in
+            let debugLog: (String) -> Void = { message in
+                self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG] \(message)"])
+            }
+
+            debugLog("Starting NFC diagnostic (timeout: \(timeoutSeconds)s)")
+
+            let diagnostic = NfcDiagnostic()
+            let result = try await diagnostic.run(timeoutSeconds: timeoutSeconds)
+
+            // Forward diagnostic logs via DEBUG_LOG events
+            if let logs = result["logs"] as? [String] {
+                for logLine in logs {
+                    debugLog(logLine)
+                }
+            }
+
+            let jsonData = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
+            return String(data: jsonData, encoding: .utf8) ?? "{}"
         }
     }
 }

@@ -4,6 +4,7 @@ import { VideoView } from 'expo-video';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step4Props {
   player: any;
@@ -13,13 +14,14 @@ interface Step4Props {
 }
 
 const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const { hasPermission, requestPermission } = useCameraPermission();
 
   const handleStartAnalysis = async () => {
-    console.log('🔘 Step4: Démarrer l\'analyse pressed, hasPermission:', hasPermission);
+    console.log('🔘 Step4: Start analysis pressed, hasPermission:', hasPermission);
 
     // Request camera permission before proceeding
     if (!hasPermission) {
@@ -42,9 +44,9 @@ const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, 
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step4Container}>
         <View style={stepSpecificStyles.step4Content}>
-          <Text style={stepSpecificStyles.step4Title}>Analyse de la Carte d'Identité</Text>
+          <Text style={stepSpecificStyles.step4Title}>{t('voting.step4Title')}</Text>
           <Text style={stepSpecificStyles.step4Description}>
-            Maintenez votre appareil sur votre Carte d'identité
+            {t('voting.step4Description')}
           </Text>
         </View>
         {Platform.OS === 'android' ? (
@@ -67,7 +69,7 @@ const Step4: React.FC<Step4Props> = ({ player, containerWidth, onStartAnalysis, 
           activeOpacity={0.8}
           onPress={handleStartAnalysis}
         >
-          <Text style={stepSpecificStyles.step4ButtonText}>Démarrer l'analyse</Text>
+          <Text style={stepSpecificStyles.step4ButtonText}>{t('voting.step4Start')}</Text>
         </TouchableOpacity>
       </View>
     </View>

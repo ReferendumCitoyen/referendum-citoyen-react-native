@@ -48,3 +48,30 @@ Thumbs.db
 # generated native folders
 /ios
 /android
+
+# export folders (reference implementations from other projects)
+/french-id-scan-export
+/passport-scan-export
+
+# build outputs (all levels)
+build/
+**/build/
+# Keep plugin build outputs (needed for Expo config plugins)
+!plugins/**/build/
+!modules/**/plugin/build/
+coverage/
+**/coverage/
+
+# caches (all levels)
+.cache/
+**/.cache/
+.gradle/
+**/.gradle/
+.turbo/
+**/.turbo/
+.parcel-cache/
+**/.parcel-cache/
+tmp/
+**/tmp/
+temp/
+**/temp/

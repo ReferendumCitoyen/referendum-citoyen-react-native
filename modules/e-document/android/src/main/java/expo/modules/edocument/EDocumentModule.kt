@@ -53,6 +53,7 @@ enum class DocumentScanEvents(val value: String) {
   ACTIVE_AUTHENTICATION("ACTIVE_AUTHENTICATION"),
   SUCCESSFUL_READ("SUCCESSFUL_READ"),
   SCAN_ERROR("SCAN_ERROR"),
+  DEBUG_LOG("DEBUG_LOG"),
 
   SCAN_STOPPED("SCAN_STOPPED"),
 }
@@ -62,6 +63,7 @@ class EDocumentModule : Module() {
 
   private var scanPromise: Promise? = null
 
+  private var documentType: String? = null
   private var bacKeyParameters: BacKeyParameters? = null
   private var scanChallenge: ByteArray? = null
 
@@ -74,12 +76,13 @@ class EDocumentModule : Module() {
       DocumentScanEvents.ACTIVE_AUTHENTICATION.value,
       DocumentScanEvents.SUCCESSFUL_READ.value,
       DocumentScanEvents.SCAN_ERROR.value,
+      DocumentScanEvents.DEBUG_LOG.value,
       DocumentScanEvents.SCAN_STOPPED.value,
     )
 
     Name("EDocument")
 
-    AsyncFunction("scanDocument") { bacKeyParametersJson: String, challenge: ByteArray, promise: Promise ->
+    AsyncFunction("scanDocument") { docType: String, bacKeyParametersJson: String, challenge: ByteArray, promise: Promise ->
       val activity = appContext.reactContext ?: run {
         throw IllegalStateException("No current activity found")
       }
@@ -97,6 +100,7 @@ class EDocumentModule : Module() {
         throw IllegalStateException("No current activity found")
       }
 
+      documentType = docType
       bacKeyParameters = Gson().fromJson(bacKeyParametersJson, BacKeyParameters::class.java)
       scanChallenge = challenge
 
@@ -138,26 +142,60 @@ class EDocumentModule : Module() {
     )
 
     try {
-      val nfcDocument = docScanner.scanPassport(
-        onAuthenticatingWithPassport = {
-          sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
-        },
-        onReadingDataGroupProgress = {
-          sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
-        },
-        onActiveAuthentication = {
-          sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
-        },
-        onSuccessfulRead = {
-          sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
-        },
-      )
+      // Route to appropriate scanner based on document type
+      val nfcDocument = when (documentType) {
+        "I", "ID" -> {
+          // French ID card - requires PACE with CAN
+          docScanner.scanIDCard(
+            onAuthenticatingWithPassport = {
+              sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
+            },
+            onReadingDataGroupProgress = {
+              sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
+            },
+            onActiveAuthentication = {
+              sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
+            },
+            onSuccessfulRead = {
+              sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
+            },
+            onDebugLog = { message ->
+              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+            },
+          )
+        }
+        "P", "PASSPORT" -> {
+          // Passport - may use PACE or BAC
+          docScanner.scanPassport(
+            onAuthenticatingWithPassport = {
+              sendEvent(DocumentScanEvents.AUTHENTICATING_WITH_PASSPORT.value)
+            },
+            onReadingDataGroupProgress = {
+              sendEvent(DocumentScanEvents.READING_DATA_GROUP_PROGRESS.value)
+            },
+            onActiveAuthentication = {
+              sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value)
+            },
+            onSuccessfulRead = {
+              sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value)
+            },
+            onDebugLog = { message ->
+              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+            },
+          )
+        }
+        else -> {
+          throw IllegalArgumentException("Invalid document type: '$documentType'. Use 'P' for passport or 'I' for ID card.")
+        }
+      }
 
       val eDocument = EDocument.fromNfcDocumentModel(nfcDocument)
 
       val eDocumentJson = Gson().toJson(eDocument)
+      scanPromise = null
       promise.resolve(eDocumentJson)
     } catch(e: Exception) {
+      scanPromise = null
       sendEvent(DocumentScanEvents.SCAN_ERROR.value)
       promise.reject(CodedException("handleNfcIntent", e.message, e))
     }

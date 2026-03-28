@@ -3,6 +3,7 @@ import { View, Text, LayoutChangeEvent, Platform, Image } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
 
 interface Step3Props {
   player: any;
@@ -11,6 +12,7 @@ interface Step3Props {
 }
 
 const Step3: React.FC<Step3Props> = ({ player, containerWidth, onLayout }) => {
+  const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -39,10 +41,10 @@ const Step3: React.FC<Step3Props> = ({ player, containerWidth, onLayout }) => {
             <View style={modalStyles.numberCircle}>
               <Text style={modalStyles.numberText}>3</Text>
             </View>
-            <Text style={modalStyles.stepTitle}>Vote anonyme</Text>
+            <Text style={modalStyles.stepTitle}>{t('voting.step3Title')}</Text>
           </View>
           <Text style={modalStyles.stepDescription}>
-            Une fois vos données vérifiées et authentiques, l'application produit un jeton anonyme vous permettant de voter.
+            {t('voting.step3Description')}
           </Text>
         </View>
       </View>

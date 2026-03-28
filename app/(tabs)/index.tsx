@@ -1,9 +1,17 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
-import { useRouter } from 'expo-router';
-import VotingModal from '@/components/voting-modal/VotingModal';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+import { useTranslation } from 'react-i18next';
+import { useDevMode } from '@/contexts/DevModeContext';
+
+const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
+const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
+const bigintReviver = (_: string, v: any) => typeof v === 'string' && /^\d+n$/.test(v) ? BigInt(v.slice(0, -1)) : v;
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -17,20 +25,63 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
   </Svg>
 );
 
+// --- Helpers ---
+
+const isActive = (p: ProposalInfo): boolean => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  return now >= p.startTimestamp && now <= p.startTimestamp + p.duration;
+};
+
+const formatTimeRemaining = (endTimestamp: bigint): string => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (now >= endTimestamp) return 'Terminé';
+  const diff = Number(endTimestamp - now);
+  const days = Math.floor(diff / 86400);
+  const hours = Math.floor((diff % 86400) / 3600);
+  const minutes = Math.floor((diff % 3600) / 60);
+  return `${days}J ${hours}H ${minutes}M`;
+};
+
+const formatTimeAgo = (timestamp: bigint): string => {
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (now < timestamp) return 'Bientôt';
+  const localDate = new Date(Number(timestamp) * 1000);
+  return localDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const computeVoteResults = (votingResults: bigint[][], variantCount: number) => {
+  if (!votingResults || votingResults.length === 0 || !votingResults[0]) {
+    return { percents: [], counts: [], total: 0 };
+  }
+  // Slice results to match actual number of variants (contract may pad with zeros)
+  const results = votingResults[0].slice(0, variantCount);
+  const total = results.reduce((sum, v) => sum + v, 0n);
+  const percents = results.map(v => total > 0n ? Number(v * 10000n / total) / 100 : 0);
+  const counts = results.map(v => Number(v));
+  return { percents, counts, total: Number(total) };
+};
+
+// --- VoteResults component (dynamic variants) ---
+
 interface VoteResultsProps {
-  ouiPercent: number;
-  blancPercent: number;
-  nonPercent: number;
-  ouiCount: number;
-  blancCount: number;
-  nonCount: number;
+  variants: string[];
+  percents: number[];
+  counts: number[];
 }
 
-const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCount, nonCount }: VoteResultsProps) => {
+// Blue, Red, White, then cycle for extras
+const barColors = ['#3B82F6', '#EF4444', '#E5E7EB', '#F59E0B', '#22C55E'];
+
+const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
   const colors = useColors();
   const styles = createStyles(colors);
   const maxHeight = 64;
   const minHeight = 2;
+  const total = counts.reduce((s, c) => s + c, 0);
+  const hasVotes = total > 0;
+  const many = variants.length > 3;
+  const labelSize = many ? 9 : Typography.fontSize.voteCount;
+  const percentSize = many ? 9 : Typography.fontSize.voteCount;
 
   const calculateHeight = (percent: number) => {
     if (percent === 0) return minHeight;
@@ -40,176 +91,339 @@ const VoteResults = ({ ouiPercent, blancPercent, nonPercent, ouiCount, blancCoun
   return (
     <View style={styles.resultsContainer}>
       <View style={styles.barsContainer}>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(ouiPercent), backgroundColor: colors.voteBarOui }]}>
-            <Text style={styles.barPercent}>{ouiPercent}%</Text>
+        {variants.map((_, idx) => (
+          <View key={idx} style={styles.barWrapper}>
+            <View style={[
+              styles.bar,
+              {
+                height: hasVotes ? calculateHeight(percents[idx] ?? 0) : 24,
+                backgroundColor: barColors[idx % barColors.length],
+                opacity: hasVotes ? 1 : 0.4,
+              },
+            ]}>
+              {hasVotes && (
+                <Text style={[styles.barPercent, many && { fontSize: percentSize }]}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
+              )}
+            </View>
           </View>
-        </View>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(blancPercent), backgroundColor: colors.voteBarBlanc }]}>
-            <Text style={styles.barPercent}>{blancPercent}%</Text>
-          </View>
-        </View>
-        <View style={styles.barWrapper}>
-          <View style={[styles.bar, { height: calculateHeight(nonPercent), backgroundColor: colors.voteBarNon }]}>
-            <Text style={styles.barPercent}>{nonPercent}%</Text>
-          </View>
-        </View>
+        ))}
       </View>
       <View style={styles.labelsContainer}>
-        <Text style={styles.barLabel}>Oui</Text>
-        <Text style={styles.barLabel}>Blanc</Text>
-        <Text style={styles.barLabel}>Non</Text>
+        {variants.map((v, idx) => (
+          <Text key={idx} style={[styles.barLabel, many && { fontSize: labelSize, lineHeight: labelSize * 1.3 }]} numberOfLines={1}>{v}</Text>
+        ))}
       </View>
-      <View style={styles.countsContainer}>
-        <Text style={styles.barCount}>{ouiCount.toLocaleString()}</Text>
-        <Text style={styles.barCount}>{blancCount.toLocaleString()}</Text>
-        <Text style={styles.barCount}>{nonCount.toLocaleString()}</Text>
-      </View>
+      {hasVotes && (
+        <View style={styles.countsContainer}>
+          {counts.map((c, idx) => (
+            <Text key={idx} style={[styles.barCount, many && { fontSize: 9 }]}>{c.toLocaleString()}</Text>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
 
 export default function AccueilScreen() {
+  const { t } = useTranslation();
+  const { devMode } = useDevMode();
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [proposals, setProposals] = useState<ProposalInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [showAllList, setShowAllList] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const oldestIdRef = useRef<number>(0);
+  const ftRef = useRef<any>(null);
 
-  const handleVoterPress = () => {
+  const PAGE_SIZE = 10;
+
+  const getFreedomTool = useCallback(async () => {
+    if (!ftRef.current) {
+      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
+      ftRef.current = new FreedomTool(FREEDOM_TOOL_CONFIG);
+    }
+    return ftRef.current;
+  }, []);
+
+  const fetchBatch = useCallback(async (startId: number, count: number) => {
+    const ft = await getFreedomTool();
+    const ids = Array.from({ length: count }, (_, i) => startId - i).filter(id => id >= 1);
+    if (ids.length === 0) return [];
+    const results = await Promise.allSettled(
+      ids.map(id => ft.getProposalInfo(String(id)))
+    );
+    return results
+      .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
+      .map(r => r.value);
+  }, [getFreedomTool]);
+
+  const fetchProposals = useCallback(async (refresh = false) => {
+    try {
+      if (!refresh) {
+        try {
+          const cached = await AsyncStorage.getItem(PROPOSALS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached, bigintReviver) as ProposalInfo[];
+            setProposals(parsed);
+            setIsLoading(false);
+          }
+        } catch {}
+      }
+
+      if (refresh) setIsRefreshing(true);
+      setLoadError(null);
+
+      const { JsonRpcProvider, Contract } = await import('ethers');
+      const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
+      const contract = new Contract(
+        FREEDOM_TOOL_CONFIG.contracts.proposalStateAddress,
+        ['function lastProposalId() view returns (uint256)'],
+        provider
+      );
+      const lastId = Number(await contract.lastProposalId());
+      console.log(`[Accueil] lastProposalId: ${lastId}`);
+
+      const loaded = await fetchBatch(lastId, PAGE_SIZE);
+      const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
+
+      console.log(`[Accueil] Fetched ${sorted.length} proposals from network`);
+      setProposals(sorted);
+      oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
+      setHasMore(oldestIdRef.current > 1);
+
+      try {
+        await AsyncStorage.setItem(PROPOSALS_CACHE_KEY, JSON.stringify(sorted, bigintReplacer));
+      } catch {}
+    } catch (err) {
+      console.error('[Accueil] Failed to load proposals:', err);
+      setLoadError((err as Error).message);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [fetchBatch]);
+
+  const fetchMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;
+    setIsLoadingMore(true);
+    try {
+      const nextStart = oldestIdRef.current - 1;
+      console.log(`[Accueil] Loading more from ID ${nextStart}...`);
+      const loaded = await fetchBatch(nextStart, PAGE_SIZE);
+      if (loaded.length === 0) {
+        setHasMore(false);
+      } else {
+        const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
+        setProposals(prev => [...prev, ...sorted]);
+        oldestIdRef.current = Math.min(...sorted.map(p => Number(p.id)));
+        setHasMore(oldestIdRef.current > 1);
+        console.log(`[Accueil] Loaded ${sorted.length} more, oldest now: ${oldestIdRef.current}`);
+      }
+    } catch (err) {
+      console.error('[Accueil] Failed to load more:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, hasMore, fetchBatch]);
+
+  useEffect(() => { fetchProposals(); }, [fetchProposals]);
+
+  // Auto-refresh when screen regains focus (e.g. after voting)
+  const isFirstMount = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstMount.current) {
+        isFirstMount.current = false;
+        return;
+      }
+      fetchProposals(true);
+    }, [fetchProposals])
+  );
+
+  const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
+
+  const handleVoterPress = (proposalId: string) => {
     if (Platform.OS === 'android') {
-      // On Android, navigate to full-screen voting flow
-      router.push('/voting-flow');
+      router.push({ pathname: '/voting-flow', params: { proposalId } });
     } else {
-      // On iOS, show bottom sheet modal
-      setIsModalVisible(true);
+      router.push({ pathname: '/voting-screen', params: { proposalId } });
     }
   };
 
+  const activeProposals = useMemo(() => proposals.filter(isActive), [proposals]);
+  const pastProposals = useMemo(() => proposals.filter(p => !isActive(p)), [proposals]);
+  const allProposals = useMemo(() => [...activeProposals, ...pastProposals], [activeProposals, pastProposals]);
+
+  const renderHeader = useCallback(() => (
+    <View style={styles.voteListSection}>
+      <View style={styles.voteListHeader}>
+        <Text style={styles.voteListTitle}>{t('home.ongoingVotes')}</Text>
+      </View>
+
+      {isLoading && (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color={colors.secondary} />
+          <Text style={[styles.voteListItemText, { textAlign: 'center', marginTop: 8 }]}>
+            {t('home.loading')}
+          </Text>
+        </View>
+      )}
+
+      {loadError && (
+        <Text style={[styles.voteListItemText, { color: '#EF4444', paddingVertical: 12 }]}>
+          {t('home.error', { message: loadError })}
+        </Text>
+      )}
+
+      {!isLoading && activeProposals.length === 0 && !loadError && (
+        <Text style={[styles.voteListItemText, { paddingVertical: 12 }]}>
+          {t('home.noProposals')}
+        </Text>
+      )}
+
+      {(showAllList ? activeProposals : activeProposals.slice(0, 3)).map((p) => (
+        <TouchableOpacity key={p.id} style={styles.voteListItem} activeOpacity={0.7}>
+          <Text style={styles.voteListItemText} numberOfLines={2}>{p.title}</Text>
+          <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
+        </TouchableOpacity>
+      ))}
+
+      {activeProposals.length > 3 && (
+        <TouchableOpacity
+          style={styles.voteListItem}
+          activeOpacity={0.7}
+          onPress={() => setShowAllList(!showAllList)}
+        >
+          <Text style={[styles.voteListItemText, { color: colors.secondary }]}>
+            {showAllList ? t('home.showLess') : t('home.showMore', { count: activeProposals.length - 3 })}
+          </Text>
+          <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
+        </TouchableOpacity>
+      )}
+    </View>
+  ), [activeProposals, showAllList, isLoading, loadError, colors, styles]);
+
+  const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
+    const active = isActive(p);
+    const variants = p.questions[0]?.variants ?? [];
+    const { percents, counts, total } = computeVoteResults(p.votingResults, variants.length);
+    const endTime = p.startTimestamp + p.duration;
+    const showPastHeader = !active && index === activeProposals.length;
+
+    return (
+      <>
+        {showPastHeader && (
+          <View style={styles.pastHeader}>
+            <Text style={styles.pastHeaderText}>{t('home.badgeFinished')}</Text>
+          </View>
+        )}
+        <View style={[styles.voteCard, !active && styles.voteCardPast]}>
+          <View style={styles.badgeContainer}>
+            <View style={styles.badgeRow}>
+              <View style={[styles.badge, !active && { backgroundColor: colors.border }]}>
+                <Text style={styles.badgeText}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
+              </View>
+              {devMode && (
+                <>
+                  <TouchableOpacity
+                    style={styles.devBadge}
+                    activeOpacity={0.7}
+                    onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
+                  >
+                    <Text style={styles.devBadgeText}>#{p.id}</Text>
+                  </TouchableOpacity>
+                  <View style={styles.devInfoBadge}>
+                    <Text style={styles.devInfoText}>
+                      {Number(p.criteria.selector) === 6689 ? 'ID' : 'PP'}
+                      {p.criteria.citizenshipWhitelist.length > 0
+                        ? ' ' + p.criteria.citizenshipWhitelist.map((c: string) => {
+                            try {
+                              const hex = BigInt(c).toString(16);
+                              const bytes = [];
+                              for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substring(i, i + 2), 16));
+                              return String.fromCharCode(...bytes);
+                            } catch { return String(c); }
+                          }).join(',')
+                        : ' ALL'}
+                    </Text>
+                  </View>
+                </>
+              )}
+              <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
+            </View>
+            <Text style={styles.voteTitle}>{p.title}</Text>
+          </View>
+
+          {p.description ? (
+            <Text style={styles.voteDescription}>{p.description}</Text>
+          ) : null}
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statColumn}>
+              <Text style={styles.statLabel}>{t('home.votes')}</Text>
+              <Text style={styles.statValue}>{total.toLocaleString()}</Text>
+            </View>
+            <View style={styles.statColumn}>
+              <Text style={styles.statLabel}>{active ? t('home.endsIn') : t('home.badgeFinished')}</Text>
+              <Text style={styles.statValue}>{active ? formatTimeRemaining(endTime) : formatTimeAgo(endTime)}</Text>
+            </View>
+          </View>
+
+          {active && (
+            <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
+              <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
+            </TouchableOpacity>
+          )}
+
+          {variants.length > 0 && (
+            <>
+              {active && (
+                <Text style={{ fontSize: 12, color: colors.secondary || colors.text, opacity: 0.6, marginBottom: 4, marginTop: 8 }}>
+                  {t('home.resultsNow')}
+                </Text>
+              )}
+              <VoteResults variants={variants} percents={percents} counts={counts} />
+            </>
+          )}
+        </View>
+      </>
+    );
+  }, [styles, colors, activeProposals.length, devMode]);
+
+  const keyExtractor = useCallback((p: ProposalInfo) => p.id, []);
+
   return (
     <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
-        {/* Vote List Section */}
-        <View style={styles.voteListSection}>
-          <View style={styles.voteListHeader}>
-            <Text style={styles.voteListTitle}>Les votes en cours</Text>
+      <FlatList
+        data={allProposals}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={
+          <View>
+            {isLoadingMore && (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={colors.secondary} />
+              </View>
+            )}
+            <View style={styles.tabBarSpacer} />
           </View>
-
-          <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>Les Zones à Fortes Emission (ZFE)</Text>
-            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.voteListItem} activeOpacity={0.7}>
-            <Text style={styles.voteListItemText}>La Politique Pluriannuelle de l'Energie (PPE)</Text>
-            <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Active Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Vote en cours</Text>
-            </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
-          </View>
-
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Votes</Text>
-              <Text style={styles.statValue}>6,932</Text>
-            </View>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Se termine dans</Text>
-              <Text style={styles.statValue}>24J 12H 5M</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={handleVoterPress}>
-            <Text style={styles.voteButtonText}>Voter</Text>
-          </TouchableOpacity>
-
-          <VoteResults
-            ouiPercent={76.8}
-            blancPercent={4.3}
-            nonPercent={18.9}
-            ouiCount={5327}
-            blancCount={298}
-            nonCount={1308}
-          />
-        </View>
-
-        {/* Upcoming Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Bientôt</Text>
-            </View>
-            <Text style={styles.voteTitle}>Approuvez vous la Loi instaurant les zones à faibles émissions mobilité ?</Text>
-          </View>
-
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.{'\n\n'}
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.{'\n\n'}
-            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Commence</Text>
-              <Text style={styles.statValue}>01 Dec 25</Text>
-            </View>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>Terminé</Text>
-              <Text style={styles.statValue}>01 Feb 26</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Finished Vote Card */}
-        <View style={styles.voteCard}>
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Terminé</Text>
-            </View>
-            <Text style={styles.voteTitle}>Approuvez vous la troisième Programmation pluriannuelle énergétique (PPE) ?</Text>
-          </View>
-
-          <Text style={styles.voteDescription}>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={[styles.statColumn, { flex: 1 }]}>
-              <Text style={styles.statLabel}>Terminé</Text>
-              <Text style={styles.statValue}>01 Sep 25</Text>
-            </View>
-          </View>
-
-          <VoteResults
-            ouiPercent={76.8}
-            blancPercent={4.3}
-            nonPercent={18.9}
-            ouiCount={5327}
-            blancCount={298}
-            nonCount={1308}
-          />
-        </View>
-
-        {/* Empty spacer for tab bar */}
-        <View style={styles.tabBarSpacer} />
-      </ScrollView>
-
-      <VotingModal
-        isVisible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
+        }
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
+        }
+        onEndReached={fetchMore}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={3}
+        windowSize={5}
       />
+
     </View>
   );
 }
@@ -218,9 +432,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   screenContainer: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
   },
   contentContainer: {
     paddingBottom: Spacing.tabBar.containerHeight,
@@ -266,6 +477,17 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   badgeContainer: {
     gap: Spacing.voteCard.badgeGap,
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  startedAgo: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    color: colors.text,
+    opacity: 0.5,
+  },
   badge: {
     alignSelf: 'flex-start',
     paddingVertical: Spacing.voteCard.badgePaddingVertical,
@@ -280,6 +502,44 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     lineHeight: Typography.lineHeight.body,
     letterSpacing: Typography.letterSpacing.body,
     color: colors.text,
+  },
+  devBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+  },
+  pastHeader: {
+    paddingHorizontal: Spacing.voteList.paddingHorizontal,
+    paddingTop: Spacing.screen.sectionGap,
+    paddingBottom: 8,
+  },
+  pastHeaderText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
+    letterSpacing: Typography.letterSpacing.h1,
+    color: colors.text,
+    opacity: 0.5,
+  },
+  voteCardPast: {
+    opacity: 0.7,
+  },
+  devBadgeText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+  devInfoBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    backgroundColor: '#6366F1',
+    borderRadius: 8,
+  },
+  devInfoText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: 10,
+    color: '#FFFFFF',
   },
   voteTitle: {
     fontFamily: Typography.fontFamily.bold,
