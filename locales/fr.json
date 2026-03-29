@@ -103,6 +103,7 @@
     "step7Registering": "Enregistrement de votre identité...",
     "step7Verified": "Vérification réussie !",
     "step7MissingData": "Données d'identité manquantes. Veuillez rescanner votre carte.",
+    "step7WrongDocumentType": "Passeport détecté. Veuillez utiliser votre carte nationale d'identité (pas un passeport) pour voter.",
     "step7NameUnavailable": "Nom non disponible",
     "step7BornOn": "Né(e) le: {{date}}",
     "step7Nationality": "Nationalité: {{value}}",

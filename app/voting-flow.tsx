@@ -239,6 +239,10 @@ export default function VotingFlowScreen() {
     setTimeout(() => handleNext(), 1500);
   }, [handleNext]);
 
+  const handleFatalVerificationError = useCallback(() => {
+    setTimeout(() => handleClose(), 4000);
+  }, [handleClose]);
+
   const handleVoteSuccess = useCallback(() => {
     setCurrentStep(9);
     Animated.timing(slideAnim, {
@@ -360,6 +364,7 @@ export default function VotingFlowScreen() {
               nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
+              onFatalError={handleFatalVerificationError}
               rarime={rarimeRef.current ?? undefined}
               passport={passportRef.current ?? undefined}
               freedomTool={freedomToolRef.current ?? undefined}

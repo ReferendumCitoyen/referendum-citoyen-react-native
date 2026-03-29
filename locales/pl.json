@@ -101,6 +101,7 @@
     "step7Registering": "Rejestrowanie Twojej tożsamości...",
     "step7Verified": "Weryfikacja zakończona pomyślnie!",
     "step7MissingData": "Brak danych tożsamości. Zeskanuj ponownie swoją kartę.",
+    "step7WrongDocumentType": "Wykryto paszport. Użyj dowodu osobistego (nie paszportu), aby zagłosować.",
     "step7NameUnavailable": "Nazwa niedostępna",
     "step7BornOn": "Data urodzenia: {{date}}",
     "step7Nationality": "Obywatelstwo: {{value}}",

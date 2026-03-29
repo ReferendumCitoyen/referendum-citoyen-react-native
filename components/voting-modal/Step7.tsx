@@ -31,6 +31,7 @@ interface Step7Props {
   nfcData?: NFCData | null;
   onSuccess?: () => void;
   onError?: () => void;
+  onFatalError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   rarime?: Rarime;
   passport?: RarimePassport;
@@ -44,6 +45,7 @@ const Step7: React.FC<Step7Props> = ({
   nfcData,
   onSuccess,
   onError,
+  onFatalError,
   onLayout,
   rarime,
   passport,
@@ -79,6 +81,15 @@ const Step7: React.FC<Step7Props> = ({
       hasCalledCallback.current = true;
       setErrorMessage(t('voting.step7MissingData'));
       onError?.();
+      return;
+    }
+
+    // Validate DG1 length: circuits support TD1 (ID card, 95 bytes) only
+    // TD3 (passport) DG1 is 93 bytes and is not supported
+    if (passport.dataGroup1.length !== 95) {
+      hasCalledCallback.current = true;
+      setErrorMessage(t('voting.step7WrongDocumentType'));
+      onFatalError?.();
       return;
     }
 

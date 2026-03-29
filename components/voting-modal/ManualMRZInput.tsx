@@ -128,10 +128,11 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
   return (
     <KeyboardAvoidingView
       style={styles.overlay}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={100}
     >
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
