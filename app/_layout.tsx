@@ -1,7 +1,7 @@
 import '@/polyfills';
 import 'react-native-reanimated';
 import 'react-native-gesture-handler';
-import '@/locales';
+import { languageReady } from '@/locales';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -42,6 +42,7 @@ export default function RootLayout() {
   });
 
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [langReady, setLangReady] = useState(false);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -52,6 +53,11 @@ export default function RootLayout() {
   useEffect(() => {
     const timer = setTimeout(() => setMinTimeElapsed(true), 1000);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Wait for stored language to be applied before rendering navigation
+  useEffect(() => {
+    languageReady.then(() => setLangReady(true));
   }, []);
 
   useEffect(() => {
@@ -78,7 +84,7 @@ export default function RootLayout() {
     NfcManager.start();
   }, []);
 
-  if (!loaded) {
+  if (!loaded || !langReady) {
     return null;
   }
 

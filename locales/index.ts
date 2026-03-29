@@ -89,7 +89,7 @@ i18n.use(initReactI18next).init({
   },
 });
 
-AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
+export const languageReady: Promise<void> = AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
   .then((storedLang) => {
     const supportedStoredLang = findSupportedLanguage(storedLang);
     if (supportedStoredLang && supportedStoredLang !== i18n.language) {
