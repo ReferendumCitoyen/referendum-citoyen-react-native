@@ -20,21 +20,18 @@ export default function TabLayout() {
           name="comprendre"
           options={{
             title: t('tabs.comprendre'),
-            headerShown: false,
           }}
         />
         <Tabs.Screen
           name="index"
           options={{
             title: t('tabs.accueil'),
-            headerShown: false,
           }}
         />
         <Tabs.Screen
-          name="parametres"
+          name="verifier"
           options={{
-            title: t('tabs.parametres'),
-            headerShown: false,
+            title: t('tabs.verifier'),
           }}
         />
       </Tabs>

@@ -1,11 +1,10 @@
 import React from 'react';
-import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
-import { getCurrentLanguageCode } from '@/locales';
 import { useDevMode } from '@/contexts/DevModeContext';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
@@ -29,19 +28,9 @@ export default function ParametresScreen() {
   const darkModeEnabled = theme === 'dark';
   const { devMode, setDevMode, handleVersionTap } = useDevMode();
 
-  const currentLanguageCode = getCurrentLanguageCode();
-  const currentLanguageLabel = t(`languages.${currentLanguageCode}`, {
-    defaultValue: currentLanguageCode.toUpperCase(),
-  });
-
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>{t('settings.title')}</Text>
-        </View>
-
         {/* Settings Container */}
         <View style={styles.settingsContainer}>
           {/* Dark Mode Row */}
@@ -56,36 +45,25 @@ export default function ParametresScreen() {
             />
           </View>
 
-          {/* Language Row */}
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.language')}</Text>
-            <TouchableOpacity
-              style={styles.settingValueContainer}
-              activeOpacity={0.7}
-              onPress={() => router.push('/language-select')}
-            >
-              <Text style={styles.settingValue}>{currentLanguageLabel}</Text>
-              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-            </TouchableOpacity>
-          </View>
+          {/* Privacy Policy Row */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://referendum-citoyen.fr/politique-de-confidentialite')}
+          >
+            <Text style={styles.settingLabel}>{t('settings.privacyPolicy')}</Text>
+            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+          </TouchableOpacity>
 
-          {/* RPC Row */}
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.rpc')}</Text>
-            <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
-              <Text style={styles.settingValue}>{t('common.select')}</Text>
-              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Smart Contract Row */}
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.smartContract')}</Text>
-            <TouchableOpacity style={styles.settingValueContainer} activeOpacity={0.7}>
-              <Text style={styles.settingValue}>{t('common.select')}</Text>
-              <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-            </TouchableOpacity>
-          </View>
+          {/* Terms & Conditions Row */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://referendum-citoyen.fr/conditions-generales')}
+          >
+            <Text style={styles.settingLabel}>{t('settings.termsAndConditions')}</Text>
+            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+          </TouchableOpacity>
 
           {devMode && (
             <>
@@ -163,8 +141,6 @@ export default function ParametresScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Empty spacer for tab bar */}
-        <View style={styles.tabBarSpacer} />
       </ScrollView>
     </View>
   );
@@ -178,22 +154,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    paddingBottom: Spacing.tabBar.containerHeight,
-  },
-  headerSection: {
-    backgroundColor: colors.cardBackground,
-    paddingTop: Spacing.screen.top,
-    paddingHorizontal: Spacing.screen.horizontal,
-    paddingBottom: Spacing.settingRow.paddingVertical,
-  },
-  headerTitle: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.h1,
-    lineHeight: Typography.lineHeight.h1,
-    letterSpacing: Typography.letterSpacing.h1,
-    color: colors.text,
-  },
+  contentContainer: {},
   settingsContainer: {
     gap: Spacing.settingRow.gap,
   },
@@ -239,9 +200,5 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     letterSpacing: Typography.letterSpacing.small,
     color: colors.text,
     opacity: 0.5,
-  },
-  tabBarSpacer: {
-    height: Spacing.tabBar.containerHeight,
-    backgroundColor: 'transparent',
   },
 });

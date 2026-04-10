@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
+import SettingsButton from '@/components/SettingsButton';
 
 const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
 const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
@@ -26,6 +27,38 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 );
 
 // --- Helpers ---
+
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+const TextWithLinks = ({ text, style, linkColor }: { text: string; style: any; linkColor: string }) => {
+  const parts = text.split(URL_REGEX);
+  const textParts: string[] = [];
+  const links: string[] = [];
+  for (const part of parts) {
+    if (URL_REGEX.test(part)) {
+      links.push(part);
+    } else if (part) {
+      textParts.push(part);
+    }
+  }
+  return (
+    <View>
+      {textParts.length > 0 && (
+        <Text style={style}>{textParts.join('').trim()}</Text>
+      )}
+      {links.map((url, i) => (
+        <Text
+          key={i}
+          style={[style, { color: linkColor, textDecorationLine: 'underline', marginTop: 4 }]}
+          onPress={() => Linking.openURL(url)}
+          numberOfLines={1}
+        >
+          {url}
+        </Text>
+      ))}
+    </View>
+  );
+};
 
 const isActive = (p: ProposalInfo): boolean => {
   const now = BigInt(Math.floor(Date.now() / 1000));
@@ -263,6 +296,7 @@ export default function AccueilScreen() {
     <View style={styles.voteListSection}>
       <View style={styles.voteListHeader}>
         <Text style={styles.voteListTitle}>{t('home.ongoingVotes')}</Text>
+        <SettingsButton />
       </View>
 
       {isLoading && (
@@ -360,7 +394,7 @@ export default function AccueilScreen() {
           </View>
 
           {p.description ? (
-            <Text style={styles.voteDescription}>{p.description}</Text>
+            <TextWithLinks text={p.description} style={styles.voteDescription} linkColor={colors.secondary} />
           ) : null}
 
           <View style={styles.statsContainer}>
@@ -396,6 +430,17 @@ export default function AccueilScreen() {
   }, [styles, colors, activeProposals.length, devMode]);
 
   const keyExtractor = useCallback((p: ProposalInfo) => p.id, []);
+
+  if (isLoading && proposals.length === 0) {
+    return (
+      <View style={styles.screenContainer}>
+        <View style={styles.fullScreenLoader}>
+          <ActivityIndicator size="large" color={colors.secondary} />
+          <Text style={styles.fullScreenLoaderText}>{t('home.loading')}</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screenContainer}>
@@ -433,6 +478,19 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     flex: 1,
     backgroundColor: colors.background,
   },
+  fullScreenLoader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fullScreenLoaderText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    color: colors.text,
+    opacity: 0.6,
+  },
   contentContainer: {
     paddingBottom: Spacing.tabBar.containerHeight,
     gap: Spacing.screen.sectionGap,
@@ -443,6 +501,9 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     paddingHorizontal: Spacing.voteList.paddingHorizontal,
   },
   voteListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: Spacing.voteList.titlePaddingVertical,
   },
   voteListTitle: {
