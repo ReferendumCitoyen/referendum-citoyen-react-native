@@ -2,7 +2,7 @@
   "tabs": {
     "comprendre": "Comprendre",
     "accueil": "Votes",
-    "parametres": "Paramètres"
+    "verifier": "Vérifier"
   },
   "languages": {
     "en": "English",
@@ -37,9 +37,8 @@
   "settings": {
     "title": "Paramètres",
     "darkMode": "Mode sombre",
-    "language": "Langue",
-    "rpc": "RPC",
-    "smartContract": "Smart Contract",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsAndConditions": "Conditions générales",
     "nfcTest": "Test NFC",
     "version": "Version {{version}} ({{build}})"
   },

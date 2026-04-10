@@ -117,9 +117,9 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
-            name="language-select"
+            name="parametres"
             options={{
-              title: t('settings.language'),
+              title: t('settings.title'),
               headerBackTitle: t('navigation.back'),
             }}
           />

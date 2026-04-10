@@ -6,19 +6,19 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ComprendreIcon from './icons/ComprendreIcon';
 import AccueilIcon from './icons/AccueilIcon';
-import ParametresIcon from './icons/ParametresIcon';
+import VerifierIcon from './icons/VerifierIcon';
 import { useColors, Typography, Spacing, Shadows } from '@/constants/theme';
 
 const iconMap: { [key: string]: React.ComponentType<{ color: string; size?: number }> } = {
   comprendre: ComprendreIcon,
   index: AccueilIcon,
-  parametres: ParametresIcon,
+  verifier: VerifierIcon,
 };
 
 const labelKeyMap: { [key: string]: string } = {
   comprendre: 'tabs.comprendre',
   index: 'tabs.accueil',
-  parametres: 'tabs.parametres',
+  verifier: 'tabs.verifier',
 };
 
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {

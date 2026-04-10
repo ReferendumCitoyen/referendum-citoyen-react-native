@@ -5,6 +5,7 @@ import Accordion from '@/components/Accordion';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { useComprendreVideo } from '@/contexts/VideoContext';
 import { useTranslation } from 'react-i18next';
+import SettingsButton from '@/components/SettingsButton';
 
 export default function ComprendreScreen() {
   const { t } = useTranslation();
@@ -75,7 +76,10 @@ export default function ComprendreScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
         {/* Header Section */}
         <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>{t('comprendre.welcome.title')}</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>{t('comprendre.welcome.title')}</Text>
+            <SettingsButton />
+          </View>
           <View style={styles.welcomeContainer}>
             <VideoView
               style={styles.characterVideo}
@@ -134,6 +138,11 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     paddingHorizontal: Spacing.screen.horizontal,
     paddingBottom: Spacing.screen.bottom,
     gap: Spacing.screen.gap,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     fontFamily: Typography.fontFamily.bold,
