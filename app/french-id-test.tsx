@@ -776,6 +776,13 @@ export default function FrenchIDTestScreen() {
       );
       console.log("[FreedomTool] QueryProofParams built");
       console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
+      console.log("[FreedomTool] criteria.timestampUpperbound:", proposalInfo.criteria.timestampUpperbound.toString());
+      console.log("[FreedomTool] passportInfo[1][1] (issueTimestamp):", passportInfo[1][1].toString());
+      console.log("[FreedomTool] issueTimestamp > timestampUpperbound?", passportInfo[1][1] > proposalInfo.criteria.timestampUpperbound);
+
+      // Snapshot SMT root BEFORE proof generation to detect race condition
+      const smtRootBefore = await (rarime as any).getSMTProof(passport);
+      console.log("[FreedomTool] SMT root BEFORE proof:", smtRootBefore.root);
 
       let queryProof;
       try {
@@ -787,14 +794,116 @@ export default function FrenchIDTestScreen() {
         throw proofErr;
       }
       console.log("[FreedomTool] ZK proof generated");
+      console.log("[FreedomTool] ALL pub_signals:", JSON.stringify(queryProof.pub_signals));
       console.log("[FreedomTool] pub_signals count:", queryProof.pub_signals.length);
-      console.log("[FreedomTool] pub_signals[6] (citizenship):", queryProof.pub_signals[6]);
+      console.log("[FreedomTool] pub_signals[5] (TD1 citizenship):", queryProof.pub_signals[5]);
+      console.log("[FreedomTool] pub_signals[14] (currentDate passed to contract):", queryProof.pub_signals[14]);
+
+      // Check if root changed during proof generation
+      const smtRootAfter = await (rarime as any).getSMTProof(passport);
+      console.log("[FreedomTool] SMT root AFTER proof:", smtRootAfter.root);
+      if (smtRootBefore.root !== smtRootAfter.root) {
+        console.warn("[FreedomTool] ⚠️ SMT root CHANGED during proof generation - race condition!");
+      } else {
+        console.log("[FreedomTool] ✅ SMT root stable");
+      }
+      // Check which pub_signal matches the SMT root (to find the right index)
+      queryProof.pub_signals.forEach((sig: string, idx: number) => {
+        if (sig && smtRootBefore.root && ('0x' + sig).toLowerCase() === smtRootBefore.root.toLowerCase()) {
+          console.log(`[FreedomTool] pub_signals[${idx}] matches SMT root`);
+        }
+      });
 
       const txCallData = await ft.buildProposalCallData(
         [selectedAnswer], proposalInfo, rarime, passport, queryProof, passportInfo
       );
       console.log("[FreedomTool] CallData built, length:", txCallData.length);
       console.log("[FreedomTool] Destination:", proposalInfo.sendVoteContractAddress);
+
+      // Call getPublicSignalsTD1 to see how the CONTRACT builds pub_signals
+      try {
+        const { createIDCardVotingContract } = await import('@rarimo/rarime-rn-sdk/build/helpers/contracts');
+        const { JsonRpcProvider: JRP } = await import('ethers');
+        const idCardVotingView = createIDCardVotingContract(
+          proposalInfo.sendVoteContractAddress, new JRP(FREEDOM_TOOL_CONFIG.api.votingRpcUrl)
+        );
+        // Build userPayload same way as SDK
+        const { AbiCoder: AC } = await import('ethers');
+        const abiC = new AC();
+        let identityCreationTimestamp = 0n;
+        if (passportInfo[1][1] > proposalInfo.criteria.timestampUpperbound) {
+          identityCreationTimestamp = (2n ** 64n - 1n) - 1n;
+        }
+        const userPayload = abiC.encode(
+          ["uint256", "uint256[]", "tuple(uint256,uint256,uint256)"],
+          [proposalInfo.id, [selectedAnswer].map((v: number) => 1 << Number(v)),
+           ["0x" + queryProof.pub_signals[0], "0x" + queryProof.pub_signals[6], identityCreationTimestamp]]
+        );
+        const contractPubSignals = await idCardVotingView.contractInstance.getPublicSignalsTD1(
+          smtRootBefore.root,
+          "0x" + queryProof.pub_signals[14],
+          userPayload
+        );
+        console.log("[Contract] getPublicSignalsTD1 returned", contractPubSignals.length, "signals");
+        // Compare each position with proof's pub_signals
+        contractPubSignals.forEach((sig: string, idx: number) => {
+          const proofSig = "0x" + queryProof.pub_signals[idx];
+          const match = sig.toLowerCase() === proofSig.toLowerCase() ? "✅" : "❌ MISMATCH";
+          if (sig.toLowerCase() !== proofSig.toLowerCase()) {
+            console.warn(`[Compare] [${idx}] ${match} contract=${sig} proof=${proofSig}`);
+          }
+        });
+        console.log("[Compare] Done (with citizenship=0) - mismatches shown above");
+
+        // Now test with FRA as citizenship to see if ALL positions match
+        const userPayloadFRA = abiC.encode(
+          ["uint256", "uint256[]", "tuple(uint256,uint256,uint256)"],
+          [proposalInfo.id, [selectedAnswer].map((v: number) => 1 << Number(v)),
+           ["0x" + queryProof.pub_signals[0], "0x" + queryProof.pub_signals[5], identityCreationTimestamp]]
+        );
+        const contractPubSignalsFRA = await idCardVotingView.contractInstance.getPublicSignalsTD1(
+          smtRootBefore.root,
+          "0x" + queryProof.pub_signals[14],
+          userPayloadFRA
+        );
+        console.log("[Contract] getPublicSignalsTD1 with FRA:");
+        let fraMatchCount = 0;
+        contractPubSignalsFRA.forEach((sig: string, idx: number) => {
+          const proofSig = "0x" + queryProof.pub_signals[idx];
+          if (sig.toLowerCase() !== proofSig.toLowerCase()) {
+            console.warn(`[CompareFRA] [${idx}] ❌ MISMATCH contract=${sig} proof=${proofSig}`);
+          } else {
+            fraMatchCount++;
+          }
+        });
+        console.log(`[CompareFRA] ${fraMatchCount}/24 match. If all 24 match → pass FRA as citizenship!`);
+      } catch (compareErr: any) {
+        console.error("[Compare] getPublicSignalsTD1 error:", compareErr.message);
+      }
+
+      // Simulate via eth_call to get exact revert reason
+      try {
+        const simResult = await fetch(FREEDOM_TOOL_CONFIG.api.votingRpcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", method: "eth_call",
+            params: [{ to: proposalInfo.sendVoteContractAddress, data: txCallData }, "latest"],
+            id: 1,
+          }),
+        });
+        const simJson = await simResult.json();
+        if (simJson.error) {
+          console.error("[eth_call] Revert data:", JSON.stringify(simJson.error));
+          const revertData = simJson.error?.data || simJson.error?.message || "";
+          console.error("[eth_call] Revert hex:", revertData);
+        } else {
+          console.log("[eth_call] Simulation OK (no revert):", simJson.result);
+        }
+      } catch (simErr) {
+        console.error("[eth_call] Simulation fetch error:", simErr);
+      }
+
       console.log("[FreedomTool] Sending to relayer...");
 
       // Send vote — capture full response on error

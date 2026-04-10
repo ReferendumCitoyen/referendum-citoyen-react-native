@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     newArchEnabled: true,
     splash: {
       image: './assets/images/splash.png',
-      resizeMode: 'contain',
+      resizeMode: 'cover',
       backgroundColor: '#ffffff'
     },
     ios: {

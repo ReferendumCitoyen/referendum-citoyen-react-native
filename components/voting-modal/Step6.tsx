@@ -77,6 +77,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   }, []);
 
   const handleAnalyzePress = async () => {
+    console.log('[Step6] handleAnalyzePress called, mrzData:', JSON.stringify(mrzData));
     if (!mrzData) {
       setScanStatus(t('voting.step6MissingMrz'));
       return;
@@ -87,11 +88,14 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       setIsScanning(true);
       setScanStatus(t('voting.step6Init'));
 
+      console.log('[Step6] Importing e-document module...');
       const eDocModule = await import('@/modules/e-document');
       const { scanDocument } = eDocModule;
+      console.log('[Step6] scanDocument imported, type:', typeof scanDocument);
 
       // Generate random challenge for Active Authentication
       const challenge = getRandomValues(new Uint8Array(32));
+      console.log('[Step6] Challenge generated, length:', challenge.length);
 
       // Small delay on Android to ensure NFC is ready
       if (Platform.OS === 'android') {
@@ -99,6 +103,12 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
 
       setScanStatus(t('voting.step6Now'));
+      console.log('[Step6] Starting scanDocument with:', {
+        type: 'I',
+        documentNumber: mrzData.documentNumber,
+        dateOfBirth: mrzData.birthDate,
+        dateOfExpiry: mrzData.expiryDate,
+      });
 
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
@@ -111,6 +121,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }, challenge);
 
       const result = await Promise.race([scanPromise, timeoutPromise]);
+      console.log('[Step6] Scan result received, keys:', Object.keys(result as any));
 
       setScanStatus(t('voting.step6ReadSuccess'));
       setIsScanning(false);
@@ -120,6 +131,9 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         setTimeout(() => { onNFCSuccess(result); }, 500);
       }
     } catch (error: any) {
+      console.error('[Step6] NFC scan error:', error);
+      console.error('[Step6] Error details:', JSON.stringify({ message: error.message, code: error.code, name: error.name, stack: error.stack?.substring(0, 300) }));
+
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
         setScanStatus(t('voting.step6InvalidMrz'));
         setIsScanning(false);
