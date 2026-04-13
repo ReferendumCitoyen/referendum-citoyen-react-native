@@ -137,6 +137,15 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
       >
         <Text style={styles.title}>{t('mrzManual.title')}</Text>
 
+        <Text style={{
+          fontFamily: Typography.fontFamily.medium,
+          fontSize: 14,
+          color: '#EF4444',
+          textAlign: 'center',
+        }}>
+          {t('mrzManual.idCardOnly')}
+        </Text>
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>{t('mrzManual.documentNumber')}</Text>
           <TextInput

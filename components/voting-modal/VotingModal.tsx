@@ -85,6 +85,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
   const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [selectedVote, setSelectedVote] = useState<number>(0);
+  const [voteTxHash, setVoteTxHash] = useState<string | null>(null);
 
   // Rarime / FreedomTool state
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
@@ -140,6 +141,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
       setCurrentStep(1);
       setVerificationResult(null);
       setVoteSubmissionResult(null);
+      setVoteTxHash(null);
       setMRZData(null);
       setNFCData(null);
       slideAnim.setValue(0);
@@ -250,7 +252,8 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
     handleStepChange(10);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVoteSubmissionSuccess = useCallback(() => {
+  const handleVoteSubmissionSuccess = useCallback((txHash: string) => {
+    setVoteTxHash(txHash);
     setVoteSubmissionResult("success");
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -456,6 +459,7 @@ const VotingModal: React.FC<VotingModalProps> = ({ isVisible, onClose, proposalI
             {voteSubmissionResult === "success" ? (
               <Step12Success
                 containerWidth={containerWidth}
+                voteIdentifier={voteTxHash ?? undefined}
                 onViewResults={onClose}
               />
             ) : voteSubmissionResult === "error" ? (

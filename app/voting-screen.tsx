@@ -80,6 +80,7 @@ export default function VotingScreen() {
   const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [selectedVote, setSelectedVote] = useState<number>(0);
+  const [voteTxHash, setVoteTxHash] = useState<string | null>(null);
 
   // Rarime / FreedomTool state
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
@@ -259,8 +260,9 @@ export default function VotingScreen() {
     handleStepChange(10);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVoteSubmissionSuccess = useCallback(() => {
+  const handleVoteSubmissionSuccess = useCallback((txHash: string) => {
     console.log("[VotingScreen] Vote submission SUCCESS → Step 12");
+    setVoteTxHash(txHash);
     setVoteSubmissionResult("success");
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -449,6 +451,7 @@ export default function VotingScreen() {
             {voteSubmissionResult === "success" ? (
               <Step12Success
                 containerWidth={containerWidth}
+                voteIdentifier={voteTxHash ?? undefined}
                 onViewResults={onClose}
               />
             ) : voteSubmissionResult === "error" ? (
