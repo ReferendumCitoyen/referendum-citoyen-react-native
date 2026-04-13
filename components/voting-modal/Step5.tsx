@@ -29,7 +29,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
-  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success'>('idle');
+  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected'>('idle');
+  const passportDetectCount = useRef(0);
   const mrzHistoryRef = useRef<string[][]>([]);
 
   // Reset when step becomes active
@@ -38,6 +39,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       setHasScanned(false);
       setScanProgress('idle');
       mrzHistoryRef.current = [];
+      passportDetectCount.current = 0;
     }
   }, [isActive]);
 
@@ -139,6 +141,18 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       const mrzLikeCount = mrzLikeLines.length;
       console.log(`[Step5 OCR] ${lines.length} lines, ${mrzLikeCount} MRZ-like:`);
       mrzLikeLines.forEach((l, i) => console.log(`  MRZ[${i}]: "${l}"`));
+
+      // Detect passport MRZ: 2 lines, first starts with P
+      if (mrzLikeCount === 2) {
+        const firstLine = mrzLikeLines[0].replaceAll(' ', '').toUpperCase();
+        if (firstLine.startsWith('P')) {
+          passportDetectCount.current++;
+          if (passportDetectCount.current >= 3) {
+            setScanProgress('passport_detected');
+          }
+          return;
+        }
+      }
 
       if (mrzLikeCount > 0 && mrzLikeCount < 3) {
         setScanProgress('partial');
@@ -276,10 +290,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             <View style={{
               width: '88%',
               aspectRatio: 1.586,
-              borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' ? 3 : 2,
-              borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
+              borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || scanProgress === 'passport_detected' ? 3 : 2,
+              borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'passport_detected' ? '#EF4444' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
               borderRadius: 12,
-              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : 'rgba(0,0,0,0.25)',
+              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : scanProgress === 'passport_detected' ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.25)',
               justifyContent: 'space-between',
               padding: 12,
             }}>
@@ -314,6 +328,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               {scanProgress === 'scanning' && t('voting.step5Scanning')}
               {scanProgress === 'partial' && t('voting.step5Partial')}
               {scanProgress === 'success' && t('voting.step5Success')}
+              {scanProgress === 'passport_detected' && t('voting.step5PassportDetected')}
             </Text>
           </View>
         </View>

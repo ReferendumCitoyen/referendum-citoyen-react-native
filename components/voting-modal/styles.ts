@@ -288,8 +288,6 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     marginHorizontal: 24,
     marginBottom: 16,
     backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: 8,
     alignItems: 'center',
     width: 'auto',

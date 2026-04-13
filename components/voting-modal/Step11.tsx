@@ -11,7 +11,7 @@ import { Buffer } from 'buffer';
 interface Step11Props {
   containerWidth: number;
   isActive?: boolean;
-  onSuccess?: () => void;
+  onSuccess?: (txHash: string) => void;
   onError?: (reason?: string) => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   freedomTool?: FreedomTool;
@@ -108,7 +108,7 @@ const Step11: React.FC<Step11Props> = ({
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
         hasCalledCallback.current = true;
         setStatusText(t('voting.step11VoteSubmitted'));
-        onSuccess?.();
+        onSuccess?.(txHash);
       } catch (err: any) {
         console.error('[FreedomTool] Step11: Vote error:', err);
         console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));

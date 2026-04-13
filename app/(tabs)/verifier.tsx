@@ -1,14 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, Text, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Linking } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Linking, TextInput, Keyboard } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
 import { useColors, Typography, Spacing } from '@/constants/theme';
-import { FREEDOM_TOOL_CONFIG, RARIME_TESTNET_CONFIG, PRIVATE_KEY_STORAGE_KEY } from '@/constants/rarime-config';
-import * as SecureStore from 'expo-secure-store';
+import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
 import SettingsButton from '@/components/SettingsButton';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 
-const EXPLORER_BASE = 'https://scan.qtestnet.org/address/';
+const EXPLORER_BASE = 'https://scan.qtestnet.org/tx/';
 
 const ShieldCheckIcon = ({ color, size = 20 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -41,15 +39,21 @@ const computeTotal = (votingResults: bigint[][], variantCount: number): number =
   return Number(votingResults[0].slice(0, variantCount).reduce((s, v) => s + v, 0n));
 };
 
+interface LookupResult {
+  proposal: ProposalInfo;
+  votedFor: string;
+  answerIndex: number;
+  txHash: string;
+}
+
 export default function VerifierScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
-  const [proposals, setProposals] = useState<ProposalInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [voteStatus, setVoteStatus] = useState<Record<string, 'checking' | 'voted' | 'not_voted' | 'error'>>({});
+  const [txHashInput, setTxHashInput] = useState('');
+  const [txLookupStatus, setTxLookupStatus] = useState<'idle' | 'loading' | 'success' | 'not_found' | 'error'>('idle');
+  const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
+
   const ftRef = useRef<any>(null);
-  const rarimeRef = useRef<any>(null);
 
   const getFreedomTool = useCallback(async () => {
     if (!ftRef.current) {
@@ -59,209 +63,187 @@ export default function VerifierScreen() {
     return ftRef.current;
   }, []);
 
-  const getRarime = useCallback(async () => {
-    if (!rarimeRef.current) {
-      const { Rarime, RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
-      let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
-      if (!storedKey) {
-        storedKey = RarimeUtils.generateBJJPrivateKey();
-        await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
-      }
-      rarimeRef.current = new Rarime({
-        ...RARIME_TESTNET_CONFIG,
-        userConfiguration: { userPrivateKey: storedKey },
-      });
-    }
-    return rarimeRef.current;
-  }, []);
-
-  const checkVote = useCallback(async (proposal: ProposalInfo) => {
-    setVoteStatus(prev => ({ ...prev, [proposal.id]: 'checking' }));
+  const lookupVoteTx = useCallback(async () => {
+    const hash = txHashInput.trim();
+    if (!hash) return;
+    Keyboard.dismiss();
+    setTxLookupStatus('loading');
+    setLookupResult(null);
     try {
-      const ft = await getFreedomTool();
-      const rarime = await getRarime();
-      const voted = await ft.isAlreadyVoted(proposal, rarime);
-      setVoteStatus(prev => ({ ...prev, [proposal.id]: voted ? 'voted' : 'not_voted' }));
-    } catch (err) {
-      console.error('[Vérifier] Check vote error:', err);
-      setVoteStatus(prev => ({ ...prev, [proposal.id]: 'error' }));
-    }
-  }, [getFreedomTool, getRarime]);
-
-  const fetchProposals = useCallback(async (refresh = false) => {
-    try {
-      if (refresh) setIsRefreshing(true);
-
-      const { JsonRpcProvider, Contract } = await import('ethers');
+      const { JsonRpcProvider, AbiCoder } = await import('ethers');
       const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
-      const contract = new Contract(
-        FREEDOM_TOOL_CONFIG.contracts.proposalStateAddress,
-        ['function lastProposalId() view returns (uint256)'],
-        provider
+      const tx = await provider.getTransaction(hash);
+      if (!tx) {
+        setTxLookupStatus('not_found');
+        return;
+      }
+
+      // Decode executeTD1Noir(bytes32, uint256, bytes, bytes)
+      const abiCoder = AbiCoder.defaultAbiCoder();
+      const decoded = abiCoder.decode(
+        ['bytes32', 'uint256', 'bytes', 'bytes'],
+        '0x' + tx.data.slice(10)
       );
-      const lastId = Number(await contract.lastProposalId());
+
+      // Decode userPayload: (uint256 proposalId, uint256[] votes, (uint256,uint256,uint256))
+      const payloadDecoded = abiCoder.decode(
+        ['uint256', 'uint256[]', 'tuple(uint256,uint256,uint256)'],
+        decoded[2]
+      );
+      const proposalId = payloadDecoded[0].toString();
+      const votesMask = payloadDecoded[1];
+      const answerIndex = Math.log2(Number(votesMask[0]));
+
+      // Look up proposal to get full info
       const ft = await getFreedomTool();
+      const proposal = await ft.getProposalInfo(proposalId);
+      const variants = proposal.questions[0]?.variants ?? [];
+      const votedFor = variants[answerIndex] ?? `Option ${answerIndex + 1}`;
 
-      const ids = Array.from({ length: Math.min(lastId, 3) }, (_, i) => lastId - i).filter(id => id >= 1);
-      const results = await Promise.allSettled(ids.map(id => ft.getProposalInfo(String(id))));
-      const loaded = results
-        .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
-        .map(r => r.value)
-        .sort((a, b) => Number(b.id) - Number(a.id));
-
-      setProposals(loaded);
+      setLookupResult({ proposal, votedFor, answerIndex, txHash: hash });
+      setTxLookupStatus('success');
     } catch (err) {
-      console.error('[Vérifier] Failed to load proposals:', err);
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      console.error('[Vérifier] TX lookup error:', err);
+      setTxLookupStatus('error');
     }
-  }, [getFreedomTool]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchProposals();
-    }, [fetchProposals])
-  );
-
-  const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
-
-  const renderItem = useCallback(({ item: p }: { item: ProposalInfo }) => {
-    const active = isActive(p);
-    const variants = p.questions[0]?.variants ?? [];
-    const total = computeTotal(p.votingResults, variants.length);
-    const contractAddress = p.sendVoteContractAddress;
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.badge, active && styles.badgeActive]}>
-            <Text style={styles.badgeText}>{active ? 'En cours' : 'Terminé'}</Text>
-          </View>
-          <View style={styles.verifiedBadge}>
-            <ShieldCheckIcon color="#22C55E" size={16} />
-            <Text style={styles.verifiedText}>On-chain</Text>
-          </View>
-        </View>
-
-        <Text style={styles.cardTitle} numberOfLines={2}>{p.title}</Text>
-
-        <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Votes enregistrés</Text>
-            <Text style={styles.statValue}>{total.toLocaleString()}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Options</Text>
-            <Text style={styles.statValue}>{variants.length}</Text>
-          </View>
-        </View>
-
-        {variants.length > 0 && (
-          <View style={styles.variantsContainer}>
-            {variants.map((v, idx) => {
-              const count = p.votingResults?.[0]?.[idx] ? Number(p.votingResults[0][idx]) : 0;
-              const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
-              return (
-                <View key={idx} style={styles.variantRow}>
-                  <Text style={styles.variantName} numberOfLines={1}>{v}</Text>
-                  <Text style={styles.variantCount}>{count.toLocaleString()} ({pct}%)</Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {contractAddress && (
-          <TouchableOpacity
-            style={styles.explorerLink}
-            activeOpacity={0.7}
-            onPress={() => Linking.openURL(`${EXPLORER_BASE}${contractAddress}`)}
-          >
-            <Text style={styles.explorerText}>Voir sur la blockchain</Text>
-            <ExternalLinkIcon color={colors.secondary} size={14} />
-          </TouchableOpacity>
-        )}
-
-        {(() => {
-          const status = voteStatus[p.id];
-          if (status === 'checking') {
-            return (
-              <View style={styles.checkingRow}>
-                <ActivityIndicator size="small" color={colors.secondary} />
-                <Text style={styles.checkingText}>Vérification...</Text>
-              </View>
-            );
-          }
-          if (status === 'voted') {
-            return (
-              <View style={styles.resultRow}>
-                <ShieldCheckIcon color="#22C55E" size={20} />
-                <Text style={[styles.resultText, { color: '#22C55E' }]}>Votre vote a été enregistré</Text>
-              </View>
-            );
-          }
-          if (status === 'not_voted') {
-            return (
-              <View style={styles.resultRow}>
-                <Text style={[styles.resultText, { color: colors.text, opacity: 0.5 }]}>Aucun vote trouvé pour cet appareil</Text>
-              </View>
-            );
-          }
-          if (status === 'error') {
-            return (
-              <TouchableOpacity style={styles.verifyButton} activeOpacity={0.8} onPress={() => checkVote(p)}>
-                <Text style={styles.verifyButtonText}>Réessayer</Text>
-              </TouchableOpacity>
-            );
-          }
-          return (
-            <TouchableOpacity style={styles.verifyButton} activeOpacity={0.8} onPress={() => checkVote(p)}>
-              <Text style={styles.verifyButtonText}>Vérifier mon vote</Text>
-            </TouchableOpacity>
-          );
-        })()}
-      </View>
-    );
-  }, [styles, colors, voteStatus, checkVote]);
-
-  const renderHeader = useCallback(() => (
-    <View style={styles.headerSection}>
-      <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Vérifier</Text>
-        <SettingsButton />
-      </View>
-      <Text style={styles.headerDescription}>
-        Chaque vote est enregistré sur la blockchain et vérifiable publiquement. Aucun serveur central ne peut modifier les résultats.
-      </Text>
-    </View>
-  ), [styles]);
-
-  if (isLoading) {
-    return (
-      <View style={styles.screenContainer}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
-        </View>
-      </View>
-    );
-  }
+  }, [txHashInput, getFreedomTool]);
 
   return (
     <View style={styles.screenContainer}>
-      <FlatList
-        data={proposals}
-        keyExtractor={(p) => p.id}
-        renderItem={renderItem}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={styles.contentContainer}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.secondary} />
-        }
-        ListFooterComponent={<View style={styles.tabBarSpacer} />}
-      />
+      <ScrollView contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>Vérifier</Text>
+            <SettingsButton />
+          </View>
+          <Text style={styles.headerDescription}>
+            Chaque vote est enregistré sur la blockchain et vérifiable publiquement. Aucun serveur central ne peut modifier les résultats.
+          </Text>
+        </View>
+
+        {/* Search */}
+        <View style={styles.lookupCard}>
+          <Text style={styles.lookupLabel}>Rechercher un vote par numéro de série</Text>
+          <View style={styles.lookupInputRow}>
+            <TextInput
+              style={styles.lookupInput}
+              value={txHashInput}
+              onChangeText={(text) => {
+                setTxHashInput(text);
+                if (txLookupStatus !== 'idle') {
+                  setTxLookupStatus('idle');
+                  setLookupResult(null);
+                }
+              }}
+              placeholder="0x..."
+              placeholderTextColor="#999"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[styles.lookupButton, !txHashInput.trim() && { opacity: 0.5 }]}
+              activeOpacity={0.8}
+              onPress={lookupVoteTx}
+              disabled={!txHashInput.trim() || txLookupStatus === 'loading'}
+            >
+              {txLookupStatus === 'loading' ? (
+                <ActivityIndicator size="small" color={colors.buttonText} />
+              ) : (
+                <Text style={styles.lookupButtonText}>Vérifier</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {txLookupStatus === 'not_found' && (
+            <Text style={styles.lookupResultError}>Numéro de série introuvable. Vérifiez et réessayez.</Text>
+          )}
+
+          {txLookupStatus === 'error' && (
+            <Text style={styles.lookupResultError}>Erreur lors de la vérification. Réessayez.</Text>
+          )}
+        </View>
+
+        {/* Result card */}
+        {txLookupStatus === 'success' && lookupResult && (() => {
+          const { proposal: p, votedFor, answerIndex, txHash } = lookupResult;
+          const active = isActive(p);
+          const variants = p.questions[0]?.variants ?? [];
+          const total = computeTotal(p.votingResults, variants.length);
+
+          return (
+            <View style={styles.resultCard}>
+              {/* Vote confirmation */}
+              <View style={styles.voteConfirmation}>
+                <ShieldCheckIcon color="#22C55E" size={24} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.voteConfirmationTitle}>Vote vérifié</Text>
+                  <Text style={styles.voteConfirmationAnswer}>Ce vote a choisi : {votedFor}</Text>
+                </View>
+              </View>
+
+              {/* Poll info */}
+              <View style={styles.pollSection}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.badge, active && styles.badgeActive]}>
+                    <Text style={styles.badgeText}>{active ? 'En cours' : 'Terminé'}</Text>
+                  </View>
+                  <Text style={styles.pollId}>#{p.id}</Text>
+                </View>
+
+                <Text style={styles.pollTitle}>{p.title}</Text>
+
+                {p.description ? (
+                  <Text style={styles.pollDescription}>{p.description}</Text>
+                ) : null}
+
+                <View style={styles.statsRow}>
+                  <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Votes enregistrés</Text>
+                    <Text style={styles.statValue}>{total.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Options</Text>
+                    <Text style={styles.statValue}>{variants.length}</Text>
+                  </View>
+                </View>
+
+                {/* Results breakdown */}
+                {variants.length > 0 && (
+                  <View style={styles.variantsContainer}>
+                    {variants.map((v: string, idx: number) => {
+                      const count = p.votingResults?.[0]?.[idx] ? Number(p.votingResults[0][idx]) : 0;
+                      const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+                      const isThisVote = idx === answerIndex;
+                      return (
+                        <View key={idx} style={[styles.variantRow, isThisVote && styles.variantRowHighlight]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
+                            {isThisVote && <ShieldCheckIcon color="#22C55E" size={14} />}
+                            <Text style={[styles.variantName, isThisVote && styles.variantNameHighlight]} numberOfLines={1}>{v}</Text>
+                          </View>
+                          <Text style={[styles.variantCount, isThisVote && styles.variantCountHighlight]}>{count.toLocaleString()} ({pct}%)</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Blockchain link */}
+                <TouchableOpacity
+                  style={styles.explorerLink}
+                  activeOpacity={0.7}
+                  onPress={() => Linking.openURL(`${EXPLORER_BASE}${txHash}`)}
+                >
+                  <Text style={styles.explorerText}>Voir la transaction sur la blockchain</Text>
+                  <ExternalLinkIcon color={colors.secondary} size={14} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })()}
+
+        <View style={styles.tabBarSpacer} />
+      </ScrollView>
     </View>
   );
 }
@@ -301,21 +283,73 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     color: colors.text,
     opacity: 0.6,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.body,
-    color: colors.text,
-    opacity: 0.6,
-  },
-  card: {
+  lookupCard: {
     backgroundColor: colors.cardBackground,
     padding: Spacing.voteCard.padding,
+    gap: 12,
+  },
+  lookupLabel: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    color: colors.text,
+  },
+  lookupInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  lookupInput: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: Typography.fontFamily.mono,
+    fontSize: 13,
+    color: colors.text,
+  },
+  lookupButton: {
+    backgroundColor: colors.secondary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lookupButtonText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: colors.buttonText,
+  },
+  lookupResultError: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.body,
+    color: '#EF4444',
+  },
+  resultCard: {
+    backgroundColor: colors.cardBackground,
+    padding: Spacing.voteCard.padding,
+    gap: 16,
+  },
+  voteConfirmation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F0FFF4',
+    borderRadius: 12,
+    padding: 16,
+  },
+  voteConfirmationTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: '#22C55E',
+  },
+  voteConfirmationAnswer: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.body,
+    color: colors.text,
+    marginTop: 2,
+  },
+  pollSection: {
     gap: 12,
   },
   cardHeader: {
@@ -338,22 +372,25 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     lineHeight: Typography.lineHeight.body,
     color: colors.text,
   },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  verifiedText: {
-    fontFamily: Typography.fontFamily.medium,
+  pollId: {
+    fontFamily: Typography.fontFamily.mono,
     fontSize: Typography.fontSize.small,
-    color: '#22C55E',
+    color: colors.text,
+    opacity: 0.5,
   },
-  cardTitle: {
+  pollTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
     color: colors.text,
+  },
+  pollDescription: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    color: colors.text,
+    opacity: 0.7,
   },
   statsRow: {
     flexDirection: 'row',
@@ -384,6 +421,12 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+  },
+  variantRowHighlight: {
+    backgroundColor: '#F0FFF4',
   },
   variantName: {
     flex: 1,
@@ -392,11 +435,18 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     lineHeight: Typography.lineHeight.body,
     color: colors.text,
   },
+  variantNameHighlight: {
+    fontFamily: Typography.fontFamily.bold,
+    color: '#22C55E',
+  },
   variantCount: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     color: colors.text,
+  },
+  variantCountHighlight: {
+    color: '#22C55E',
   },
   explorerLink: {
     flexDirection: 'row',
@@ -409,41 +459,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     fontSize: Typography.fontSize.body,
     lineHeight: Typography.lineHeight.body,
     color: colors.secondary,
-  },
-  verifyButton: {
-    paddingVertical: 12,
-    backgroundColor: colors.secondary,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  verifyButtonText: {
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: Typography.fontSize.button,
-    lineHeight: Typography.lineHeight.button,
-    color: colors.buttonText,
-  },
-  checkingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  checkingText: {
-    fontFamily: Typography.fontFamily.medium,
-    fontSize: Typography.fontSize.body,
-    color: colors.text,
-    opacity: 0.6,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-  },
-  resultText: {
-    fontFamily: Typography.fontFamily.semibold,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,
