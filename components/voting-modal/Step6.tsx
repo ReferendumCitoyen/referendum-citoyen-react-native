@@ -29,6 +29,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
   const [showRetry, setShowRetry] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   // Listen to EDocument scan events
   useEffect(() => {
@@ -132,7 +133,9 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
     } catch (error: any) {
       console.error('[Step6] NFC scan error:', error);
-      console.error('[Step6] Error details:', JSON.stringify({ message: error.message, code: error.code, name: error.name, stack: error.stack?.substring(0, 300) }));
+      const errorDetails = JSON.stringify({ message: error.message, code: error.code, name: error.name, stack: error.stack?.substring(0, 300) });
+      console.error('[Step6] Error details:', errorDetails);
+      setDebugError(`${error.name || 'Error'}: ${error.message || 'unknown'}\n\nCode: ${error.code || 'none'}\n\nStack: ${error.stack?.substring(0, 200) || 'none'}`);
 
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
         setScanStatus(t('voting.step6InvalidMrz'));
@@ -197,11 +200,29 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           </Text>
         )}
 
+        {debugError && (
+          <View style={{
+            backgroundColor: '#FEF2F2',
+            borderRadius: 8,
+            padding: 10,
+            marginHorizontal: 16,
+            marginBottom: 8,
+          }}>
+            <Text selectable style={{
+              fontFamily: 'SpaceMono',
+              fontSize: 10,
+              color: '#991B1B',
+            }}>
+              {debugError}
+            </Text>
+          </View>
+        )}
+
         <View style={stepSpecificStyles.step6ButtonContainer}>
           <TouchableOpacity
             style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={() => { setShowRetry(false); handleAnalyzePress(); }}
+            onPress={() => { setShowRetry(false); setDebugError(null); handleAnalyzePress(); }}
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>
