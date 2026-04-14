@@ -78,7 +78,13 @@ export function formatRpcError(err: unknown): string {
     if (msg.includes("already voted")) {
       return "Vous avez déjà voté pour cette proposition.";
     }
-    return err.message;
+    if (msg.includes("403") || msg.includes("forbidden")) {
+      return "Accès refusé par le serveur. Réessayez plus tard.";
+    }
+    if (msg.includes("revert") || msg.includes("invalid_proof")) {
+      return "La vérification a échoué. Veuillez rescanner votre carte et réessayer.";
+    }
+    return "Une erreur est survenue. Veuillez réessayer.";
   }
-  return "Une erreur inattendue est survenue.";
+  return "Une erreur inattendue est survenue. Veuillez réessayer.";
 }

@@ -234,7 +234,12 @@ export default function AccueilScreen() {
       } catch {}
     } catch (err) {
       console.error('[Accueil] Failed to load proposals:', err);
-      setLoadError((err as Error).message);
+      const msg = (err as Error).message?.toLowerCase() || '';
+      if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
+        setLoadError('Erreur réseau — vérifiez votre connexion et tirez vers le bas pour réessayer.');
+      } else {
+        setLoadError('Impossible de charger les propositions. Tirez vers le bas pour réessayer.');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -310,7 +315,7 @@ export default function AccueilScreen() {
 
       {loadError && (
         <Text style={[styles.voteListItemText, { color: '#EF4444', paddingVertical: 12 }]}>
-          {t('home.error', { message: loadError })}
+          {loadError}
         </Text>
       )}
 
