@@ -135,7 +135,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       console.error('[Step6] NFC scan error:', error);
       const errorDetails = JSON.stringify({ message: error.message, code: error.code, name: error.name, stack: error.stack?.substring(0, 300) });
       console.error('[Step6] Error details:', errorDetails);
-      setDebugError(`${error.name || 'Error'}: ${error.message || 'unknown'}\n\nCode: ${error.code || 'none'}\n\nStack: ${error.stack?.substring(0, 200) || 'none'}`);
+      setDebugError(`${error.name || 'Error'}: ${error.message || 'unknown'}\n\nCode: ${error.code || 'none'}\n\nInfo: ${JSON.stringify(error.userInfo || error.nativeError || {})}\n\nStack: ${error.stack?.substring(0, 200) || 'none'}`);
 
       if (error.message === 'InvalidMRZKey' || error.code === 'InvalidMRZKey') {
         setScanStatus(t('voting.step6InvalidMrz'));
