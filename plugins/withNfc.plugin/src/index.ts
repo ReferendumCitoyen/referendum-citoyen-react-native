@@ -124,8 +124,7 @@ function withIosNfcSelectIdentifiers(
     'A00000045645444C2D3031',
   ]
 
-  // Add to Info.plist
-  c = withInfoPlist(c, config => {
+  return withInfoPlist(c, config => {
     config.modResults = addValuesToArray(
       config.modResults,
       'com.apple.developer.nfc.readersession.iso7816.select-identifiers',
@@ -133,18 +132,6 @@ function withIosNfcSelectIdentifiers(
     )
     return config
   })
-
-  // Add to entitlements (required for TestFlight/production builds)
-  c = withEntitlementsPlist(c, config => {
-    config.modResults = addValuesToArray(
-      config.modResults,
-      'com.apple.developer.nfc.readersession.iso7816.select-identifiers',
-      ids,
-    )
-    return config
-  })
-
-  return c
 }
 
 function withIosNfcSystemCodes(
