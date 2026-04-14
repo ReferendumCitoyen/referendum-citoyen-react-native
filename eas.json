@@ -46,9 +46,6 @@
     "testflight": {
       "autoIncrement": true,
       "distribution": "store",
-      "env": {
-        "EXPO_NO_CAPABILITY_SYNC": "1"
-      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2",
@@ -58,9 +55,6 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store",
-      "env": {
-        "EXPO_NO_CAPABILITY_SYNC": "1"
-      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2",
         "cocoapods": "1.15.2",
