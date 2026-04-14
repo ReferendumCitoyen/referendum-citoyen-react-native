@@ -44,6 +44,7 @@ interface LookupResult {
   votedFor: string;
   answerIndex: number;
   txHash: string;
+  voteDate: string | null;
 }
 
 export default function VerifierScreen() {
@@ -94,13 +95,27 @@ export default function VerifierScreen() {
       const votesMask = payloadDecoded[1];
       const answerIndex = Math.log2(Number(votesMask[0]));
 
+      // Get block timestamp
+      let voteDate: string | null = null;
+      const receipt = await provider.getTransactionReceipt(hash);
+      if (receipt?.blockNumber) {
+        const block = await provider.getBlock(receipt.blockNumber);
+        if (block?.timestamp) {
+          voteDate = new Date(block.timestamp * 1000).toLocaleString('fr-FR', {
+            dateStyle: 'long',
+            timeStyle: 'short',
+            timeZone: 'Europe/Paris',
+          });
+        }
+      }
+
       // Look up proposal to get full info
       const ft = await getFreedomTool();
       const proposal = await ft.getProposalInfo(proposalId);
       const variants = proposal.questions[0]?.variants ?? [];
       const votedFor = variants[answerIndex] ?? `Option ${answerIndex + 1}`;
 
-      setLookupResult({ proposal, votedFor, answerIndex, txHash: hash });
+      setLookupResult({ proposal, votedFor, answerIndex, txHash: hash, voteDate });
       setTxLookupStatus('success');
     } catch (err) {
       console.error('[Vérifier] TX lookup error:', err);
@@ -166,7 +181,7 @@ export default function VerifierScreen() {
 
         {/* Result card */}
         {txLookupStatus === 'success' && lookupResult && (() => {
-          const { proposal: p, votedFor, answerIndex, txHash } = lookupResult;
+          const { proposal: p, votedFor, answerIndex, txHash, voteDate } = lookupResult;
           const active = isActive(p);
           const variants = p.questions[0]?.variants ?? [];
           const total = computeTotal(p.votingResults, variants.length);
@@ -179,6 +194,7 @@ export default function VerifierScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.voteConfirmationTitle}>Vote vérifié</Text>
                   <Text style={styles.voteConfirmationAnswer}>Ce vote a choisi : {votedFor}</Text>
+                  {voteDate && <Text style={styles.voteConfirmationDate}>Enregistré le {voteDate}</Text>}
                 </View>
               </View>
 
@@ -347,6 +363,13 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.body,
     color: colors.text,
+    marginTop: 2,
+  },
+  voteConfirmationDate: {
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    color: colors.text,
+    opacity: 0.6,
     marginTop: 2,
   },
   pollSection: {

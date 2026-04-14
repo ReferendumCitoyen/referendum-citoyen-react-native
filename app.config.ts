@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: 'referendum-citoyen',
+    name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
     version: '1.1',
     orientation: 'portrait',

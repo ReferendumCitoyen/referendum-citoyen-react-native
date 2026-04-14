@@ -84,55 +84,67 @@ function withIosNfcSelectIdentifiers(
     selectIdentifiers?: string[]
   },
 ) {
-  return withInfoPlist(c, config => {
-    // Add the user defined identifiers
+  const ids = selectIdentifiers || [
+    // AIDs
+    'A000000018434D00',
+    'A0000000180C000001634200',
+    '5041524449532C4D41544952414E20',
+    // DFs / EFs
+    '3F00',
+    '5100',
+    '5040',
+    '5000',
+    '0303',
+
+    // react-native-nfc-manager
+    'D2760000850100',
+    'D2760000850101',
+
+    // inid ca
+    'A000000018434D00',
+    '80CA9F7F2D',
+    '00A40000023F00',
+    '00A40000025100',
+    '00A4020C025040',
+    '00A4000C023F00',
+    '00A4000C025100',
+    'A0000000180C000001634200',
+    '00A40000025000',
+    '00A4000C025000',
+    '00A4020C020303',
+
+    // e-doc
+    'A0000002471001',
+    'A0000002472001',
+    'E80704007F00070302',
+    'A000000167455349474E',
+    'A0000002480100',
+    'A0000002480200',
+    'A0000002480300',
+    'A00000045645444C2D3031',
+  ]
+
+  // Add to Info.plist
+  c = withInfoPlist(c, config => {
     config.modResults = addValuesToArray(
       config.modResults,
-      // https://developer.apple.com/documentation/bundleresources/information_property_list/select-identifiers
       'com.apple.developer.nfc.readersession.iso7816.select-identifiers',
-      selectIdentifiers || [
-        // AIDs
-        'A000000018434D00',
-        'A0000000180C000001634200',
-        '5041524449532C4D41544952414E20',
-        // DFs / EFs
-        '3F00',
-        '5100',
-        '5040',
-        '5000',
-        '0303',
-
-        // react-native-nfc-manager
-        'D2760000850100',
-        'D2760000850101',
-
-        // inid ca
-        'A000000018434D00',
-        '80CA9F7F2D',
-        '00A40000023F00',
-        '00A40000025100',
-        '00A4020C025040',
-        '00A4000C023F00',
-        '00A4000C025100',
-        'A0000000180C000001634200',
-        '00A40000025000',
-        '00A4000C025000',
-        '00A4020C020303',
-
-        // e-doc
-        'A0000002471001',
-        'A0000002472001',
-        'E80704007F00070302',
-        'A000000167455349474E',
-        'A0000002480100',
-        'A0000002480200',
-        'A0000002480300',
-        'A00000045645444C2D3031',
-      ],
+      ids,
     )
-
     return config
   })
+
+  // Add to entitlements (required for TestFlight/production builds)
+  c = withEntitlementsPlist(c, config => {
+    config.modResults = addValuesToArray(
+      config.modResults,
+      'com.apple.developer.nfc.readersession.iso7816.select-identifiers',
+      ids,
+    )
+    return config
+  })
+
+  return c
 }
 
 function withIosNfcSystemCodes(
