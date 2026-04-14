@@ -81,6 +81,7 @@ export default function VotingScreen() {
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [selectedVote, setSelectedVote] = useState<number>(0);
   const [voteTxHash, setVoteTxHash] = useState<string | null>(null);
+  const [voteErrorReason, setVoteErrorReason] = useState<string | null>(null);
 
   // Rarime / FreedomTool state
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
@@ -273,8 +274,9 @@ export default function VotingScreen() {
     }).start();
   }, [slideAnim, containerWidth]);
 
-  const handleVoteSubmissionError = useCallback(() => {
+  const handleVoteSubmissionError = useCallback((reason?: string) => {
     console.log("[VotingScreen] Vote submission ERROR → Step 12");
+    setVoteErrorReason(reason || null);
     setVoteSubmissionResult("error");
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -457,6 +459,7 @@ export default function VotingScreen() {
             ) : voteSubmissionResult === "error" ? (
               <Step12Error
                 containerWidth={containerWidth}
+                errorReason={voteErrorReason}
                 onGoHome={onClose}
               />
             ) : (
