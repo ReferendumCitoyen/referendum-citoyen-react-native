@@ -80,17 +80,10 @@ function withIosNfcSelectIdentifiers(c, { selectIdentifiers, }) {
         'A0000002480300',
         'A00000045645444C2D3031',
     ];
-    // Add to Info.plist
-    c = (0, config_plugins_2.withInfoPlist)(c, config => {
+    return (0, config_plugins_2.withInfoPlist)(c, config => {
         config.modResults = addValuesToArray(config.modResults, 'com.apple.developer.nfc.readersession.iso7816.select-identifiers', ids);
         return config;
     });
-    // Add to entitlements (required for TestFlight/production builds)
-    c = (0, config_plugins_2.withEntitlementsPlist)(c, config => {
-        config.modResults = addValuesToArray(config.modResults, 'com.apple.developer.nfc.readersession.iso7816.select-identifiers', ids);
-        return config;
-    });
-    return c;
 }
 function withIosNfcSystemCodes(c, { systemCodes, }) {
     return (0, config_plugins_2.withInfoPlist)(c, config => {
