@@ -567,7 +567,8 @@ export default function FrenchIDTestScreen() {
       setError(null);
     } catch (ex: any) {
       console.warn("EDocument error:", ex);
-      setError(ex?.message || "Erreur inconnue");
+      const debugInfo = `${ex?.name || 'Error'}: ${ex?.message || 'unknown'}\nCode: ${ex?.code || 'none'}\nInfo: ${JSON.stringify(ex?.userInfo || ex?.nativeError || {})}\nStack: ${ex?.stack?.substring(0, 300) || 'none'}`;
+      setError(debugInfo);
       setScanStatus("");
     } finally {
       setIsScanning(false);
