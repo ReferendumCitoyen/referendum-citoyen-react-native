@@ -39,6 +39,7 @@
     "darkMode": "Mode sombre",
     "privacyPolicy": "Politique de confidentialité",
     "termsAndConditions": "Conditions générales",
+    "contact": "Nous contacter",
     "nfcTest": "Test NFC",
     "version": "Version {{version}} ({{build}})"
   },
