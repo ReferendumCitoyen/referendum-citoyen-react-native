@@ -136,9 +136,10 @@ public class EDocumentModule: Module {
 
                 return String(data: passportJsonBytes, encoding: .utf8)!
             } catch {
-                debugLog("[ERROR] \(error.localizedDescription)")
+                let errorMsg = "\(type(of: error)): \(error.localizedDescription)"
+                debugLog("[ERROR] \(errorMsg)")
                 self.sendEvent(DocumentScanEvents.scanError.rawValue)
-                throw DocumentScannerError(error.localizedDescription)
+                throw DocumentScannerError(errorMsg)
             }
         }
 
