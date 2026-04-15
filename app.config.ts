@@ -114,7 +114,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
               {
                 name: 'NFCPassportReader',
                 git: 'https://github.com/eklchan/NFCPassportReader.git',
-                commit: '69368850d7b151ca507e70225b7c3f0f0221587d'
+                commit: 'e177ec1'
               }
             ]
           }
