@@ -161,7 +161,8 @@ export async function scanDocument(
         "Assurez-vous que :\n" +
         "• Le NFC est activé sur votre téléphone\n" +
         "• Vous maintenez le document contre le téléphone pendant toute la lecture\n" +
-        "• Le document est bien positionné sur le lecteur NFC"
+        "• Le document est bien positionné sur le lecteur NFC\n\n" +
+        "Détail: " + (error.message || 'unknown')
     }
 
     throw new Error(errorMessage)
