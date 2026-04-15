@@ -35,9 +35,9 @@ obj, key, values) {
 function withIosNfcEntitlement(c, { includeNdefEntitlement = false, }) {
     return (0, config_plugins_2.withEntitlementsPlist)(c, config => {
         // Add the required formats
-        let entitlements = ['NDEF', 'TAG'];
+        let entitlements = ['NDEF', 'TAG', 'PACE'];
         if (includeNdefEntitlement === false) {
-            entitlements = ['TAG'];
+            entitlements = ['TAG', 'PACE'];
         }
         config.modResults = addValuesToArray(config.modResults, 'com.apple.developer.nfc.readersession.formats', entitlements);
         return config;
