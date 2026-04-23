@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image, ScrollView } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
 import { useTranslation } from 'react-i18next';
+import { useDevMode } from '@/contexts/DevModeContext';
 
 interface Step6Props {
   containerWidth: number;
@@ -23,6 +24,7 @@ interface Step6Props {
 
 const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyze, onNFCSuccess, onNFCError, onGoBack, onLayout }) => {
   const { t } = useTranslation();
+  const { devMode } = useDevMode();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -30,6 +32,13 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const [scanStatus, setScanStatus] = useState("");
   const [showRetry, setShowRetry] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
+  const [nativeLogs, setNativeLogs] = useState<string[]>([]);
+
+  // Android camera2 teardown (from Step 5) can take 2-3s and shares NFC-controller
+  // resources on some SoCs. Track when Step 6 mounted so we can enforce a minimum
+  // gap before the NFC scan starts — prevents "Tag was lost" on the first APDU.
+  const mountedAtRef = useRef<number>(Date.now());
+  useEffect(() => { mountedAtRef.current = Date.now(); }, []);
 
   // Listen to EDocument scan events
   useEffect(() => {
@@ -57,6 +66,11 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
             setScanStatus(t('voting.step6ReadError'));
+          }),
+          EDocumentModuleListener(EDocumentModuleEvents.DebugLog, (event: unknown) => {
+            const { message } = event as { message: string };
+            console.log('[Step6/Native]', message);
+            setNativeLogs((prev) => [...prev.slice(-40), message]);
           }),
         ];
       } catch (_error) {
@@ -88,6 +102,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     try {
       setIsScanning(true);
       setScanStatus(t('voting.step6Init'));
+      setNativeLogs([]);
 
       console.log('[Step6] Importing e-document module...');
       const eDocModule = await import('@/modules/e-document');
@@ -98,9 +113,18 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       const challenge = getRandomValues(new Uint8Array(32));
       console.log('[Step6] Challenge generated, length:', challenge.length);
 
-      // Small delay on Android to ensure NFC is ready
+      // On Android, ensure at least 5s have elapsed since Step 6 mounted so the
+      // camera2 session from Step 5 is fully torn down before NFC starts. On
+      // some SoCs the NFC controller and camera DSP share resources; tapping
+      // Analyze too quickly results in "Tag was lost" on the first APDU.
       if (Platform.OS === 'android') {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        const MIN_GAP_MS = 5000;
+        const elapsed = Date.now() - mountedAtRef.current;
+        const wait = Math.max(0, MIN_GAP_MS - elapsed);
+        if (wait > 0) {
+          setScanStatus(t('voting.step6Init'));
+          await new Promise(resolve => setTimeout(resolve, wait));
+        }
       }
 
       setScanStatus(t('voting.step6Now'));
@@ -200,7 +224,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           </Text>
         )}
 
-        {debugError && (
+        {devMode && debugError && (
           <View style={{
             backgroundColor: '#FEF2F2',
             borderRadius: 8,
@@ -215,6 +239,27 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             }}>
               {debugError}
             </Text>
+          </View>
+        )}
+
+        {devMode && nativeLogs.length > 0 && (
+          <View style={{
+            backgroundColor: '#FEF2F2',
+            borderRadius: 8,
+            padding: 10,
+            marginHorizontal: 16,
+            marginBottom: 8,
+            maxHeight: 180,
+          }}>
+            <ScrollView>
+              <Text selectable style={{
+                fontFamily: 'SpaceMono',
+                fontSize: 10,
+                color: '#991B1B',
+              }}>
+                {nativeLogs.join('\n')}
+              </Text>
+            </ScrollView>
           </View>
         )}
 

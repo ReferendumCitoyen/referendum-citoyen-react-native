@@ -276,12 +276,16 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       <View style={stepSpecificStyles.step5Container}>
         <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
         <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
-          <Camera
-            style={{ flex: 1 }}
-            device={device}
-            isActive={isActive || false}
-            frameProcessor={frameProcessor}
-          />
+          {isActive ? (
+            <Camera
+              style={{ flex: 1 }}
+              device={device}
+              isActive={true}
+              frameProcessor={frameProcessor}
+            />
+          ) : (
+            <View style={{ flex: 1, backgroundColor: '#000' }} />
+          )}
           {/* ID card overlay — sibling of Camera, not child */}
           <View style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
