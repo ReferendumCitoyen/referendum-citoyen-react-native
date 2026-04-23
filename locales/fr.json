@@ -74,7 +74,7 @@
     "step4Title": "Analyse de la Carte d'Identité",
     "step4Description": "Maintenez votre appareil sur votre Carte d'identité",
     "step4Start": "Démarrer l'analyse",
-    "step5Title": "Analyse MRZ",
+    "step5Title": "Présentez le verso de votre carte devant votre caméra",
     "step5CameraPermission": "Permission requise pour accéder à la caméra",
     "step5CameraUnavailable": "Caméra non disponible",
     "step5CardOverlay": "CARTE D'IDENTITÉ",
@@ -83,7 +83,7 @@
     "step5Partial": "MRZ partiellement détecté...",
     "step5Success": "MRZ détecté !",
     "step5PassportDetected": "Mauvais document — veuillez scanner une carte d'identité française, pas un passeport.",
-    "step6Title": "Lecteur NFC",
+    "step6Title": "Lecture de la puce de votre carte",
     "step6MissingMrz": "Données MRZ manquantes. Scannez d'abord le MRZ.",
     "step6Init": "🔄 Initialisation...",
     "step6PresentCard": "📱 Approchez votre carte d'identité du téléphone",
@@ -95,7 +95,7 @@
     "step6Now": "📱 Approchez votre carte maintenant...",
     "step6InvalidMrz": "❌ Données MRZ invalides. Retour au scanner...",
     "step6ErrorWithMessage": "❌ Erreur: {{message}}. Réessayez.",
-    "step6Instruction": "Apposez votre carte d'identité contre l'arrière de votre téléphone et maintenez-la pendant l'analyse.",
+    "step6Instruction": "Collez la puce de votre carte d'identité contre l'arrière de votre téléphone, ne bougez plus et appuyez sur Analyse. Gardez la puce de votre carte collée contre votre téléphone pendant l'analyse.",
     "step6Scanning": "Scan en cours...",
     "step7Title": "Vérification locale",
     "step7Description": "Vérification de votre âge et nationalité localement sur votre appareil. Veuillez patienter…",
@@ -212,35 +212,137 @@
   },
   "comprendre": {
     "welcome": {
-      "title": "Bienvenue!",
-      "text": "Nous appelons tous les citoyens à voter lors de référendums permettant une démocratie directe en France"
+      "title": "Bienvenue !",
+      "text": "Nous développons une application qui permet aux citoyens français d'exprimer collectivement leur volonté politique par des référendums citoyens vérifiables. Lorsqu'un grand nombre de citoyens participent à un vote authentifié, son résultat devient une expression démocratique forte, publiquement vérifiable, et politiquement difficile à ignorer."
     },
-    "accordions": [
+    "sections": [
       {
-        "title": "Un vote unique et infalsifiable",
-        "content": "Le vote se fait par lecture de la puce de votre carte d'identité (pas de passeport pour éviter les votes doubles) - qui reste sur votre téléphone - pour garantir que:\n1. Vous êtes français et majeur\n2. Personne ne peut voter deux fois"
+        "title": "L'objectif",
+        "intro": "",
+        "accordions": [
+          {
+            "title": "En quoi c'est différent d'un sondage ?",
+            "content": "Un sondage interroge un petit échantillon de personnes pour estimer une opinion. Ces référendums citoyens vérifiés permettent à chaque citoyen de voter réellement, une seule fois, de façon anonyme et vérifiable. Un sondage donne une estimation. Un référendum citoyen donne un résultat réel, contrôlable par tous et politiquement difficile à ignorer."
+          },
+          {
+            "title": "En quoi c'est différent d'une pétition ?",
+            "content": "Une pétition exprime un soutien déclaratif sans garantir que chaque signataire est un citoyen français majeur ni qu'une même personne ne signe qu'une seule fois, et elle repose sur une liste contrôlée par ses organisateurs, qui en fixent la formulation et publient eux-mêmes le résultat. À l'inverse, ce référendum citoyen vérifié repose sur une authentification par carte d'identité garantissant 1 personne = 1 vote, permet de voter pour, contre ou blanc, et rend le résultat contrôlable par tous grâce à un registre public vérifiable indépendamment de ses organisateurs. Là où une pétition mesure une mobilisation dirigée autour d'une position, ce dispositif permet l'expression neutre et vérifiable d'une décision collective authentifiée de citoyens, ce qui lui donne une portée démocratique et politique d'une nature entièrement différente."
+          },
+          {
+            "title": "Est-ce un référendum officiel ?",
+            "content": "Non. C'est un référendum citoyen vérifié. Chaque votant peut vérifier la prise en compte de son vote sur le registre en ligne public. Mais un référendum auquel participent des centaines de milliers ou des millions de citoyens authentifiés devient un fait démocratique majeur."
+          }
+        ]
+      },
+      {
+        "title": "Un vote unique et vérifiable par tous",
+        "intro": "Le droit de vote est vérifié par lecture de la puce de votre carte d'identité directement sur votre téléphone. Cette vérification permet de garantir :\n1. que vous êtes français et majeur\n2. qu'une même personne ne peut voter qu'une seule fois\n\nCette vérification est réalisée localement sur votre téléphone : aucun fichier central d'identité n'est créé.",
+        "accordions": [
+          {
+            "title": "De quoi ai-je besoin pour voter ?",
+            "content": "Vous avez besoin d'une carte d'identité nouvelle génération au format carte de crédit, et d'un smartphone avec l'application Référendum Citoyen installée."
+          },
+          {
+            "title": "Pourquoi pas le passeport ?",
+            "content": "La technologie de vote n'utilise pas de liste de votants mais un document d'identité qui certifie la légitimité de voter. Il n'est pas possible de permettre l'accès aux votes à la fois par passeport ou par carte d'identité sans risquer de doubles votes pour une même personne. Il fallait donc choisir : tous les Français n'ont pas de passeport, et la carte d'identité est aujourd'hui le document le plus universellement disponible chez les citoyens français."
+          },
+          {
+            "title": "Pourquoi ne pas utiliser FranceConnect ?",
+            "content": "Parce que FranceConnect repose sur un fichier central d'identité. Notre système repose au contraire sur une vérification locale de la carte d'identité sans base centrale reliant identité et vote. FranceConnect est géré par l'État, notre système est indépendant du gouvernement."
+          },
+          {
+            "title": "Peut-on voter deux fois avec deux téléphones ?",
+            "content": "Non. La preuve d'identité empêche la duplication du droit de vote."
+          },
+          {
+            "title": "Existe-t-il une possibilité de double vote ?",
+            "content": "Le système empêche une personne de voter deux fois avec la même carte d'identité.\n\nDans l'état actuel du déploiement des nouvelles cartes d'identité électroniques, une personne déclarant sa carte perdue et obtenant une nouvelle carte pourrait théoriquement voter deux fois. Ce cas reste extrêmement rare aujourd'hui. À terme, nous pouvons faire en sorte que ce risque disparaisse techniquement : lorsque les cartes perdues et renouvelées partageront un identifiant commun empêchant toute double utilisation."
+          },
+          {
+            "title": "Pour aller plus loin",
+            "content": "Le lien technique du code : https://github.com/rarimo/rarime-rn-sdk\n\nLe projet de Rarimo avec des votes existants : https://freedomtool.org/"
+          }
+        ]
       },
       {
         "title": "Un vote garanti anonyme",
-        "content": "Il est impossible de savoir qui a voté quoi parce que l'enregistrement se fait de manière chiffrée uniquement sur le téléphone localement avant d'être envoyé sur un registre public dans lequel il n'y a aucun lien entre votre nom et votre vote."
+        "intro": "On prouve que vous avez le droit de voter, pas qui vous êtes. Votre identité est vérifiée uniquement pour confirmer que vous avez le droit de voter. Ensuite, votre identité est séparée de votre vote avant son envoi. Le vote envoyé dans le registre infalsifiable et visible par tous ne contient aucune information permettant de relier votre identité à votre vote. Par conséquent, le bulletin de vote comptabilisé ne peut pas remonter jusqu'à une carte d'identité.\n\nEn termes techniques, le vote se fait dans le cadre d'un smart contract sur une chaîne (de Rarimo pour commencer).",
+        "accordions": [
+          {
+            "title": "Comment garantir « 1 personne = 1 vote » sans connaître l'identité ?",
+            "content": "La carte d'identité est lue directement sur le téléphone afin de vérifier que la personne est française, majeure et qu'elle n'utilise son droit de vote qu'une seule fois. Un jeton cryptographique prouvant le droit de voter est ensuite généré. Cette preuve confirme que la personne a le droit de voter sans révéler son identité. Aucun fichier central ne relie l'identité au vote. Le système vous permet de voter mais ne sait pas qui vous êtes."
+          },
+          {
+            "title": "Qui peut voir mon vote ?",
+            "content": "Personne. Votre vote est anonymisé avant d'être envoyé."
+          },
+          {
+            "title": "L'État peut-il savoir ce que j'ai voté ?",
+            "content": "Non. Aucun fichier central ne relie identité et vote. Si une carte d'identité est utilisée après votre vote, le système détecte qu'elle a déjà servi et empêche tout second vote. Parmi les options lorsque vous réalisez un vote, une option « je refuse de voter » existe pour signaler publiquement qu'aucun vote n'a été exprimé avec votre carte. Cela vous protège."
+          }
+        ]
       },
       {
         "title": "Un vote transparent",
-        "content": "Tous les votes sont enregistrés publiquement sur la blockchain et sont vérifiables. Le registre est public et transparent. Il ne peut pas être manipulé une fois que les données y sont."
+        "intro": "Chaque vote reçoit un identifiant unique visible publiquement dans le registre du scrutin. Cela permet :\n– à chaque citoyen de vérifier que son vote est bien compté et qu'il correspond à son choix\n– à tous de vérifier le nombre total de votes",
+        "accordions": [
+          {
+            "title": "Puis-je vérifier que mon vote est bien compté ?",
+            "content": "Oui. Votre vote possède un identifiant unique visible par tous dans le registre. Cet identifiant permet à chaque citoyen de vérifier que son vote est bien enregistré et qu'il est bien pris en compte dans le total. Le contrôle du résultat est possible par tous."
+          },
+          {
+            "title": "Puis-je vérifier les votes des autres ?",
+            "content": "Oui. Le nombre total de votes est public et vérifiable. Les résultats sont visibles dans leur progression en direct."
+          }
+        ]
       },
       {
-        "title": "Plusieurs personnes peuvent voter sur le même référendum depuis votre téléphone",
-        "content": "L'application fonctionne comme un bureau de vote. Plusieurs personnes peuvent voter sur le même référendum depuis un même téléphone, sans que les votes soient visibles les uns par les autres."
+        "title": "Les autres peuvent voter sur votre téléphone",
+        "intro": "Plusieurs personnes peuvent voter depuis un même téléphone. Chaque vote nécessite la lecture d'une carte d'identité différente. Une fois le vote enregistré, aucune information n'est conservée sur le téléphone.",
+        "accordions": [
+          {
+            "title": "Le propriétaire du téléphone peut-il voir mon vote ?",
+            "content": "Non. Le vote est effacé du téléphone après envoi. Le téléphone fonctionne comme un bureau de vote, pas comme un bulletin de vote."
+          },
+          {
+            "title": "Peut-on voter pour quelqu'un d'autre ?",
+            "content": "Non. La carte d'identité est nécessaire. Utiliser la carte d'identité de quelqu'un d'autre est une usurpation d'identité et c'est pénalement répréhensible."
+          }
+        ]
       },
       {
-        "title": "Que se passe-t-il une fois les votes comptés ?",
-        "content": "Il n'y a pas d'ordinateur central regroupant les votes. Les votes sont enregistrés sur des milliers d'ordinateurs. Ils ne peuvent pas être supprimés depuis un point unique.\nSi l'application était bloquée ou supprimée des app stores, elle pourrait être redéployée pour permettre la continuité des votes."
+        "title": "Un registre de votes distribué entre des millions d'ordinateurs et vérifiable publiquement",
+        "intro": "Les votes ne sont pas stockés dans un serveur unique. Ils sont enregistrés dans un registre distribué entre des millions d'ordinateurs et public. Cela signifie qu'aucun acteur unique ne peut modifier ou supprimer les résultats sans que cela soit visible. Le système repose sur la vérification publique des résultats plutôt que sur la confiance dans une autorité centrale.",
+        "accordions": [
+          {
+            "title": "Un tiers peut-il faire fermer l'application ?",
+            "content": "Même si l'application disparaît, les votes restent enregistrés dans le fichier ouvert à tous, distribué et accessible indépendamment de l'application. On ne peut pas interrompre le scrutin durant la durée du vote."
+          },
+          {
+            "title": "Un tiers peut-il supprimer les résultats ?",
+            "content": "Non. Ils sont stockés dans une urne électronique accessible à tous."
+          },
+          {
+            "title": "Peut-on truquer les résultats ?",
+            "content": "Le système n'est pas basé sur la confiance dans un serveur central, mais sur la vérification publique des résultats. Le droit de vote est vérifié localement sur le téléphone, le vote est anonymisé avant son envoi, puis enregistré dans un registre public consultable par tous. Toute tentative de modification du résultat serait immédiatement visible, car chacun peut vérifier le nombre de votes enregistrés."
+          },
+          {
+            "title": "Que se passe-t-il si une faille est découverte ?",
+            "content": "Le système repose sur la transparence plutôt que sur le secret. Le code est open source, ce qui permet à des experts indépendants de l'examiner à tout moment. Si une faille est identifiée, elle peut être corrigée par l'équipe derrière l'app, publiquement et rapidement. Cette logique d'audit permanent renforce la sécurité du système au lieu de l'affaiblir."
+          }
+        ]
+      },
+      {
+        "title": "D'où ça vient ?",
+        "intro": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN et actuel Nym) du potentiel de technologies cryptographiques éprouvées pour mettre en place une démocratie directe sans attendre. Ils s'associent avec Alexis Roussel (penseur de la démocratie numérique suisse et co-fondateur de Nym) qui établit le cahier des charges de cette application et en détermine l'architecture. L'application s'appuie notamment sur les technologies développées par l'équipe européenne Rarimo, déjà utilisées pour organiser des votes citoyens sécurisés dans des contextes politiquement sensibles.",
+        "accordions": [
+          {
+            "title": "En quoi ce système est-il différent d'une blockchain classique ?",
+            "content": "Ce système n'est pas une simple blockchain. Il combine la lecture locale de la carte d'identité, la génération d'un jeton cryptographique prouvant le droit de voter et l'enregistrement des votes dans un registre public vérifiable, sans base centrale d'identité. Cette combinaison permet de garantir qu'une personne ne peut voter qu'une seule fois tout en préservant l'anonymat du vote et en rendant le résultat contrôlable par tous."
+          }
+        ]
       }
-    ],
-    "origin": {
-      "title": "D'où ça vient",
-      "content": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN et actuel Nym) du potentiel de la blockchain pour mettre en place une démocratie directe sans attendre.\n\nIls s'associent avec Alexis Roussel (penseur phare de la démocratie numérique suisse et co-fondateur de Nym) qui établit le cahier des charges de cette application.\n\nApplication en logiciel libre\nLogiciel hébergé par le Parti Pirate Suisse\nTraitement de données local - GDPR"
-    }
+    ]
   },
   "placeholderSteps": {
     "title": "Étape {{step}}",

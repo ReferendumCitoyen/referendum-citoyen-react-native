@@ -12,9 +12,13 @@ export default function ComprendreScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const player = useComprendreVideo();
-  const accordionsRaw = t('comprendre.accordions', { returnObjects: true });
-  const accordions = Array.isArray(accordionsRaw)
-    ? (accordionsRaw as { title: string; content: string }[])
+  const sectionsRaw = t('comprendre.sections', { returnObjects: true });
+  const sections = Array.isArray(sectionsRaw)
+    ? (sectionsRaw as {
+        title: string;
+        intro?: string;
+        accordions: { title: string; content: string }[];
+      }[])
     : [];
 
   useEffect(() => {
@@ -96,23 +100,23 @@ export default function ComprendreScreen() {
           </View>
         </View>
 
-        {/* Accordion Sections */}
-        {accordions.map((accordion, index) => (
-          <Accordion
-            key={index}
-            title={accordion.title}
-            content={accordion.content}
-            showBorder={true}
-          />
+        {/* Sections — each with a pillar header, optional intro paragraph, and a list of Q/A accordions */}
+        {sections.map((section, sIdx) => (
+          <View key={sIdx} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.intro ? (
+              <Text style={styles.sectionIntro}>{section.intro}</Text>
+            ) : null}
+            {section.accordions.map((accordion, aIdx) => (
+              <Accordion
+                key={aIdx}
+                title={accordion.title}
+                content={accordion.content}
+                showBorder={true}
+              />
+            ))}
+          </View>
         ))}
-
-        {/* Final Section - D'où ça vient */}
-        <View style={styles.finalSection}>
-          <Text style={styles.finalSectionTitle}>{t('comprendre.origin.title')}</Text>
-          <Text style={styles.finalSectionContent}>
-            {t('comprendre.origin.content')}
-          </Text>
-        </View>
 
         {/* Empty spacer for tab bar */}
         <View style={styles.tabBarSpacer} />
@@ -175,19 +179,22 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     letterSpacing: Typography.letterSpacing.body,
     color: colors.text,
   },
-  finalSection: {
+  section: {
     backgroundColor: colors.cardBackground,
-    padding: Spacing.accordion.padding,
-    gap: Spacing.accordion.gap,
+    paddingTop: Spacing.accordion.padding,
   },
-  finalSectionTitle: {
+  sectionTitle: {
+    paddingHorizontal: Spacing.accordion.padding,
+    paddingBottom: Spacing.accordion.gap,
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.h1,
     lineHeight: Typography.lineHeight.h1,
     letterSpacing: Typography.letterSpacing.h1,
     color: colors.text,
   },
-  finalSectionContent: {
+  sectionIntro: {
+    paddingHorizontal: Spacing.accordion.padding,
+    paddingBottom: Spacing.accordion.gap,
     fontFamily: Typography.fontFamily.medium,
     fontWeight: Typography.fontWeight.medium,
     fontSize: Typography.fontSize.body,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withTiming,
@@ -29,6 +29,26 @@ const CaretDownIcon = ({ color, size = 24 }: { color: string; size?: number }) =
     />
   </Svg>
 );
+
+const URL_REGEX = /(https?:\/\/[^\s)]+)/g;
+
+function renderContentWithLinks(text: string, linkColor: string) {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) => {
+    if (part.match(URL_REGEX)) {
+      return (
+        <Text
+          key={i}
+          style={{ color: linkColor, textDecorationLine: 'underline' }}
+          onPress={() => Linking.openURL(part)}
+        >
+          {part}
+        </Text>
+      );
+    }
+    return <Text key={i}>{part}</Text>;
+  });
+}
 
 export default function Accordion({ title, content, defaultExpanded = false, showBorder = true }: AccordionProps) {
   const colors = useColors();
@@ -98,7 +118,7 @@ export default function Accordion({ title, content, defaultExpanded = false, sho
       {/* Measurement view - invisible but rendered to get height */}
       <View style={styles.measurementContainer} onLayout={onContentLayout}>
         <View style={styles.contentInner}>
-          <Text style={styles.content}>{content}</Text>
+          <Text style={styles.content}>{renderContentWithLinks(content, colors.secondary)}</Text>
         </View>
       </View>
 
@@ -106,7 +126,7 @@ export default function Accordion({ title, content, defaultExpanded = false, sho
       <Animated.View style={contentAnimatedStyle}>
         <Animated.View style={innerContentStyle}>
           <View style={styles.contentInner}>
-            <Text style={styles.content}>{content}</Text>
+            <Text style={styles.content}>{renderContentWithLinks(content, colors.secondary)}</Text>
           </View>
         </Animated.View>
       </Animated.View>
