@@ -42,6 +42,9 @@ Thumbs.db
 # local env files
 .env*.local
 
+# personal working notes (e.g. TODO.local.md)
+*.local.md
+
 # typescript
 *.tsbuildinfo
 
