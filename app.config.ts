@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.1',
+    version: '1.2',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
