@@ -83,8 +83,13 @@ export default function VotingFlowScreen() {
   const { players, handleStepChange, pauseAll } = useModalVideoPlayers();
   const { player1, player2, player3, player4, player5 } = players;
 
-  // Init Rarime + FreedomTool + load proposal (lazy import to avoid crypto polyfill issues)
+  // Init Rarime + FreedomTool + load proposal. Deferred until after the NFC
+  // scan (Step 6) so that Rarime's native Rust/ZK warmup doesn't contend with
+  // IsoDep during PACE. Step 7 reads rarimeRef.current defensively and will
+  // wait for init to complete.
   useEffect(() => {
+    if (currentStep < 7) return;
+    if (rarimeRef.current) return; // already initialised
     (async () => {
       try {
         const { Rarime: RarimeClass, RarimeUtils: Utils, FreedomTool: FT } =
@@ -118,7 +123,7 @@ export default function VotingFlowScreen() {
         console.error('[FreedomTool] Init error:', err);
       }
     })();
-  }, []);
+  }, [currentStep, proposalIdParam]);
 
   // Reset state when screen comes into focus
   useFocusEffect(
@@ -142,6 +147,16 @@ export default function VotingFlowScreen() {
       };
     }, [pauseAll, slideAnim, progressOpacity1, progressOpacity2, progressOpacity3])
   );
+
+  // Keep the JS thread idle while the NFC scan runs on Step 6. Reader mode on
+  // Android dispatches APDUs on a background thread, but sendEvent() bubbles
+  // back to JS — heavy renders here back up the bridge and can starve the
+  // IsoDep session on the very first APDU.
+  useEffect(() => {
+    if (Platform.OS === 'android' && currentStep === 6) {
+      pauseAll();
+    }
+  }, [currentStep, pauseAll]);
 
   const handleNext = useCallback(() => {
     const newStep = currentStep + 1;
@@ -336,75 +351,115 @@ export default function VotingFlowScreen() {
               { transform: [{ translateX: slideAnim }] },
             ]}
           >
-            <Step1 player={player1} containerWidth={containerWidth} />
-            <Step2 player={player2} containerWidth={containerWidth} />
-            <Step3 player={player3} containerWidth={containerWidth} />
-            <Step4 player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} />
-            <Step5
-              containerWidth={containerWidth}
-              isActive={currentStep === 5}
-              onMRZScanned={handleMRZScanned}
-              onManualFill={handleManualFill}
-            />
-            <Step6
-              containerWidth={containerWidth}
-              player={player4}
-              mrzData={mrzData}
-              onNFCSuccess={handleNFCSuccess}
-              onGoBack={handleGoBackToMRZScan}
-            />
-            <Step7
-              containerWidth={containerWidth}
-              player={player5}
-              isActive={currentStep === 7}
-              nfcData={nfcData}
-              onSuccess={handleVerificationSuccess}
-              onError={handleVerificationError}
-              rarime={rarimeRef.current ?? undefined}
-              passport={passportRef.current ?? undefined}
-              freedomTool={freedomToolRef.current ?? undefined}
-            />
-            <Step8
-              containerWidth={containerWidth}
-              verificationResult={verificationResult}
-              voteSubmissionResult={voteSubmissionResult}
-              onVoteSuccess={handleVoteSuccess}
-              onClose={handleClose}
-            />
-            <Step9Vote
-              containerWidth={containerWidth}
-              onVoteSelect={handleVoteSelect}
-              onCancel={handleStep9Cancel}
-              proposalInfo={proposalInfo ?? undefined}
-            />
-            <Step10
-              containerWidth={containerWidth}
-              player={player3}
-              selectedVote={selectedVote}
-              proposalInfo={proposalInfo ?? undefined}
-              onCancel={handleStep9Cancel}
-              onConfirm={handleStep9Confirm}
-            />
-            <Step11
-              containerWidth={containerWidth}
-              isActive={currentStep === 11}
-              onSuccess={handleStep11Success}
-              onError={handleStep11Error}
-              freedomTool={freedomToolRef.current ?? undefined}
-              rarime={rarimeRef.current ?? undefined}
-              passport={passportRef.current ?? undefined}
-              proposalInfo={proposalInfo ?? undefined}
-              answerIndex={selectedVote}
-            />
-            <Step12Success
-              containerWidth={containerWidth}
-              onViewResults={handleClose}
-            />
-            <Step12Error
-              containerWidth={containerWidth}
-              onGoHome={handleClose}
-              errorReason={voteErrorReason}
-            />
+            {/* Only mount steps within ±1 of the current index. Placeholders keep
+                slide-animation offsets stable. Keeps the JS thread idle during
+                the NFC scan (Step 6) so reader-mode sendEvent() calls don't
+                back-pressure IsoDep. */}
+            {(() => {
+              const idx = currentStep - 1;
+              const show = (i: number) => Math.abs(i - idx) <= 1;
+              const spacer = (key: string) => (
+                <View key={key} style={{ width: containerWidth }} />
+              );
+              return [
+                show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} /> : spacer('s1'),
+                show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} /> : spacer('s2'),
+                show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} /> : spacer('s3'),
+                show(3) ? <Step4 key="s4" player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} /> : spacer('s4'),
+                show(4) ? (
+                  <Step5
+                    key="s5"
+                    containerWidth={containerWidth}
+                    isActive={currentStep === 5}
+                    onMRZScanned={handleMRZScanned}
+                    onManualFill={handleManualFill}
+                  />
+                ) : spacer('s5'),
+                show(5) ? (
+                  <Step6
+                    key="s6"
+                    containerWidth={containerWidth}
+                    player={player4}
+                    mrzData={mrzData}
+                    onNFCSuccess={handleNFCSuccess}
+                    onGoBack={handleGoBackToMRZScan}
+                  />
+                ) : spacer('s6'),
+                show(6) ? (
+                  <Step7
+                    key="s7"
+                    containerWidth={containerWidth}
+                    player={player5}
+                    isActive={currentStep === 7}
+                    nfcData={nfcData}
+                    onSuccess={handleVerificationSuccess}
+                    onError={handleVerificationError}
+                    rarime={rarimeRef.current ?? undefined}
+                    passport={passportRef.current ?? undefined}
+                    freedomTool={freedomToolRef.current ?? undefined}
+                  />
+                ) : spacer('s7'),
+                show(7) ? (
+                  <Step8
+                    key="s8"
+                    containerWidth={containerWidth}
+                    verificationResult={verificationResult}
+                    voteSubmissionResult={voteSubmissionResult}
+                    onVoteSuccess={handleVoteSuccess}
+                    onClose={handleClose}
+                  />
+                ) : spacer('s8'),
+                show(8) ? (
+                  <Step9Vote
+                    key="s9v"
+                    containerWidth={containerWidth}
+                    onVoteSelect={handleVoteSelect}
+                    onCancel={handleStep9Cancel}
+                    proposalInfo={proposalInfo ?? undefined}
+                  />
+                ) : spacer('s9v'),
+                show(9) ? (
+                  <Step10
+                    key="s10"
+                    containerWidth={containerWidth}
+                    player={player3}
+                    selectedVote={selectedVote}
+                    proposalInfo={proposalInfo ?? undefined}
+                    onCancel={handleStep9Cancel}
+                    onConfirm={handleStep9Confirm}
+                  />
+                ) : spacer('s10'),
+                show(10) ? (
+                  <Step11
+                    key="s11"
+                    containerWidth={containerWidth}
+                    isActive={currentStep === 11}
+                    onSuccess={handleStep11Success}
+                    onError={handleStep11Error}
+                    freedomTool={freedomToolRef.current ?? undefined}
+                    rarime={rarimeRef.current ?? undefined}
+                    passport={passportRef.current ?? undefined}
+                    proposalInfo={proposalInfo ?? undefined}
+                    answerIndex={selectedVote}
+                  />
+                ) : spacer('s11'),
+                show(11) ? (
+                  <Step12Success
+                    key="s12s"
+                    containerWidth={containerWidth}
+                    onViewResults={handleClose}
+                  />
+                ) : spacer('s12s'),
+                show(12) ? (
+                  <Step12Error
+                    key="s12e"
+                    containerWidth={containerWidth}
+                    onGoHome={handleClose}
+                    errorReason={voteErrorReason}
+                  />
+                ) : spacer('s12e'),
+              ];
+            })()}
             {verificationResult === 'error' && (
               <Step9Error
                 containerWidth={containerWidth}
