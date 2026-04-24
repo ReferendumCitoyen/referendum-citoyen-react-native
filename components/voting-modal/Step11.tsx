@@ -124,6 +124,18 @@ const Step11: React.FC<Step11Props> = ({
         console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposalInfo.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
         console.log(`[FreedomTool] Step11: selector=${proposalInfo.criteria.selector}, sendVoteContract=${proposalInfo.sendVoteContractAddress}`);
 
+        // Pre-flight eligibility via the SDK's own check. This looks at voting
+        // period and already-voted — it does NOT compare passport.issueTimestamp
+        // to criteria.timestampUpperbound, because the SDK's buildQueryProofParams
+        // deliberately bypasses that bound (UINT64_MAX-1) for recently re-registered
+        // identities so they can still vote on open proposals.
+        try {
+          await freedomTool.verify(proposalInfo, passport, rarime);
+        } catch (vErr: any) {
+          console.warn('[Step11] SDK verify() rejected:', vErr?.message);
+          throw vErr;
+        }
+
         // No withRetry here on purpose: submitProposal runs the full ~3–5 min
         // proof generation. Retrying a failure re-runs the whole thing and on
         // Android tends to leave the HTTP stack in a worse state (see logs
@@ -145,8 +157,29 @@ const Step11: React.FC<Step11Props> = ({
         console.error('[FreedomTool] Step11: Vote error:', err);
         console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));
         hasCalledCallback.current = true;
-        const isAlreadyVoted = err?.message?.includes('already voted');
-        const errorMsg = isAlreadyVoted ? t('voting.step9ErrorDescription') : formatRpcError(err);
+        const msg = err?.message || '';
+        let errorMsg: string;
+        // Messages thrown by freedomTool.verify()
+        if (msg.includes('already voted') || msg.includes('User has already voted')) {
+          errorMsg = t('voting.step9ErrorDescription');
+        } else if (msg.includes('Voting has not started')) {
+          errorMsg = t('voting.step11VotingNotStarted');
+        } else if (msg.includes('Voting has ended')) {
+          errorMsg = t('voting.step11VotingEnded');
+        } else if (
+          // 0xd71fd263 = PAIRING_FAILED from BaseUltraVerifier. The on-chain
+          // pairing check rejected the Noir proof. Known Android-only issue:
+          // the bundled noir.aar prover produces proofs that don't match the
+          // deployed verifier. Not recoverable from the app layer — surface
+          // a precise error so the user can report it.
+          msg.includes('0xd71fd263') ||
+          msg.includes('PAIRING_FAILED') ||
+          msg.toLowerCase().includes('pairing_failed')
+        ) {
+          errorMsg = t('voting.step11ProverIncompatible');
+        } else {
+          errorMsg = formatRpcError(err);
+        }
         setStatusText(errorMsg);
         onError?.(errorMsg);
       }

@@ -152,6 +152,11 @@ export default function VotingFlowScreen() {
       setVoteSubmissionResult(null);
       setMRZData(null);
       setNFCData(null);
+      // Critical: clear the manual-input modal flag too. If the user backed
+      // out of the flow while the modal was open, this would otherwise stay
+      // `true` and keep Step 5's camera disabled on re-entry (Step 5's
+      // isActive is gated on `!isManualInputVisible`).
+      setIsManualInputVisible(false);
 
       // Reset animations
       slideAnim.setValue(0);

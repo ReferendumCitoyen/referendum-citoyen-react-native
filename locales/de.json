@@ -131,6 +131,9 @@
     "step11DownloadingData": "Abstimmungsdaten werden heruntergeladen... {{percent}}%",
     "step11FinalizingData": "Abstimmungsdaten werden finalisiert...",
     "step11DownloadFailed": "Abstimmungsdaten konnten nicht heruntergeladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "step11VotingNotStarted": "Die Abstimmung hat noch nicht begonnen.",
+    "step11VotingEnded": "Die Abstimmung ist beendet.",
+    "step11ProverIncompatible": "Der Android-Beweis wurde vom Vertrag abgelehnt (PAIRING_FAILED 0xd71fd263). Bekanntes Problem im Rarimo-Android-SDK. Bitte melden.",
     "step12ErrorTitle": "Ein Fehler ist aufgetreten.",
     "step12ErrorDescription": "Bitte versuchen Sie es erneut."
   },

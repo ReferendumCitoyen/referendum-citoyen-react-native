@@ -140,6 +140,9 @@
     "step11DownloadingData": "Téléchargement des données de vote... {{percent}}%",
     "step11FinalizingData": "Finalisation des données de vote...",
     "step11DownloadFailed": "Impossible de télécharger les données de vote. Vérifiez votre connexion et réessayez.",
+    "step11VotingNotStarted": "Le vote n'a pas encore commencé.",
+    "step11VotingEnded": "Le vote est terminé.",
+    "step11ProverIncompatible": "La preuve Android est rejetée par le contrat (PAIRING_FAILED 0xd71fd263). Problème connu côté SDK Rarime Android. Merci de signaler l'incident.",
     "step12ErrorTitle": "Une erreur est survenue.",
     "step12ErrorDescription": "Veuillez recommencer."
   },
