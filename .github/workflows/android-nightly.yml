@@ -1,0 +1,108 @@
+name: Android Nightly Build
+
+# - Runs every night at 03:00 UTC against `main`.
+# - Manual trigger via "Run workflow" (Actions tab).
+# - Builds a debug APK via `expo prebuild` + `./gradlew assembleDebug`.
+#   Debug APK is auto-signed with the default Android debug keystore and is
+#   installable on devices — useful for internal dogfooding.
+# - The `android/` and `ios/` directories are gitignored, so we regenerate
+#   them on each run via `expo prebuild --clean`. This makes sure the config
+#   plugins (incl. ours in `plugins/withNfc.plugin`) are freshly applied.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC every day
+  workflow_dispatch:       # manual run from the UI
+    inputs:
+      variant:
+        description: 'Gradle build variant'
+        default: 'Debug'
+        type: choice
+        options: [Debug, Release]
+
+concurrency:
+  group: android-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: latest
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: npm ci
+        # postinstall runs patch-package automatically.
+
+      - name: Build withNfc plugin
+        run: |
+          cd plugins/withNfc.plugin
+          npm install --no-audit --no-fund --ignore-scripts
+          npx tsc
+
+      - name: Expo prebuild (android)
+        # --clean wipes any stale android/ dir so plugins re-apply cleanly.
+        # `npx expo` picks up the local expo-cli shipped in node_modules.
+        env:
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_CAPABILITY_SYNC: '1'
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Grant gradlew execute perms
+        run: chmod +x android/gradlew
+
+      - name: Build APK (${{ github.event.inputs.variant || 'Debug' }})
+        working-directory: android
+        run: ./gradlew assemble${{ github.event.inputs.variant || 'Debug' }} --no-daemon --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          set -e
+          variant="${{ github.event.inputs.variant || 'Debug' }}"
+          lower=$(echo "$variant" | tr '[:upper:]' '[:lower:]')
+          apk=$(find android/app/build/outputs/apk/${lower} -name "*.apk" | head -n 1)
+          test -n "$apk"
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          echo "name=referendum-citoyen-${lower}-$(date -u +%Y%m%d).apk" >> "$GITHUB_OUTPUT"
+          ls -la "$apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 14
+          if-no-files-found: error
