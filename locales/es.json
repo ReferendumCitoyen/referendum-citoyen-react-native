@@ -131,6 +131,9 @@
     "step11DownloadingData": "Descargando datos de votación... {{percent}}%",
     "step11FinalizingData": "Finalizando datos de votación...",
     "step11DownloadFailed": "No se pudieron descargar los datos de votación. Verifique su conexión y vuelva a intentarlo.",
+    "step11VotingNotStarted": "La votación aún no ha comenzado.",
+    "step11VotingEnded": "La votación ha terminado.",
+    "step11ProverIncompatible": "La prueba de Android fue rechazada por el contrato (PAIRING_FAILED 0xd71fd263). Problema conocido en el SDK de Rarimo para Android. Por favor informe.",
     "step12ErrorTitle": "Ocurrió un error.",
     "step12ErrorDescription": "Inténtelo de nuevo."
   },

@@ -131,6 +131,9 @@
     "step11DownloadingData": "Pobieranie danych głosowania... {{percent}}%",
     "step11FinalizingData": "Finalizowanie danych głosowania...",
     "step11DownloadFailed": "Nie udało się pobrać danych głosowania. Sprawdź połączenie i spróbuj ponownie.",
+    "step11VotingNotStarted": "Głosowanie jeszcze się nie rozpoczęło.",
+    "step11VotingEnded": "Głosowanie zostało zakończone.",
+    "step11ProverIncompatible": "Dowód z Androida został odrzucony przez kontrakt (PAIRING_FAILED 0xd71fd263). Znany problem Rarimo Android SDK. Prosimy zgłosić.",
     "step12ErrorTitle": "Wystąpił błąd.",
     "step12ErrorDescription": "Spróbuj ponownie."
   },

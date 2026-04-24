@@ -110,9 +110,19 @@ const Step7: React.FC<Step7Props> = ({
         );
         console.log('[Step7] Document status:', status);
 
-        // Step 2: Register identity if not already registered
+        // Step 2: (Re)register identity whenever the on-chain activeIdentity
+        // doesn't match the current local private key's profileKey. That
+        // covers both never-registered passports and passports registered
+        // under an older private key (e.g. SecureStore wiped between
+        // installs) — without this, Step 11's proof generation fails with
+        // "profile key mismatch".
         const { DocumentStatus } = await import('@rarimo/rarime-rn-sdk');
-        if (status === DocumentStatus.NotRegistered) {
+        if (
+          status === DocumentStatus.NotRegistered ||
+          status === DocumentStatus.RegisteredWithOtherPk
+        ) {
+          const kind = status === DocumentStatus.NotRegistered ? 'registering' : 're-registering';
+          console.log(`[Step7] ${kind} identity (status=${status})`);
           setStatusText(t('voting.step7Registering'));
           await withRetry(
             () => rarime.registerIdentity(passport),

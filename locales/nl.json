@@ -131,6 +131,9 @@
     "step11DownloadingData": "Stemgegevens downloaden... {{percent}}%",
     "step11FinalizingData": "Stemgegevens afronden...",
     "step11DownloadFailed": "Kon stemgegevens niet downloaden. Controleer uw verbinding en probeer opnieuw.",
+    "step11VotingNotStarted": "De stemming is nog niet begonnen.",
+    "step11VotingEnded": "De stemming is voorbij.",
+    "step11ProverIncompatible": "Het Android-bewijs is afgewezen door het contract (PAIRING_FAILED 0xd71fd263). Bekend probleem in de Rarimo Android SDK. Gelieve te melden.",
     "step12ErrorTitle": "Er is een fout opgetreden.",
     "step12ErrorDescription": "Probeer opnieuw."
   },
