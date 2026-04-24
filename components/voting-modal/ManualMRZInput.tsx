@@ -56,10 +56,23 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
       ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.cardBackground,
       zIndex: 10,
+      // Elevation ensures the overlay paints above underlying native views
+      // on Android (zIndex alone doesn't always win against Camera etc.).
+      elevation: 10,
+    },
+    kavFill: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
     },
     container: {
-      flex: 1,
+      // flexGrow (not flex) so content can exceed the viewport and become
+      // scrollable — flex: 1 here would clamp content to viewport height and
+      // hide the last field behind the keyboard.
+      flexGrow: 1,
       padding: 24,
+      paddingBottom: 48,
       gap: 24,
     },
     title: {
@@ -125,16 +138,31 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
     },
   });
 
+  // Outer View owns the opaque backdrop so it always fills the screen.
+  // KeyboardAvoidingView lives INSIDE the backdrop — when it resizes for the
+  // keyboard (behavior: 'height' on Android), it shrinks content only, not
+  // the backdrop. Otherwise the KAV would expose the Step 5 camera/overlay
+  // behind it when the keyboard opens.
   return (
-    <KeyboardAvoidingView
-      style={styles.overlay}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={100}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.overlay}>
+      {/*
+        Android's manifest uses `windowSoftInputMode="adjustResize"` — the OS
+        already resizes the app window for the keyboard. Layering a KAV with
+        `behavior: 'height'` on top of that was causing a white flash on focus
+        (both the KAV and the OS were fighting over the resize). So: KAV with
+        `padding` on iOS only, plain View on Android, and trust the OS resize
+        combined with the ScrollView to keep every field reachable.
+      */}
+      <KeyboardAvoidingView
+        style={styles.kavFill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <Text style={styles.title}>{t('mrzManual.title')}</Text>
 
         <Text style={{
@@ -204,8 +232,9 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
             <Text style={styles.cancelButtonText}>{t('common.backToScanner')}</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 

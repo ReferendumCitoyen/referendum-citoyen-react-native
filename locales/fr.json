@@ -60,6 +60,7 @@
     "loading": "Chargement des propositions...",
     "error": "Erreur: {{message}}",
     "noProposals": "Aucune proposition trouvée",
+    "preparingVotingData": "Préparation des données de vote… {{percent}}%",
     "showLess": "Voir moins",
     "showMore": "Voir plus ({{count}})"
   },
@@ -83,6 +84,7 @@
     "step5Partial": "MRZ partiellement détecté...",
     "step5Success": "MRZ détecté !",
     "step5PassportDetected": "Mauvais document — veuillez scanner une carte d'identité française, pas un passeport.",
+    "step5OcrUnavailable": "La reconnaissance de texte ne semble pas fonctionner sur cet appareil (services Google absents). Utilisez « Saisie manuelle » ci-dessous.",
     "step6Title": "Lecture de la puce de votre carte",
     "step6MissingMrz": "Données MRZ manquantes. Scannez d'abord le MRZ.",
     "step6Init": "🔄 Initialisation...",
@@ -135,6 +137,9 @@
     "step11MissingData": "Erreur : scannez d'abord votre carte d'identité.",
     "step11GeneratingProof": "Génération de la preuve ZK...",
     "step11NetworkRetry": "Erreur réseau — nouvelle tentative ({{attempt}}/{{max}})...",
+    "step11DownloadingData": "Téléchargement des données de vote... {{percent}}%",
+    "step11FinalizingData": "Finalisation des données de vote...",
+    "step11DownloadFailed": "Impossible de télécharger les données de vote. Vérifiez votre connexion et réessayez.",
     "step12ErrorTitle": "Une erreur est survenue.",
     "step12ErrorDescription": "Veuillez recommencer."
   },

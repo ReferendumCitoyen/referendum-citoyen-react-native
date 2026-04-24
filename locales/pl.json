@@ -59,6 +59,7 @@
     "loading": "Ładowanie propozycji...",
     "error": "Błąd: {{message}}",
     "noProposals": "Nie znaleziono propozycji",
+    "preparingVotingData": "Przygotowywanie danych głosowania… {{percent}}%",
     "showLess": "Pokaż mniej",
     "showMore": "Pokaż więcej ({{count}})"
   },
@@ -81,6 +82,7 @@
     "step5Scanning": "Wyszukiwanie MRZ...",
     "step5Partial": "MRZ częściowo wykryty...",
     "step5Success": "MRZ wykryty!",
+    "step5OcrUnavailable": "Rozpoznawanie tekstu nie działa na tym urządzeniu (brak usług Google). Użyj „Wprowadzanie ręczne” poniżej.",
     "step6Title": "Czytnik NFC",
     "step6MissingMrz": "Brak danych MRZ. Najpierw zeskanuj MRZ.",
     "step6Init": "🔄 Inicjalizacja...",
@@ -126,6 +128,9 @@
     "step11MissingData": "Błąd: najpierw zeskanuj swój dowód tożsamości.",
     "step11GeneratingProof": "Generowanie dowodu ZK...",
     "step11NetworkRetry": "Błąd sieci — ponowna próba ({{attempt}}/{{max}})...",
+    "step11DownloadingData": "Pobieranie danych głosowania... {{percent}}%",
+    "step11FinalizingData": "Finalizowanie danych głosowania...",
+    "step11DownloadFailed": "Nie udało się pobrać danych głosowania. Sprawdź połączenie i spróbuj ponownie.",
     "step12ErrorTitle": "Wystąpił błąd.",
     "step12ErrorDescription": "Spróbuj ponownie."
   },

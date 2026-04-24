@@ -1,9 +1,12 @@
 package expo.modules.edocument
 
 import android.app.Activity
+import android.app.PendingIntent
+import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import com.google.gson.Gson
@@ -143,6 +146,26 @@ class EDocumentModule : Module() {
       }
       readerCallback = null
       sendEvent(DocumentScanEvents.SCAN_STOPPED.value)
+
+      // Reclaim NFC dispatch for our activity. Without this, Android resumes
+      // its default intent dispatch — if the user's card is still near the
+      // phone (very common right after a successful scan), other installed
+      // NFC apps (Satodime, Yubico, wallets…) win the chooser dialog.
+      // Routing stray tag events back into our own activity silently drops
+      // them because we do not handle the NFC intent.
+      try {
+        val intent = Intent(activity, activity.javaClass).apply {
+          addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+          PendingIntent.FLAG_MUTABLE
+        else
+          0
+        val pi = PendingIntent.getActivity(activity, 0, intent, piFlags)
+        nfcAdapter?.enableForegroundDispatch(activity, pi, null, null)
+      } catch (_: Exception) {
+        // Activity may be in a weird state — non-fatal.
+      }
     }
   }
 

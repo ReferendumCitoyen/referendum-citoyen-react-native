@@ -32,12 +32,16 @@ export default function ComprendreScreen() {
     }
 
     return () => {
-      // Pause when leaving screen
+      // Pause when leaving screen. The player may already be released by its
+      // owning context during teardown — swallow that specific error since
+      // it's expected and non-actionable.
       try {
         player.pause();
         player.currentTime = 0;
-      } catch (error) {
-        console.log('Error pausing video:', error);
+      } catch (error: any) {
+        if (error?.code !== 'ERR_USING_RELEASED_SHARED_OBJECT') {
+          console.log('Error pausing video:', error);
+        }
       }
     };
   }, [player]);

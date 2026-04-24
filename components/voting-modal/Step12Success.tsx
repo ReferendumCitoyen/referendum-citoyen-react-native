@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent, Share } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Share, Platform, Dimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
@@ -12,6 +12,10 @@ interface Step12SuccessProps {
   onViewResults?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }
+
+// On Android, voting-flow's slidingWrapper has flex: 0 so percentage heights
+// inside slides collapse.
+const ANDROID_SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
 const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdentifier, onViewResults, onLayout }) => {
   const { t } = useTranslation();
@@ -37,7 +41,15 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdent
   };
 
   return (
-    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
+    <View
+      style={[
+        { width: containerWidth },
+        Platform.OS === 'android'
+          ? { minHeight: ANDROID_SLIDE_MIN_HEIGHT }
+          : { height: '100%' },
+      ]}
+      onLayout={onLayout}
+    >
       <View style={stepSpecificStyles.step12SuccessContainer}>
         <View style={stepSpecificStyles.step12SuccessContent}>
           <Text style={stepSpecificStyles.step12SuccessTitle}>

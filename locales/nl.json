@@ -59,6 +59,7 @@
     "loading": "Voorstellen laden...",
     "error": "Fout: {{message}}",
     "noProposals": "Geen voorstellen gevonden",
+    "preparingVotingData": "Stemgegevens voorbereiden… {{percent}}%",
     "showLess": "Minder tonen",
     "showMore": "Meer tonen ({{count}})"
   },
@@ -81,6 +82,7 @@
     "step5Scanning": "MRZ zoeken...",
     "step5Partial": "MRZ gedeeltelijk gedetecteerd...",
     "step5Success": "MRZ gedetecteerd!",
+    "step5OcrUnavailable": "Tekstherkenning lijkt niet te werken op dit apparaat (Google-services ontbreken). Gebruik \"Handmatige invoer\" hieronder.",
     "step6Title": "NFC-lezer",
     "step6MissingMrz": "MRZ-gegevens ontbreken. Scan eerst MRZ.",
     "step6Init": "🔄 Initialiseren...",
@@ -126,6 +128,9 @@
     "step11MissingData": "Fout: scan eerst uw identiteitskaart.",
     "step11GeneratingProof": "ZK-bewijs genereren...",
     "step11NetworkRetry": "Netwerkfout — opnieuw proberen ({{attempt}}/{{max}})...",
+    "step11DownloadingData": "Stemgegevens downloaden... {{percent}}%",
+    "step11FinalizingData": "Stemgegevens afronden...",
+    "step11DownloadFailed": "Kon stemgegevens niet downloaden. Controleer uw verbinding en probeer opnieuw.",
     "step12ErrorTitle": "Er is een fout opgetreden.",
     "step12ErrorDescription": "Probeer opnieuw."
   },

@@ -3,10 +3,11 @@ import { View, Text, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
-import { withRetry, formatRpcError } from '@/constants/rarime-config';
+import { formatRpcError } from '@/constants/rarime-config';
 import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { Buffer } from 'buffer';
+import { ensureCircuitsReady } from '@/utils/circuit-preload';
 
 interface Step11Props {
   containerWidth: number;
@@ -55,15 +56,27 @@ const Step11: React.FC<Step11Props> = ({
     }
   }, [isActive, hasStarted]);
 
+  // Fallback: if the required refs somehow never arrive, fail after a
+  // generous timeout instead of waiting forever.
   useEffect(() => {
-    if (!hasStarted || hasCalledCallback.current || isSubmitting.current) return;
-
-    if (!canSubmitReal) {
+    if (!hasStarted || hasCalledCallback.current) return;
+    if (canSubmitReal) return;
+    const timer = setTimeout(() => {
+      if (hasCalledCallback.current || canSubmitReal) return;
       hasCalledCallback.current = true;
       setStatusText(t('voting.step11MissingData'));
       onError?.();
-      return;
-    }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [hasStarted, canSubmitReal, onError, t]);
+
+  useEffect(() => {
+    if (!hasStarted || hasCalledCallback.current || isSubmitting.current) return;
+
+    // Same wait pattern as Step 7: refs may be populated asynchronously by
+    // voting-flow's init. Only hard-fail with "missing data" if they never
+    // arrive (see timeout below).
+    if (!canSubmitReal) return;
 
     isSubmitting.current = true;
     (async () => {
@@ -79,6 +92,28 @@ const Step11: React.FC<Step11Props> = ({
           return;
         }
 
+        // Make sure the Noir trusted setup + circuit bytecode are on disk
+        // before calling submitProposal. Normally preloaded on the home
+        // screen, but surface progress here as a fallback so the user
+        // isn't staring at a silent spinner for several minutes.
+        try {
+          await ensureCircuitsReady((p) => {
+            if (p.stage === 'trusted-setup' || p.stage === 'bytecode') {
+              const percent = Math.max(0, Math.min(100, Math.round(p.overallPercent * 100)));
+              setStatusText(t('voting.step11DownloadingData', { percent }));
+            } else if (p.stage === 'checking') {
+              setStatusText(t('voting.step11FinalizingData'));
+            }
+          });
+        } catch (dlErr: any) {
+          console.error('[FreedomTool] Step11: Circuit preload failed:', dlErr);
+          hasCalledCallback.current = true;
+          const msg = t('voting.step11DownloadFailed');
+          setStatusText(msg);
+          onError?.(msg);
+          return;
+        }
+
         setStatusText(t('voting.step11GeneratingProof'));
         const mrzData = passport.getMRZData();
         const citizenshipHex = BigInt("0x" + Buffer.from(mrzData.issuingCountry).toString("hex")).toString();
@@ -89,21 +124,18 @@ const Step11: React.FC<Step11Props> = ({
         console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposalInfo.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
         console.log(`[FreedomTool] Step11: selector=${proposalInfo.criteria.selector}, sendVoteContract=${proposalInfo.sendVoteContractAddress}`);
 
-        const txHash = await withRetry(
-          () =>
-            freedomTool.submitProposal({
-              answers: [answerIndex],
-              proposalInfo,
-              rarime,
-              passport,
-            }),
-          {
-            label: 'submitProposal',
-            onRetry: (attempt, max) => {
-              setStatusText(t('voting.step11NetworkRetry', { attempt, max }));
-            },
-          }
-        );
+        // No withRetry here on purpose: submitProposal runs the full ~3–5 min
+        // proof generation. Retrying a failure re-runs the whole thing and on
+        // Android tends to leave the HTTP stack in a worse state (see logs
+        // showing JsonRpcProvider "failed to detect network" after repeated
+        // FileSystemLegacyModule aborts). Surface the error; let the user
+        // retry from a clean slate.
+        const txHash = await freedomTool.submitProposal({
+          answers: [answerIndex],
+          proposalInfo,
+          rarime,
+          passport,
+        });
 
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
         hasCalledCallback.current = true;

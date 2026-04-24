@@ -59,6 +59,7 @@
     "loading": "Loading proposals...",
     "error": "Error: {{message}}",
     "noProposals": "No proposals found",
+    "preparingVotingData": "Preparing voting data… {{percent}}%",
     "showLess": "Show less",
     "showMore": "Show more ({{count}})"
   },
@@ -81,6 +82,7 @@
     "step5Scanning": "Searching for MRZ...",
     "step5Partial": "MRZ partially detected...",
     "step5Success": "MRZ detected!",
+    "step5OcrUnavailable": "Text recognition doesn't seem to work on this device (Google services missing). Please use \"Manual entry\" below.",
     "step6Title": "NFC reader",
     "step6MissingMrz": "MRZ data is missing. Scan MRZ first.",
     "step6Init": "🔄 Initializing...",
@@ -126,6 +128,9 @@
     "step11MissingData": "Error: please scan your ID card first.",
     "step11GeneratingProof": "Generating ZK proof...",
     "step11NetworkRetry": "Network error — retrying ({{attempt}}/{{max}})...",
+    "step11DownloadingData": "Downloading voting data... {{percent}}%",
+    "step11FinalizingData": "Finalizing voting data...",
+    "step11DownloadFailed": "Failed to download voting data. Check your connection and try again.",
     "step12ErrorTitle": "An error occurred.",
     "step12ErrorDescription": "Please try again."
   },
