@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.withNfc = void 0;
 const config_plugins_1 = require("@expo/config-plugins");
 const config_plugins_2 = require("@expo/config-plugins");
+const NFC_DISPATCH_TAG = 'withNfc:foreground-dispatch';
 const NFC_READER = 'Interact with nearby NFC devices';
 function withIosPermission(c, props = {}) {
     const { nfcPermission } = props;
@@ -149,6 +150,93 @@ const withNfcAndroidManifest = c => {
         return config;
     });
 };
+/**
+ * Patch MainActivity.kt to enable NFC foreground dispatch while the app is in
+ * the foreground. Without this, after the e-document module releases reader
+ * mode (at the end of a scan, or while the user lifts their card), Android
+ * dispatches stray TAG_DISCOVERED intents and opens its NFC app chooser.
+ *
+ * ANDROID-ONLY: `withMainActivity` targets `android/app/src/main/java/.../
+ * MainActivity.kt`. iOS builds never see this — iOS NFC is handled entirely
+ * by the e-document Swift module via CoreNFC.
+ */
+function withNfcForegroundDispatch(c) {
+    return (0, config_plugins_1.withMainActivity)(c, config => {
+        if (config.modResults.language !== 'kt') {
+            // The project currently uses Kotlin; leave Java untouched rather than
+            // guessing at syntax differences.
+            return config;
+        }
+        let contents = config.modResults.contents;
+        // 1. Imports
+        const importLines = [
+            'import android.app.PendingIntent',
+            'import android.nfc.NfcAdapter',
+        ];
+        for (const line of importLines) {
+            if (!contents.includes(line)) {
+                // Insert after the last existing `import` line to keep imports grouped.
+                contents = contents.replace(/((?:^import [^\n]+\n)+)/m, (match) => match + line + '\n');
+            }
+        }
+        // 2. Class fields + onResume/onPause methods, inserted right after the
+        //    `class MainActivity : ReactActivity() {` opening brace.
+        const classBlock = `
+  private var nfcAdapter: NfcAdapter? = null
+  private var nfcPendingIntent: PendingIntent? = null
+
+  override fun onResume() {
+    super.onResume()
+    try {
+      nfcAdapter?.enableForegroundDispatch(this, nfcPendingIntent, null, null)
+    } catch (_: Exception) {
+      // Safe: activity may not be in the right state, or reader mode owns NFC.
+    }
+  }
+
+  override fun onPause() {
+    super.onPause()
+    try {
+      nfcAdapter?.disableForegroundDispatch(this)
+    } catch (_: Exception) {
+      // Nothing to disable if it wasn't enabled.
+    }
+  }
+`;
+        const classMerge = config_plugins_1.CodeGenerator.mergeContents({
+            src: contents,
+            newSrc: classBlock,
+            tag: `${NFC_DISPATCH_TAG}/class`,
+            anchor: /class\s+MainActivity\s*:\s*ReactActivity\(\)\s*\{/,
+            offset: 1,
+            comment: '//',
+        });
+        contents = classMerge.contents;
+        // 3. Initialise the adapter + pending intent at the end of onCreate, after
+        //    the existing `super.onCreate(null)` call.
+        const onCreateInit = `
+    nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+    val nfcIntent = android.content.Intent(this, javaClass).apply {
+      addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    }
+    val nfcPiFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+      PendingIntent.FLAG_MUTABLE
+    else
+      0
+    nfcPendingIntent = PendingIntent.getActivity(this, 0, nfcIntent, nfcPiFlags)`;
+        const onCreateMerge = config_plugins_1.CodeGenerator.mergeContents({
+            src: contents,
+            newSrc: onCreateInit,
+            tag: `${NFC_DISPATCH_TAG}/onCreate`,
+            anchor: /super\.onCreate\(null\)/,
+            offset: 1,
+            comment: '//',
+        });
+        contents = onCreateMerge.contents;
+        config.modResults.contents = contents;
+        return config;
+    });
+}
 // const addSPMDependenciesToMainTarget: ConfigPlugin<{
 //   version?: string
 //   commit?: string
@@ -246,6 +334,9 @@ const withNfc = (config, props = {}) => {
         config = withIosPermission(config, props);
         config = config_plugins_2.AndroidConfig.Permissions.withPermissions(config, ['android.permission.NFC']);
         config = withNfcAndroidManifest(config);
+        // Android-only: see the function's header comment. iOS builds never run
+        // this mod because `withMainActivity` is a no-op outside Android.
+        config = withNfcForegroundDispatch(config);
     }
     return config;
 };

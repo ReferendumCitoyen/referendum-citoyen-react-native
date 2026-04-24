@@ -4,15 +4,16 @@ import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
 import SettingsButton from '@/components/SettingsButton';
-
-const PROPOSALS_CACHE_KEY = 'cached_proposals_v1';
-const bigintReplacer = (_: string, v: any) => typeof v === 'bigint' ? v.toString() + 'n' : v;
-const bigintReviver = (_: string, v: any) => typeof v === 'string' && /^\d+n$/.test(v) ? BigInt(v.slice(0, -1)) : v;
+import { preloadCircuits, subscribeCircuitPreload, type PreloadProgress } from '@/utils/circuit-preload';
+import {
+  readCachedProposals,
+  writeCachedProposals,
+  bigintReplacer,
+} from '@/utils/proposal-cache';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -25,6 +26,51 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
     />
   </Svg>
 );
+
+// Self-subscribing preload banner. Lives outside the header's useCallback so
+// its progress updates don't force renderHeader to recompute (which would
+// remount ActivityIndicator and restart the spinner on every progress tick).
+const PreloadBanner = React.memo(function PreloadBanner() {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const [status, setStatus] = useState<PreloadProgress>({
+    stage: 'idle',
+    stagePercent: 0,
+    overallPercent: 0,
+  });
+  useEffect(() => subscribeCircuitPreload(setStatus), []);
+
+  const active =
+    status.stage === 'checking' ||
+    status.stage === 'trusted-setup' ||
+    status.stage === 'bytecode';
+  if (!active) return null;
+
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#EEF2FF',
+      borderLeftWidth: 3,
+      borderLeftColor: colors.secondary,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      marginVertical: 8,
+      borderRadius: 4,
+      gap: 8,
+    }}>
+      <ActivityIndicator size="small" color={colors.secondary} />
+      <Text style={{
+        flex: 1,
+        fontFamily: Typography.fontFamily.medium,
+        fontSize: 12,
+        color: colors.text,
+      }}>
+        {t('home.preparingVotingData', { percent: Math.round(status.overallPercent * 100) })}
+      </Text>
+    </View>
+  );
+});
 
 // --- Helpers ---
 
@@ -198,14 +244,11 @@ export default function AccueilScreen() {
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
       if (!refresh) {
-        try {
-          const cached = await AsyncStorage.getItem(PROPOSALS_CACHE_KEY);
-          if (cached) {
-            const parsed = JSON.parse(cached, bigintReviver) as ProposalInfo[];
-            setProposals(parsed);
-            setIsLoading(false);
-          }
-        } catch {}
+        const parsed = await readCachedProposals();
+        if (parsed) {
+          setProposals(parsed);
+          setIsLoading(false);
+        }
       }
 
       if (refresh) setIsRefreshing(true);
@@ -229,9 +272,7 @@ export default function AccueilScreen() {
       oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
       setHasMore(oldestIdRef.current > 1);
 
-      try {
-        await AsyncStorage.setItem(PROPOSALS_CACHE_KEY, JSON.stringify(sorted, bigintReplacer));
-      } catch {}
+      await writeCachedProposals(sorted);
     } catch (err) {
       console.error('[Accueil] Failed to load proposals:', err);
       const msg = (err as Error).message?.toLowerCase() || '';
@@ -271,6 +312,18 @@ export default function AccueilScreen() {
 
   useEffect(() => { fetchProposals(); }, [fetchProposals]);
 
+  // Pre-download Noir circuits (~150–300 MB trusted setup + query circuit
+  // bytecode) so Step 11 doesn't have to do it during vote submission.
+  // On Android the in-flow download often aborts mid-stream; doing it here
+  // lets the user browse proposals while it completes. Progress is surfaced
+  // via the <PreloadBanner /> child component, which subscribes on its own.
+  useEffect(() => {
+    console.log('[Accueil] mounted — triggering circuit preload');
+    preloadCircuits().catch((err) => {
+      console.warn('[Accueil] Circuit preload failed (will retry at vote time):', err?.message);
+    });
+  }, []);
+
   // Auto-refresh when screen regains focus (e.g. after voting)
   const isFirstMount = useRef(true);
   useFocusEffect(
@@ -296,6 +349,18 @@ export default function AccueilScreen() {
   const activeProposals = useMemo(() => proposals.filter(isActive), [proposals]);
   const pastProposals = useMemo(() => proposals.filter(p => !isActive(p)), [proposals]);
   const allProposals = useMemo(() => [...activeProposals, ...pastProposals], [activeProposals, pastProposals]);
+
+  // Tapping a compact row in the "Ongoing Votes" header scrolls down to that
+  // proposal's full card below (same screen), rather than pushing into the
+  // voting flow.
+  const listRef = useRef<FlatList<ProposalInfo>>(null);
+  const handleAnchorPress = useCallback((proposalId: string) => {
+    const index = allProposals.findIndex(p => p.id === proposalId);
+    if (index < 0 || !listRef.current) return;
+    try {
+      listRef.current.scrollToIndex({ index, animated: true, viewPosition: 0 });
+    } catch {}
+  }, [allProposals]);
 
   const renderHeader = useCallback(() => (
     <View style={styles.voteListSection}>
@@ -325,8 +390,15 @@ export default function AccueilScreen() {
         </Text>
       )}
 
+      <PreloadBanner />
+
       {(showAllList ? activeProposals : activeProposals.slice(0, 3)).map((p) => (
-        <TouchableOpacity key={p.id} style={styles.voteListItem} activeOpacity={0.7}>
+        <TouchableOpacity
+          key={p.id}
+          style={styles.voteListItem}
+          activeOpacity={0.7}
+          onPress={() => handleAnchorPress(p.id)}
+        >
           <Text style={styles.voteListItemText} numberOfLines={2}>{p.title}</Text>
           <CaretRightIcon color={colors.secondary} size={Spacing.icon.size} />
         </TouchableOpacity>
@@ -345,7 +417,7 @@ export default function AccueilScreen() {
         </TouchableOpacity>
       )}
     </View>
-  ), [activeProposals, showAllList, isLoading, loadError, colors, styles]);
+  ), [activeProposals, showAllList, isLoading, loadError, colors, styles, handleAnchorPress, t]);
 
   const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
     const active = isActive(p);
@@ -450,6 +522,7 @@ export default function AccueilScreen() {
   return (
     <View style={styles.screenContainer}>
       <FlatList
+        ref={listRef}
         data={allProposals}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -472,6 +545,20 @@ export default function AccueilScreen() {
         onEndReachedThreshold={0.5}
         initialNumToRender={3}
         windowSize={5}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          // Variable-height rows — scrollToIndex can fail if the target isn't
+          // laid out yet. Fall back to an offset estimate, then retry once
+          // the row is measured.
+          listRef.current?.scrollToOffset({
+            offset: Math.max(0, (averageItemLength || 400) * index),
+            animated: true,
+          });
+          setTimeout(() => {
+            try {
+              listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+            } catch {}
+          }, 250);
+        }}
       />
 
     </View>

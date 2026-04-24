@@ -72,15 +72,30 @@ const Step7: React.FC<Step7Props> = ({
     }
   }, [isActive, hasStarted]);
 
+  // Fallback: if rarime/passport genuinely never arrive (init threw), don't
+  // wait forever — surface a real error after a generous timeout.
   useEffect(() => {
-    if (!hasStarted || hasCalledCallback.current || isVerifying.current) return;
-
-    if (!rarime || !passport) {
+    if (!hasStarted || hasCalledCallback.current) return;
+    if (rarime && passport) return;
+    const timer = setTimeout(() => {
+      if (hasCalledCallback.current) return;
+      if (rarime && passport) return;
       hasCalledCallback.current = true;
       setErrorMessage(t('voting.step7MissingData'));
       onError?.();
-      return;
-    }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [hasStarted, rarime, passport, onError, t]);
+
+  useEffect(() => {
+    if (!hasStarted || hasCalledCallback.current || isVerifying.current) return;
+
+    // rarime + passport are populated asynchronously in voting-flow's init
+    // effect (SDK import + Rarime native warmup). On the first pass they're
+    // still undefined — wait rather than bailing. The effect re-runs when
+    // they become defined. A separate timeout below surfaces a real error
+    // if init genuinely fails.
+    if (!rarime || !passport) return;
 
     isVerifying.current = true;
     (async () => {

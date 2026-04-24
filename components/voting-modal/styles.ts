@@ -30,10 +30,19 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   slidingWrapper: {
     overflow: 'hidden',
     alignSelf: 'stretch',
-    flex: Platform.OS === 'android' ? 0 : undefined,
+    // On Android, fill the available vertical space above the nav bar so the
+    // white slide background extends consistently across steps 1–3 (otherwise
+    // the row shrinks to the tallest mounted slide, which differs per step
+    // because of the ±1 mount window — Step 4 is taller than Steps 1–3).
+    flex: Platform.OS === 'android' ? 1 : undefined,
   },
   slidingContainer: {
     flexDirection: 'row',
+    // Fill slidingWrapper's height on Android so row-children (slides) stretch
+    // vertically to the full available space. Without this, the row shrinks to
+    // max(slide intrinsic heights) and the white slide backgrounds end at
+    // different Y positions between steps.
+    flex: Platform.OS === 'android' ? 1 : undefined,
   },
   stepSlide: {
     alignItems: 'center',
@@ -137,18 +146,26 @@ export const createModalStyles = (colors: ReturnType<typeof useColors>) => Style
   },
 });
 
+// Android's mediaContainer is 120h with paddingBottom: 20, giving ~100px of
+// inner space. The iOS-sized assets (167–175h) overflow that container; with
+// `resizeMode: contain` the overflow shifts the visible image content and makes
+// the three slides look misaligned (ballot sits visibly lower than card/phone).
+// Clamp all three to the same footprint on Android so they line up identically.
+const ANDROID_SLIDE_IMAGE = 100;
+const ANDROID_CARD_WIDTH = Math.round(ANDROID_SLIDE_IMAGE * (199 / 167)); // keep card aspect
+
 export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   cardVideo: {
-    width: Spacing.modal.cardImageWidth,
-    height: Spacing.modal.cardImageHeight,
+    width: Platform.OS === 'android' ? ANDROID_CARD_WIDTH : Spacing.modal.cardImageWidth,
+    height: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.cardImageHeight,
   },
   phoneImage: {
-    width: Spacing.modal.phoneImageSize,
-    height: Spacing.modal.phoneImageSize,
+    width: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.phoneImageSize,
+    height: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.phoneImageSize,
   },
   ballotImage: {
-    width: Spacing.modal.ballotImageSize,
-    height: Spacing.modal.ballotImageSize,
+    width: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.ballotImageSize,
+    height: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.ballotImageSize,
   },
   step4Container: {
     padding: Spacing.modal.step4Padding,

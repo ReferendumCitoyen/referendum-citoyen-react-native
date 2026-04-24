@@ -59,6 +59,7 @@
     "loading": "Caricamento proposte...",
     "error": "Errore: {{message}}",
     "noProposals": "Nessuna proposta trovata",
+    "preparingVotingData": "Preparazione dei dati di voto… {{percent}}%",
     "showLess": "Mostra meno",
     "showMore": "Mostra di più ({{count}})"
   },
@@ -81,6 +82,7 @@
     "step5Scanning": "Ricerca MRZ...",
     "step5Partial": "MRZ parzialmente rilevato...",
     "step5Success": "MRZ rilevato!",
+    "step5OcrUnavailable": "Il riconoscimento del testo non sembra funzionare su questo dispositivo (servizi Google assenti). Usa \"Inserimento manuale\" qui sotto.",
     "step6Title": "Lettore NFC",
     "step6MissingMrz": "Dati MRZ mancanti. Scansiona prima la MRZ.",
     "step6Init": "🔄 Inizializzazione...",
@@ -126,6 +128,9 @@
     "step11MissingData": "Errore: scansiona prima la tua carta d'identità.",
     "step11GeneratingProof": "Generazione della prova ZK...",
     "step11NetworkRetry": "Errore di rete — nuovo tentativo ({{attempt}}/{{max}})...",
+    "step11DownloadingData": "Download dei dati di voto... {{percent}}%",
+    "step11FinalizingData": "Finalizzazione dei dati di voto...",
+    "step11DownloadFailed": "Impossibile scaricare i dati di voto. Controlla la connessione e riprova.",
     "step12ErrorTitle": "Si è verificato un errore.",
     "step12ErrorDescription": "Per favore riprova."
   },

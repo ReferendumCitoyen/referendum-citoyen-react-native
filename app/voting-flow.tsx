@@ -15,6 +15,7 @@ import {
   withRetry,
   formatRpcError,
 } from '@/constants/rarime-config';
+import { findCachedProposal } from '@/utils/proposal-cache';
 import { useTranslation } from 'react-i18next';
 
 // Import all steps
@@ -112,13 +113,30 @@ export default function VotingFlowScreen() {
         freedomToolRef.current = ft;
 
         const targetProposalId = proposalIdParam || DEFAULT_PROPOSAL_ID;
-        console.log('[FreedomTool] Loading proposal', targetProposalId);
-        const info = await withRetry(
-          () => ft.getProposalInfo(targetProposalId),
-          { label: 'getProposalInfo' }
-        );
-        console.log('[FreedomTool] Proposal loaded:', info.title);
-        setProposalInfo(info);
+
+        // Cache-first: the home screen already fetched & cached this
+        // proposal. Using it here cuts ~2–3 s off the post-NFC wait (that's
+        // the getProposalInfo() roundtrip blocking Step 7 verification).
+        const cached = await findCachedProposal(targetProposalId);
+        if (cached) {
+          console.log('[FreedomTool] Proposal loaded from cache:', cached.title);
+          setProposalInfo(cached);
+          // Refresh in the background in case votes/timestamps moved on;
+          // the cache entry remains usable for the current voting flow.
+          ft.getProposalInfo(targetProposalId)
+            .then((fresh: ProposalInfo) => { setProposalInfo(fresh); })
+            .catch((e: any) => {
+              console.warn('[FreedomTool] background refresh failed:', e?.message);
+            });
+        } else {
+          console.log('[FreedomTool] Loading proposal', targetProposalId);
+          const info = await withRetry(
+            () => ft.getProposalInfo(targetProposalId),
+            { label: 'getProposalInfo' }
+          );
+          console.log('[FreedomTool] Proposal loaded:', info.title);
+          setProposalInfo(info);
+        }
       } catch (err) {
         console.error('[FreedomTool] Init error:', err);
       }
@@ -171,11 +189,12 @@ export default function VotingFlowScreen() {
 
     handleStepChange(newStep);
 
+    // Light the Nth bar when entering step N. Bar 1 is already lit at init
+    // (so step 1 → 1 bar, step 2 → 2 bars, step 3 → 3 bars). Step 4 hides the
+    // nav entirely, so nothing to animate there.
     if (newStep === 2) {
-      Animated.timing(progressOpacity1, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    } else if (newStep === 3) {
       Animated.timing(progressOpacity2, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    } else if (newStep === 4) {
+    } else if (newStep === 3) {
       Animated.timing(progressOpacity3, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     }
   }, [currentStep, slideAnim, containerWidth, handleStepChange, progressOpacity1, progressOpacity2, progressOpacity3]);
@@ -370,7 +389,9 @@ export default function VotingFlowScreen() {
                   <Step5
                     key="s5"
                     containerWidth={containerWidth}
-                    isActive={currentStep === 5}
+                    // Kill the camera while the manual-entry modal is open so
+                    // the preview doesn't sit on top of the keyboard.
+                    isActive={currentStep === 5 && !isManualInputVisible}
                     onMRZScanned={handleMRZScanned}
                     onManualFill={handleManualFill}
                   />
@@ -513,10 +534,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   topSection: {
+    // flex: 1 so the slidingWrapper inside (also flex: 1 on Android) can fill
+    // all the vertical space above the nav bar — keeps the white slide area
+    // consistent across steps 1–3 regardless of which slides are mounted.
+    flex: 1,
     backgroundColor: 'white',
   },
   bottomSection: {
-    flex: 1,
+    // No flex: shrinks to the nav's intrinsic content height. topSection takes
+    // all remaining vertical space, and nav ends up naturally pinned to the
+    // screen bottom.
   },
   progressSection: {
     flexDirection: 'row',

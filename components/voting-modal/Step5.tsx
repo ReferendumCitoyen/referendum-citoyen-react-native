@@ -32,6 +32,12 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected'>('idle');
   const passportDetectCount = useRef(0);
   const mrzHistoryRef = useRef<string[][]>([]);
+  const ocrProducedResultsRef = useRef(false);
+  // On degoogled devices (VollaOS, /e/OS, GrapheneOS without GServices) ML Kit's
+  // text-recognition model can't load; the frame processor runs but scanText()
+  // returns nothing. After a few seconds with zero OCR output we assume it's
+  // broken and nudge the user toward manual entry.
+  const [ocrUnavailable, setOcrUnavailable] = useState(false);
 
   // Reset when step becomes active
   useEffect(() => {
@@ -40,8 +46,21 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       setScanProgress('idle');
       mrzHistoryRef.current = [];
       passportDetectCount.current = 0;
+      ocrProducedResultsRef.current = false;
+      setOcrUnavailable(false);
     }
   }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive || hasScanned) return;
+    const timer = setTimeout(() => {
+      if (!ocrProducedResultsRef.current && !hasScanned) {
+        console.log('[Step5] No OCR output after 8s — flagging OCR as unavailable (likely degoogled device)');
+        setOcrUnavailable(true);
+      }
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [isActive, hasScanned]);
 
   // MRZ Parser
   const parseMRZ = useCallback((lines: string[]) => {
@@ -135,6 +154,12 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
 
   const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
     if (hasScanned) return;
+
+    // Any OCR output at all — even garbage that isn't MRZ — means ML Kit is
+    // actually running, so we won't surface the "OCR unavailable" banner.
+    if (lines.length > 0) {
+      ocrProducedResultsRef.current = true;
+    }
 
     try {
       const mrzLikeLines = lines.filter(isMRZLike);
@@ -336,6 +361,22 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             </Text>
           </View>
         </View>
+        {ocrUnavailable && (
+          <View style={{
+            backgroundColor: '#FEF3C7',
+            borderLeftWidth: 4,
+            borderLeftColor: '#F59E0B',
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            marginHorizontal: 12,
+            marginTop: 12,
+            borderRadius: 6,
+          }}>
+            <Text style={{ color: '#92400E', fontSize: 13, lineHeight: 18 }}>
+              {t('voting.step5OcrUnavailable')}
+            </Text>
+          </View>
+        )}
         <TouchableOpacity
           style={stepSpecificStyles.step5Button}
           activeOpacity={0.8}

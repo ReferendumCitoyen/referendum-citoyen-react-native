@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
@@ -12,13 +12,26 @@ interface Step12ErrorProps {
   errorReason?: string | null;
 }
 
+// On Android, voting-flow's slidingWrapper has flex: 0 so percentage heights
+// inside slides collapse. We need a real minHeight, otherwise the content is
+// laid out around y=0 and ends up mostly off-screen.
+const ANDROID_SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
+
 const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout, errorReason }) => {
   const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
   return (
-    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
+    <View
+      style={[
+        { width: containerWidth },
+        Platform.OS === 'android'
+          ? { minHeight: ANDROID_SLIDE_MIN_HEIGHT }
+          : { height: '100%' },
+      ]}
+      onLayout={onLayout}
+    >
       <View style={stepSpecificStyles.step12ErrorContainer}>
         <View style={stepSpecificStyles.step12ErrorContent}>
           <Text style={stepSpecificStyles.step12ErrorTitle}>
