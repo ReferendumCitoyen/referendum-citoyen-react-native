@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+echo ""
+echo "🧪  Running pre-commit tests…"
+echo ""
+
+if npm test --silent; then
+  echo ""
+  echo "✅  All tests passed — committing."
+  echo ""
+else
+  echo ""
+  echo "❌  Tests failed — commit aborted."
+  echo "   Fix the failing tests, or use --no-verify to skip (not recommended)."
+  echo ""
+  exit 1
+fi
