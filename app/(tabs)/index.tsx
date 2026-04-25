@@ -14,6 +14,7 @@ import {
   writeCachedProposals,
   bigintReplacer,
 } from '@/utils/proposal-cache';
+import { computeVoteResults, isFrenchCompatible } from '@/utils/voteResults';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -51,8 +52,6 @@ const PreloadBanner = React.memo(function PreloadBanner() {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: '#EEF2FF',
-      borderLeftWidth: 3,
-      borderLeftColor: colors.secondary,
       paddingVertical: 8,
       paddingHorizontal: 12,
       marginVertical: 8,
@@ -111,18 +110,6 @@ const isActive = (p: ProposalInfo): boolean => {
   return now >= p.startTimestamp && now <= p.startTimestamp + p.duration;
 };
 
-// "FRA" packed as ASCII bigint: 0x46 0x52 0x41 = 4_607_553. Matches how the
-// Rarime SDK encodes ProposalCriteria.citizenshipWhitelist entries.
-const FRA_BIGINT = BigInt('0x465241');
-
-// A proposal is French-compatible if its citizenshipWhitelist either is empty
-// (open to all countries) or explicitly contains FRA.
-const isFrenchCompatible = (p: ProposalInfo): boolean => {
-  const whitelist = p.criteria?.citizenshipWhitelist;
-  if (!whitelist || whitelist.length === 0) return true;
-  return whitelist.some((c: bigint) => c === FRA_BIGINT);
-};
-
 const formatTimeRemaining = (endTimestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now >= endTimestamp) return 'Terminé';
@@ -138,18 +125,6 @@ const formatTimeAgo = (timestamp: bigint): string => {
   if (now < timestamp) return 'Bientôt';
   const localDate = new Date(Number(timestamp) * 1000);
   return localDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-const computeVoteResults = (votingResults: bigint[][], variantCount: number) => {
-  if (!votingResults || votingResults.length === 0 || !votingResults[0]) {
-    return { percents: [], counts: [], total: 0 };
-  }
-  // Slice results to match actual number of variants (contract may pad with zeros)
-  const results = votingResults[0].slice(0, variantCount);
-  const total = results.reduce((sum, v) => sum + v, 0n);
-  const percents = results.map(v => total > 0n ? Number(v * 10000n / total) / 100 : 0);
-  const counts = results.map(v => Number(v));
-  return { percents, counts, total: Number(total) };
 };
 
 // --- VoteResults component (dynamic variants) ---

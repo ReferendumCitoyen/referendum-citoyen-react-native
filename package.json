@@ -19,7 +19,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "postinstall": "patch-package",
-    "eas-build-post-install": "node ./scripts/strip-bitcode.js"
+    "eas-build-post-install": "node ./scripts/strip-bitcode.js",
+    "prepare": "husky"
   },
   "dependencies": {
     "@distributedlab/tools": "^1.0.0-rc.17",
@@ -101,6 +102,7 @@
     "@typescript-eslint/parser": "^8.49.0",
     "eslint": "^9.39.2",
     "eslint-config-expo": "^10.0.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
     "jest-expo": "^54.0.16",
     "patch-package": "^8.0.1",
