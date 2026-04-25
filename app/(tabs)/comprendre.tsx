@@ -169,6 +169,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     width: Spacing.video.characterWidth,
     height: Spacing.video.characterHeight,
     borderRadius: Spacing.video.borderRadius,
+    margin: 12,
   },
   welcomeTextContainer: {
     flex: 1,
@@ -178,9 +179,9 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   welcomeText: {
     fontFamily: Typography.fontFamily.medium,
     fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
-    letterSpacing: Typography.letterSpacing.body,
+    fontSize: Typography.fontSize.small,
+    lineHeight: Typography.lineHeight.small,
+    letterSpacing: Typography.letterSpacing.small,
     color: colors.text,
   },
   section: {
