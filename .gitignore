@@ -42,8 +42,9 @@ Thumbs.db
 # local env files
 .env*.local
 
-# personal working notes (e.g. TODO.local.md)
+# personal working notes & local audit logs (e.g. TODO.local.md, eas-builds.local.log)
 *.local.md
+*.local.log
 
 # typescript
 *.tsbuildinfo

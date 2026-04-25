@@ -18,6 +18,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
     "test": "jest",
     "test:watch": "jest --watch",
+    "eas-build": "./scripts/eas-build.sh",
     "postinstall": "patch-package",
     "eas-build-post-install": "node ./scripts/strip-bitcode.js",
     "prepare": "husky"
