@@ -11,6 +11,13 @@ import {
 } from 'react-native';
 import { useColors, Typography } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
+import {
+  formatDateDisplay,
+  sanitizeDateInput,
+  parseFrenchDate,
+  checkBirthDate,
+  checkExpiryDate,
+} from '@/utils/mrzDate';
 
 interface ManualMRZInputProps {
   isVisible: boolean;
@@ -36,8 +43,25 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
     return aa + mm + jj;
   };
 
+  // Date validation. Only show errors once the user has entered all 6 digits;
+  // it would be noisy to flag "invalid" mid-typing. The eligibility policy
+  // (≥18, not expired) lives in utils/mrzDate so the same checks fire on the
+  // camera-scan path in Step5.
+  const birthToken = birthDate.length === 6 ? checkBirthDate(parseFrenchDate(birthDate)) : null;
+  const expiryToken = expiryDate.length === 6 ? checkExpiryDate(parseFrenchDate(expiryDate)) : null;
+
+  const birthError =
+    birthToken === 'invalid' ? t('mrzManual.birthInvalid') :
+    birthToken === 'underage' ? t('mrzManual.birthUnderage') :
+    null;
+
+  const expiryError =
+    expiryToken === 'invalid' ? t('mrzManual.expiryInvalid') :
+    expiryToken === 'expired' ? t('mrzManual.expiryExpired') :
+    null;
+
   const handleSubmit = () => {
-    if (documentNumber && birthDate && expiryDate) {
+    if (documentNumber && birthDate.length === 6 && expiryDate.length === 6 && !birthError && !expiryError) {
       onSubmit({
         documentNumber: documentNumber.toUpperCase(),
         birthDate: convertToMRZFormat(birthDate),
@@ -49,7 +73,12 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
     }
   };
 
-  const isValid = documentNumber.length > 0 && birthDate.length === 6 && expiryDate.length === 6;
+  const isValid =
+    documentNumber.length > 0 &&
+    birthDate.length === 6 &&
+    expiryDate.length === 6 &&
+    !birthError &&
+    !expiryError;
 
   const styles = StyleSheet.create({
     overlay: {
@@ -105,6 +134,14 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
       fontSize: 12,
       color: colors.text,
       opacity: 0.6,
+    },
+    error: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 13,
+      color: '#DC2626',
+    },
+    inputError: {
+      borderColor: '#DC2626',
     },
     buttonRow: {
       gap: 12,
@@ -189,29 +226,37 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
         <View style={styles.inputGroup}>
           <Text style={styles.label}>{t('mrzManual.birthDate')}</Text>
           <TextInput
-            style={styles.input}
-            value={birthDate}
-            onChangeText={setBirthDate}
+            style={[styles.input, birthError && styles.inputError]}
+            value={formatDateDisplay(birthDate)}
+            onChangeText={(text) => setBirthDate(sanitizeDateInput(text))}
             placeholder={t('mrzManual.datePlaceholder')}
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
-            maxLength={6}
+            maxLength={8}
           />
-          <Text style={styles.hint}>{t('mrzManual.birthHint')}</Text>
+          {birthError ? (
+            <Text style={styles.error}>{birthError}</Text>
+          ) : (
+            <Text style={styles.hint}>{t('mrzManual.birthHint')}</Text>
+          )}
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>{t('mrzManual.expiryDate')}</Text>
           <TextInput
-            style={styles.input}
-            value={expiryDate}
-            onChangeText={setExpiryDate}
+            style={[styles.input, expiryError && styles.inputError]}
+            value={formatDateDisplay(expiryDate)}
+            onChangeText={(text) => setExpiryDate(sanitizeDateInput(text))}
             placeholder={t('mrzManual.datePlaceholder')}
             placeholderTextColor={colors.text + '80'}
             keyboardType="number-pad"
-            maxLength={6}
+            maxLength={8}
           />
-          <Text style={styles.hint}>{t('mrzManual.expiryHint')}</Text>
+          {expiryError ? (
+            <Text style={styles.error}>{expiryError}</Text>
+          ) : (
+            <Text style={styles.hint}>{t('mrzManual.expiryHint')}</Text>
+          )}
         </View>
 
         <View style={styles.buttonRow}>

@@ -8,6 +8,7 @@ import { Svg, Path } from 'react-native-svg';
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
+import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
 
 interface Step5Props {
   containerWidth: number;
@@ -29,7 +30,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
-  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected'>('idle');
+  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected' | 'underage' | 'expired'>('idle');
   const passportDetectCount = useRef(0);
   const mrzHistoryRef = useRef<string[][]>([]);
   const ocrProducedResultsRef = useRef(false);
@@ -138,6 +139,24 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
 
   const handleMRZSuccess = useCallback((result: ReturnType<typeof parse>) => {
     console.log("✅ MRZ Detected:", JSON.stringify(result.fields, null, 2));
+
+    // Pre-NFC eligibility gate: same age + expiry policy as the manual entry
+    // sheet (utils/mrzDate). Don't advance to Step 6 if the card is underage
+    // or expired — the user can present a different card or use Saisie
+    // manuelle. Stays in scan state so OCR keeps running.
+    const birth = parseMRZDate(result.fields.birthDate || '');
+    const expiry = parseMRZDate(result.fields.expirationDate || '');
+    if (checkBirthDate(birth) === 'underage') {
+      console.log('[Step5] Card holder is under 18 — blocking');
+      setScanProgress('underage');
+      return;
+    }
+    if (checkExpiryDate(expiry) === 'expired') {
+      console.log('[Step5] Card is expired — blocking');
+      setScanProgress('expired');
+      return;
+    }
+
     setScanProgress('success');
     setHasScanned(true);
 
@@ -316,13 +335,19 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             justifyContent: 'center', alignItems: 'center',
           }}>
+            {(() => {
+              const isError =
+                scanProgress === 'passport_detected' ||
+                scanProgress === 'underage' ||
+                scanProgress === 'expired';
+              return (
             <View style={{
               width: '88%',
               aspectRatio: 1.586,
-              borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || scanProgress === 'passport_detected' ? 3 : 2,
-              borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'passport_detected' ? '#EF4444' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
+              borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || isError ? 3 : 2,
+              borderColor: scanProgress === 'success' ? '#10B981' : isError ? '#EF4444' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
               borderRadius: 12,
-              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : scanProgress === 'passport_detected' ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.25)',
+              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : isError ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.25)',
               justifyContent: 'space-between',
               padding: 12,
             }}>
@@ -348,6 +373,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 </Text>
               </View>
             </View>
+              );
+            })()}
             <Text style={{
               color: '#fff', fontSize: 14, fontWeight: '600',
               textAlign: 'center', marginTop: 12,
@@ -358,6 +385,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               {scanProgress === 'partial' && t('voting.step5Partial')}
               {scanProgress === 'success' && t('voting.step5Success')}
               {scanProgress === 'passport_detected' && t('voting.step5PassportDetected')}
+              {scanProgress === 'underage' && t('voting.step5Underage')}
+              {scanProgress === 'expired' && t('voting.step5Expired')}
             </Text>
           </View>
         </View>
