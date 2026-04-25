@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl, Linking } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl, Linking, Pressable } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -111,6 +111,18 @@ const isActive = (p: ProposalInfo): boolean => {
   return now >= p.startTimestamp && now <= p.startTimestamp + p.duration;
 };
 
+// "FRA" packed as ASCII bigint: 0x46 0x52 0x41 = 4_607_553. Matches how the
+// Rarime SDK encodes ProposalCriteria.citizenshipWhitelist entries.
+const FRA_BIGINT = BigInt('0x465241');
+
+// A proposal is French-compatible if its citizenshipWhitelist either is empty
+// (open to all countries) or explicitly contains FRA.
+const isFrenchCompatible = (p: ProposalInfo): boolean => {
+  const whitelist = p.criteria?.citizenshipWhitelist;
+  if (!whitelist || whitelist.length === 0) return true;
+  return whitelist.some((c: bigint) => c === FRA_BIGINT);
+};
+
 const formatTimeRemaining = (endTimestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now >= endTimestamp) return 'Terminé';
@@ -162,6 +174,17 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
   const labelSize = many ? 9 : Typography.fontSize.voteCount;
   const percentSize = many ? 9 : Typography.fontSize.voteCount;
 
+  // Long-pressing a bar removes the truncation on its label so the user can
+  // read the full option text inline (toggleable).
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggleExpanded = (idx: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
   const calculateHeight = (percent: number) => {
     if (percent === 0) return minHeight;
     return Math.max(minHeight, (percent / 100) * maxHeight);
@@ -171,7 +194,14 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
     <View style={styles.resultsContainer}>
       <View style={styles.barsContainer}>
         {variants.map((_, idx) => (
-          <View key={idx} style={styles.barWrapper}>
+          <Pressable
+            key={idx}
+            style={styles.barWrapper}
+            onPress={() => toggleExpanded(idx)}
+          >
+            {hasVotes && (
+              <Text style={[styles.barPercent, many && { fontSize: percentSize }]}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
+            )}
             <View style={[
               styles.bar,
               {
@@ -179,17 +209,19 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
                 backgroundColor: barColors[idx % barColors.length],
                 opacity: hasVotes ? 1 : 0.4,
               },
-            ]}>
-              {hasVotes && (
-                <Text style={[styles.barPercent, many && { fontSize: percentSize }]}>{(percents[idx] ?? 0).toFixed(1)}%</Text>
-              )}
-            </View>
-          </View>
+            ]} />
+          </Pressable>
         ))}
       </View>
       <View style={styles.labelsContainer}>
         {variants.map((v, idx) => (
-          <Text key={idx} style={[styles.barLabel, many && { fontSize: labelSize, lineHeight: labelSize * 1.3 }]} numberOfLines={1}>{v}</Text>
+          <Text
+            key={idx}
+            style={[styles.barLabel, many && { fontSize: labelSize, lineHeight: labelSize * 1.3 }]}
+            numberOfLines={expanded.has(idx) ? undefined : 1}
+          >
+            {v}
+          </Text>
         ))}
       </View>
       {hasVotes && (
@@ -346,8 +378,15 @@ export default function AccueilScreen() {
     }
   };
 
-  const activeProposals = useMemo(() => proposals.filter(isActive), [proposals]);
-  const pastProposals = useMemo(() => proposals.filter(p => !isActive(p)), [proposals]);
+  // Hide proposals whose citizenshipWhitelist excludes FRA (per 2026-04-23
+  // recap: only show votes a French ID card can actually be used on).
+  // Dev mode bypasses the filter so we can see every proposal during testing.
+  const eligibleProposals = useMemo(
+    () => (devMode ? proposals : proposals.filter(isFrenchCompatible)),
+    [proposals, devMode]
+  );
+  const activeProposals = useMemo(() => eligibleProposals.filter(isActive), [eligibleProposals]);
+  const pastProposals = useMemo(() => eligibleProposals.filter(p => !isActive(p)), [eligibleProposals]);
   const allProposals = useMemo(() => [...activeProposals, ...pastProposals], [activeProposals, pastProposals]);
 
   // Tapping a compact row in the "Ongoing Votes" header scrolls down to that
