@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity } from 'react-native';
+import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -203,9 +203,14 @@ const Step7: React.FC<Step7Props> = ({
           />
         )}
 
-        <Text style={stepSpecificStyles.step7Description}>
-          {errorMessage || statusText}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {!errorMessage && hasStarted && (
+            <ActivityIndicator size="small" color={colors.text} />
+          )}
+          <Text style={stepSpecificStyles.step7Description}>
+            {errorMessage || statusText}
+          </Text>
+        </View>
 
         {nfcData?.personDetails && (
           <View style={{ marginTop: 16, padding: 16, backgroundColor: colors.white, borderRadius: 8 }}>
