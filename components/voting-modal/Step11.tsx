@@ -48,11 +48,13 @@ const Step11: React.FC<Step11Props> = ({
     if (isActive && !hasStarted) {
       setHasStarted(true);
       hasCalledCallback.current = false;
+      isSubmitting.current = false;
       setStatusText(t('voting.step11Preparing'));
     } else if (!isActive && hasStarted) {
+      // Same race as Step 7 — see that file's comment. Don't clear the
+      // ref guards on deactivation; the submit effect would otherwise re-fire
+      // in the same commit and trigger a duplicate vote-submit.
       setHasStarted(false);
-      hasCalledCallback.current = false;
-      isSubmitting.current = false;
     }
   }, [isActive, hasStarted]);
 
@@ -172,9 +174,18 @@ const Step11: React.FC<Step11Props> = ({
           // the bundled noir.aar prover produces proofs that don't match the
           // deployed verifier. Not recoverable from the app layer — surface
           // a precise error so the user can report it.
+          //
+          // The SDK does a local static-call first (logs "0xd71fd263"
+          // explicitly) but still POSTs to the relayer, which 400s with
+          // "execution reverted" / "failed to estimate gas". By the time
+          // the error reaches us, the selector has been laundered into the
+          // relayer's HTTP body, so we also match that wording — an Android
+          // build that survives `verify()` but fails `eth_estimateGas` is
+          // virtually always the same prover/verifier mismatch.
           msg.includes('0xd71fd263') ||
           msg.includes('PAIRING_FAILED') ||
-          msg.toLowerCase().includes('pairing_failed')
+          msg.toLowerCase().includes('pairing_failed') ||
+          (msg.includes('execution reverted') && msg.includes('failed to estimate gas'))
         ) {
           errorMsg = t('voting.step11ProverIncompatible');
         } else {

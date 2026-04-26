@@ -81,9 +81,16 @@ const Step7: React.FC<Step7Props> = ({
       setStatusText(t('voting.step7Verifying'));
       setErrorMessage(null);
     } else if (!isActive && hasStarted) {
+      // Do NOT reset hasCalledCallback / isVerifying here. Both effects
+      // share `hasStarted` in their deps, so when isActive flips true→false
+      // immediately after onSuccess, this effect runs first and clears the
+      // refs synchronously, but `setHasStarted(false)` is async. In the same
+      // commit, the verification effect then runs with state hasStarted=true
+      // and refs both false — and re-fires the whole register-identity flow.
+      // The on-chain signature has already been consumed, so the duplicate
+      // call fails with "signature used" and bumps the user back to vote
+      // selection. Refs get re-cleared on a fresh activation below.
       setHasStarted(false);
-      hasCalledCallback.current = false;
-      isVerifying.current = false;
     }
   }, [isActive, hasStarted]);
 
@@ -139,11 +146,27 @@ const Step7: React.FC<Step7Props> = ({
           const kind = status === DocumentStatus.NotRegistered ? 'registering' : 're-registering';
           console.log(`[Step7] ${kind} identity (status=${status})`);
           setStatusText(t('voting.step7Registering'));
-          await withRetry(
-            () => rarime.registerIdentity(passport),
-            { label: 'registerIdentity' }
-          );
-          console.log('[Step7] Identity registered');
+          try {
+            await withRetry(
+              () => rarime.registerIdentity(passport),
+              { label: 'registerIdentity' }
+            );
+            console.log('[Step7] Identity registered');
+          } catch (regErr: any) {
+            // Idempotency: if a prior run already submitted the registration
+            // (and the chain just hadn't propagated yet when we read the
+            // status), the relayer rejects the duplicate with "signature
+            // used", and the SDK's own pre-check throws "registered with
+            // this Private Key" once the chain catches up. Both mean the
+            // identity is in fact registered under our profileKey — the
+            // exact post-condition we want — so swallow them.
+            const m: string = regErr?.message ?? '';
+            const alreadyRegistered =
+              m.includes('signature used') ||
+              m.includes('registered with this Private Key');
+            if (!alreadyRegistered) throw regErr;
+            console.log('[Step7] Identity already registered (idempotent) — proceeding');
+          }
         }
 
         hasCalledCallback.current = true;
