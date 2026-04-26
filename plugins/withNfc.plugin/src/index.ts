@@ -223,6 +223,28 @@ const withNfcAndroidManifest: ConfigPlugin = c => {
   })
 }
 
+// Expo's default Android template + transitive native modules pull in a set of
+// permissions the app never uses (no overlay UI, no audio recording, no
+// external-storage I/O on legacy SDKs). Leaving them declared in production
+// is a real attack surface: SYSTEM_ALERT_WINDOW in particular lets an app
+// draw on top of others, and is treated as sensitive by Play Protect and
+// many MDMs. Strip them on every prebuild so a `--clean` regeneration can't
+// silently re-introduce them.
+const UNUSED_PERMISSIONS = [
+  'android.permission.SYSTEM_ALERT_WINDOW',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+  'android.permission.RECORD_AUDIO',
+  'android.permission.MODIFY_AUDIO_SETTINGS',
+]
+
+const withTrimmedPermissions: ConfigPlugin = c => {
+  return withAndroidManifest(c, config => {
+    AndroidConfig.Permissions.removePermissions(config.modResults, UNUSED_PERMISSIONS)
+    return config
+  })
+}
+
 /**
  * Patch MainActivity.kt to enable NFC foreground dispatch while the app is in
  * the foreground. Without this, after the e-document module releases reader
@@ -447,6 +469,10 @@ export const withNfc: ConfigPlugin<
     // this mod because `withMainActivity` is a no-op outside Android.
     config = withNfcForegroundDispatch(config)
   }
+
+  // Strip unused-but-declared Android permissions last so it overrides any
+  // permission added earlier in the pipeline by Expo's defaults or other mods.
+  config = withTrimmedPermissions(config)
 
   return config
 }
