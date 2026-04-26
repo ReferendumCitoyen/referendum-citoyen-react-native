@@ -10,10 +10,25 @@ import { useTranslation } from 'react-i18next';
 interface NFCPersonDetails {
   firstName?: string;
   lastName?: string;
-  dateOfBirth?: string;
+  // Note: modules/e-document/index.ts renames Android's native
+  // `dateOfBirth` / `dateOfExpiry` to `birthDate` / `expiryDate` in the
+  // normalized PassportData payload, so we read the renamed names here.
+  // Reading dateOfBirth instead would always be undefined → 'N/A'.
+  birthDate?: string;
+  expiryDate?: string;
   nationality?: string;
   documentNumber?: string;
-  dateOfExpiry?: string;
+}
+
+// MRZ date is YYMMDD. ICAO 9303 century rule: YY >= 50 → 19xx, else 20xx.
+// Returns French JJ/MM/AAAA, or 'N/A' for missing/malformed input.
+function formatMrzDateFr(yymmdd?: string | null): string {
+  if (!yymmdd || yymmdd.length !== 6 || !/^\d{6}$/.test(yymmdd)) return 'N/A';
+  const yy = yymmdd.slice(0, 2);
+  const mm = yymmdd.slice(2, 4);
+  const dd = yymmdd.slice(4, 6);
+  const century = parseInt(yy, 10) >= 50 ? '19' : '20';
+  return `${dd}/${mm}/${century}${yy}`;
 }
 
 interface NFCData {
@@ -186,9 +201,7 @@ const Step7: React.FC<Step7Props> = ({
               opacity: 0.7,
             }}>
               {t('voting.step7BornOn', {
-                date: nfcData.personDetails.dateOfBirth
-                  ? `${nfcData.personDetails.dateOfBirth.slice(4, 6)}/${nfcData.personDetails.dateOfBirth.slice(2, 4)}/${nfcData.personDetails.dateOfBirth.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.dateOfBirth.slice(0, 2)}`
-                  : 'N/A',
+                date: formatMrzDateFr(nfcData.personDetails.birthDate),
               })}
             </Text>
             <Text style={{
