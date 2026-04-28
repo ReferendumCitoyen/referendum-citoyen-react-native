@@ -103,6 +103,7 @@
     "step7Registering": "Uw identiteit registreren...",
     "step7Verified": "Verificatie geslaagd!",
     "step7MissingData": "Identiteitsgegevens ontbreken. Scan uw kaart opnieuw.",
+    "step7WrongDocumentType": "Paspoort gedetecteerd. Gebruik uw nationale identiteitskaart (geen paspoort) om te stemmen.",
     "step7NameUnavailable": "Naam niet beschikbaar",
     "step7BornOn": "Geboren op: {{date}}",
     "step7Nationality": "Nationaliteit: {{value}}",
