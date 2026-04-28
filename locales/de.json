@@ -103,6 +103,7 @@
     "step7Registering": "Ihre Identität wird registriert...",
     "step7Verified": "Überprüfung erfolgreich!",
     "step7MissingData": "Identitätsdaten fehlen. Bitte scannen Sie Ihre Karte erneut.",
+    "step7WrongDocumentType": "Reisepass erkannt. Bitte verwenden Sie Ihren Personalausweis (keinen Reisepass) zum Abstimmen.",
     "step7NameUnavailable": "Name nicht verfügbar",
     "step7BornOn": "Geboren am: {{date}}",
     "step7Nationality": "Staatsangehörigkeit: {{value}}",

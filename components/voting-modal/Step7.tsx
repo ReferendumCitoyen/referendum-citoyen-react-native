@@ -31,6 +31,7 @@ interface Step7Props {
   nfcData?: NFCData | null;
   onSuccess?: () => void;
   onError?: () => void;
+  onFatalError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   rarime?: Rarime;
   passport?: RarimePassport;
@@ -44,6 +45,7 @@ const Step7: React.FC<Step7Props> = ({
   nfcData,
   onSuccess,
   onError,
+  onFatalError,
   onLayout,
   rarime,
   passport,
@@ -96,6 +98,15 @@ const Step7: React.FC<Step7Props> = ({
     // they become defined. A separate timeout below surfaces a real error
     // if init genuinely fails.
     if (!rarime || !passport) return;
+
+    // TD3 (passport) DG1 is 93 bytes; TD1 (ID card) is 95 bytes.
+    // The ZK circuits only support TD1 — catch passport use early.
+    if (passport.dataGroup1.length !== 95) {
+      hasCalledCallback.current = true;
+      setErrorMessage(t('voting.step7WrongDocumentType'));
+      onFatalError?.();
+      return;
+    }
 
     isVerifying.current = true;
     (async () => {

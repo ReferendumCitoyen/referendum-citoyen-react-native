@@ -103,6 +103,7 @@
     "step7Registering": "Registering your identity...",
     "step7Verified": "Verification successful!",
     "step7MissingData": "Identity data missing. Please rescan your card.",
+    "step7WrongDocumentType": "Passport detected. Please use your national identity card (not a passport) to vote.",
     "step7NameUnavailable": "Name unavailable",
     "step7BornOn": "Born on: {{date}}",
     "step7Nationality": "Nationality: {{value}}",

@@ -103,6 +103,7 @@
     "step7Registering": "Registrando su identidad...",
     "step7Verified": "¡Verificación exitosa!",
     "step7MissingData": "Datos de identidad ausentes. Vuelva a escanear su documento.",
+    "step7WrongDocumentType": "Pasaporte detectado. Utilice su documento nacional de identidad (no un pasaporte) para votar.",
     "step7NameUnavailable": "Nombre no disponible",
     "step7BornOn": "Nacido el: {{date}}",
     "step7Nationality": "Nacionalidad: {{value}}",
