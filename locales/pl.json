@@ -16,7 +16,7 @@
   "common": {
     "cancel": "Anuluj",
     "retry": "Spróbuj ponownie",
-    "analyze": "Analizuj",
+    "analyze": "Rozpocznij analizę",
     "manualFill": "Wypełnij ręcznie",
     "open": "Otwórz",
     "select": "Wybierz",
@@ -52,7 +52,8 @@
     "badgeSoon": "Wkrótce",
     "badgeFinished": "Zakończone",
     "votes": "Głosy",
-    "endsIn": "Kończy się za",
+    "countingInProgress": "Trwa liczenie",
+    "endsIn": "Kończy się",
     "starts": "Start",
     "ended": "Zakończono",
     "voteButton": "Głosuj",
@@ -65,8 +66,9 @@
   },
   "voting": {
     "title": "Proces głosowania",
-    "step1Title": "Zeskanuj anonimowo swój dowód tożsamości",
-    "step1Description": "Zeskanuj dowód, aby potwierdzić wiek i obywatelstwo. Twoje dane są zaszyfrowane i niemożliwe do śledzenia. Jesteś w 100% anonimowy.",
+    "step1Title": "Potwierdź unikalność swojego głosu (i że nie jesteś robotem)",
+    "step1Description": "Potwierdź swój wiek i obywatelstwo. Twoje dane są zaszyfrowane i niemożliwe do śledzenia. Jesteś w 100% anonimowy.",
+    "step1Privacy": "Twoja tożsamość nie zostanie zapisana: twoje dane osobowe są niemożliwe do prześledzenia i są usuwane natychmiast po głosowaniu.",
     "step2Title": "Zweryfikuj wiek i obywatelstwo lokalnie na urządzeniu",
     "step2Description": "Ta aplikacja weryfikuje dane z chipu NFC w Twoim dowodzie. Dane nie są przesyłane ani przechowywane na serwerach stron trzecich.",
     "step3Title": "Anonimowy głos",
@@ -238,7 +240,7 @@
     ],
     "origin": {
       "title": "Skąd to się wzięło",
-      "content": "Alexandre Jardin (pisarz, założyciel #LesGueux) został przekonany przez swojego syna Robinsona Jardina (ex-NordVPN, obecnie Nym) o potencjale blockchaina dla demokracji bezpośredniej.\n\nNastępnie połączyli siły z Alexisem Rousselem (szwajcarski działacz na rzecz demokracji cyfrowej, współzałożyciel Nym), który określił wymagania aplikacji.\n\nAplikacja open-source\nHostowana przez Szwajcarską Partię Piratów\nLokalne przetwarzanie danych - RODO"
+      "content": "Alexandre Jardin (pisarz, założyciel #LesGueux) został przekonany przez swojego syna Robinsona Jardina (ex-NordVPN, obecnie Nym) o potencjale blockchaina dla demokracji bezpośredniej.\n\nNastępnie połączyli siły z Alexisem Rousselem (szwajcarski działacz na rzecz demokracji cyfrowej, współzałożyciel Nym), który określił wymagania aplikacji.\n\nAplikacja open-source\nLokalne przetwarzanie danych - RODO"
     }
   },
   "placeholderSteps": {

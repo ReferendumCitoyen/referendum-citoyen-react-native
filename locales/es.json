@@ -16,7 +16,7 @@
   "common": {
     "cancel": "Cancelar",
     "retry": "Reintentar",
-    "analyze": "Analizar",
+    "analyze": "Iniciar análisis",
     "manualFill": "Rellenar manualmente",
     "open": "Abrir",
     "select": "Seleccionar",
@@ -52,7 +52,8 @@
     "badgeSoon": "Pronto",
     "badgeFinished": "Finalizado",
     "votes": "Votos",
-    "endsIn": "Termina en",
+    "countingInProgress": "Recuento en curso",
+    "endsIn": "Termina el",
     "starts": "Empieza",
     "ended": "Finalizó",
     "voteButton": "Votar",
@@ -65,8 +66,9 @@
   },
   "voting": {
     "title": "Proceso de votación",
-    "step1Title": "Escanee su documento de identidad de forma anónima",
-    "step1Description": "Escanee su documento para validar edad y nacionalidad. Sus datos están cifrados y no son rastreables. Es 100% anónimo.",
+    "step1Title": "Valide la singularidad de su voto (y que no es un robot)",
+    "step1Description": "Valide su edad y nacionalidad. Sus datos están cifrados y no son rastreables. Es 100% anónimo.",
+    "step1Privacy": "Su identidad no será almacenada: sus datos personales son imposibles de rastrear y se eliminan inmediatamente después de la votación.",
     "step2Title": "Verifique edad y nacionalidad localmente en su dispositivo",
     "step2Description": "Esta app verifica los datos del chip NFC de su documento. Los datos no se transfieren ni se almacenan en servidores de terceros.",
     "step3Title": "Voto anónimo",
@@ -238,7 +240,7 @@
     ],
     "origin": {
       "title": "De dónde viene",
-      "content": "Alexandre Jardin (escritor, fundador de #LesGueux) fue convencido por su hijo Robinson Jardin (ex-NordVPN, ahora Nym) del potencial de la blockchain para la democracia directa.\n\nSe asociaron con Alexis Roussel (defensor suizo de la democracia digital, cofundador de Nym), quien definió los requisitos de la aplicación.\n\nApp de código abierto\nAlojada por el Partido Pirata Suizo\nProcesamiento local de datos - GDPR"
+      "content": "Alexandre Jardin (escritor, fundador de #LesGueux) fue convencido por su hijo Robinson Jardin (ex-NordVPN, ahora Nym) del potencial de la blockchain para la democracia directa.\n\nSe asociaron con Alexis Roussel (defensor suizo de la democracia digital, cofundador de Nym), quien definió los requisitos de la aplicación.\n\nApp de código abierto\nProcesamiento local de datos - GDPR"
     }
   },
   "placeholderSteps": {

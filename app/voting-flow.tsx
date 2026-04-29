@@ -6,7 +6,6 @@ import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import * as SecureStore from 'expo-secure-store';
-import { Buffer } from 'buffer';
 import {
   RARIME_TESTNET_CONFIG,
   FREEDOM_TOOL_CONFIG,
@@ -17,6 +16,7 @@ import {
 } from '@/constants/rarime-config';
 import { findCachedProposal } from '@/utils/proposal-cache';
 import { useTranslation } from 'react-i18next';
+import type { PassportData } from '@/modules/e-document';
 
 // Import all steps
 import Step1 from '@/components/voting-modal/Step1';
@@ -37,20 +37,6 @@ import ManualMRZInput from '@/components/voting-modal/ManualMRZInput';
 import { createModalStyles } from '@/components/voting-modal/styles';
 import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
 
-interface NFCScanResult {
-  personDetails?: {
-    firstName?: string;
-    lastName?: string;
-    dateOfBirth?: string;
-    nationality?: string;
-    documentNumber?: string;
-    dateOfExpiry?: string;
-  };
-  dg1Bytes?: string;
-  sodBytes?: string;
-  dg15Bytes?: string;
-  aaSignature?: string;
-}
 
 export default function VotingFlowScreen() {
   const { proposalId: proposalIdParam } = useLocalSearchParams<{ proposalId?: string }>();
@@ -64,7 +50,7 @@ export default function VotingFlowScreen() {
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const [mrzData, setMRZData] = useState<{ documentNumber: string; birthDate: string; expiryDate: string } | null>(null);
-  const [nfcData, setNFCData] = useState<NFCScanResult | null>(null);
+  const [nfcData, setNFCData] = useState<PassportData | null>(null);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
   const [selectedVote, setSelectedVote] = useState<number>(0);
@@ -209,23 +195,22 @@ export default function VotingFlowScreen() {
     handleNext();
   }, [handleNext]);
 
-  const handleNFCSuccess = useCallback((data: NFCScanResult) => {
+  const handleNFCSuccess = useCallback((data: PassportData) => {
     setNFCData(data);
 
-    // Create RarimePassport from NFC data
-    if (data.dg1Bytes && data.sodBytes) {
-      (async () => {
-        try {
-          const { RarimePassport: RP } = await import('@rarimo/rarime-rn-sdk');
-          const dg1 = new Uint8Array(Buffer.from(data.dg1Bytes, 'base64'));
-          const sod = new Uint8Array(Buffer.from(data.sodBytes, 'base64'));
-          passportRef.current = new RP({ dataGroup1: dg1, sod });
-          console.log('[FreedomTool] RarimePassport created from NFC data');
-        } catch (err) {
-          console.error('[FreedomTool] Failed to create RarimePassport:', err);
-        }
-      })();
-    }
+    // Create RarimePassport from NFC data. dg1Bytes / sodBytes are already
+    // Uint8Arrays (decoded in modules/e-document/index.ts) — no base64 step.
+    (async () => {
+      try {
+        const { RarimePassport: RP } = await import('@rarimo/rarime-rn-sdk');
+        const dg1 = new Uint8Array(data.dg1Bytes);
+        const sod = new Uint8Array(data.sodBytes);
+        passportRef.current = new RP({ dataGroup1: dg1, sod });
+        console.log('[FreedomTool] RarimePassport created, dg1.length:', dg1.length);
+      } catch (err) {
+        console.error('[FreedomTool] PASSPORT_CREATE_FAILED', err);
+      }
+    })();
 
     handleNext();
   }, [handleNext]);

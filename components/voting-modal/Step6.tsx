@@ -30,6 +30,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState("");
+  const [scanStep, setScanStep] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [nativeLogs, setNativeLogs] = useState<string[]>([]);
@@ -51,18 +52,23 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
             setScanStatus(t('voting.step6PresentCard'));
+            setScanStep(1);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
             setScanStatus(t('voting.step6Authenticating'));
+            setScanStep(2);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ReadingDataGroupProgress, () => {
             setScanStatus(t('voting.step6Reading'));
+            setScanStep(3);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ActiveAuthentication, () => {
             setScanStatus(t('voting.step6ActiveAuth'));
+            setScanStep(3);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.SuccessfulRead, () => {
             setScanStatus(t('voting.step6ReadSuccess'));
+            setScanStep(4);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.ScanError, () => {
             setScanStatus(t('voting.step6ReadError'));
@@ -135,8 +141,9 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         dateOfExpiry: mrzData.expiryDate,
       });
 
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
       });
 
       const scanPromise = scanDocument('I', {
@@ -145,7 +152,11 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         dateOfExpiry: mrzData.expiryDate,
       }, challenge);
 
-      const result = await Promise.race([scanPromise, timeoutPromise]);
+      // Clear the timeout as soon as the scan settles (success or error) so the
+      // two outcomes can never be shown simultaneously.
+      const result = await Promise.race([scanPromise, timeoutPromise]).finally(() => {
+        clearTimeout(timeoutId);
+      });
       console.log('[Step6] Scan result received, keys:', Object.keys(result as any));
 
       setScanStatus(t('voting.step6ReadSuccess'));
@@ -224,6 +235,22 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           </Text>
         )}
 
+        {isScanning && (
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+            {[1, 2, 3, 4].map((step) => (
+              <View
+                key={step}
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: scanStep >= step ? '#059669' : colors.border,
+                }}
+              />
+            ))}
+          </View>
+        )}
+
         {devMode && debugError && (
           <View style={{
             backgroundColor: '#FEF2F2',
@@ -267,7 +294,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           <TouchableOpacity
             style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={() => { setShowRetry(false); setDebugError(null); handleAnalyzePress(); }}
+            onPress={() => { setShowRetry(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>
