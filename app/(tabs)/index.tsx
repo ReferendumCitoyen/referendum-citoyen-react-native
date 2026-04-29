@@ -16,6 +16,8 @@ import {
 } from '@/utils/proposal-cache';
 import { computeVoteResults, isFrenchCompatible } from '@/utils/voteResults';
 
+const VOTE_COUNT_THRESHOLD = 5;
+
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
@@ -113,11 +115,9 @@ const isActive = (p: ProposalInfo): boolean => {
 const formatTimeRemaining = (endTimestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now >= endTimestamp) return 'Terminé';
-  const diff = Number(endTimestamp - now);
-  const days = Math.floor(diff / 86400);
-  const hours = Math.floor((diff % 86400) / 3600);
-  const minutes = Math.floor((diff % 3600) / 60);
-  return `${days}J ${hours}H ${minutes}M`;
+  return new Date(Number(endTimestamp) * 1000).toLocaleDateString('fr-FR', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
 };
 
 const formatTimeAgo = (timestamp: bigint): string => {
@@ -133,18 +133,20 @@ interface VoteResultsProps {
   variants: string[];
   percents: number[];
   counts: number[];
+  belowThreshold: boolean;
 }
 
 // Blue, Red, White, then cycle for extras
 const barColors = ['#3B82F6', '#EF4444', '#E5E7EB', '#F59E0B', '#22C55E'];
 
-const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
+const VoteResults = ({ variants, percents, counts, belowThreshold }: VoteResultsProps) => {
   const colors = useColors();
   const styles = createStyles(colors);
+  const { t } = useTranslation();
   const maxHeight = 64;
   const minHeight = 2;
   const total = counts.reduce((s, c) => s + c, 0);
-  const hasVotes = total > 0;
+  const hasVotes = total > 0 && !belowThreshold;
   const many = variants.length > 3;
   const labelSize = many ? 9 : Typography.fontSize.voteCount;
   const percentSize = many ? 9 : Typography.fontSize.voteCount;
@@ -193,13 +195,15 @@ const VoteResults = ({ variants, percents, counts }: VoteResultsProps) => {
           <Text
             key={idx}
             style={[styles.barLabel, many && { fontSize: labelSize, lineHeight: labelSize * 1.3 }]}
-            numberOfLines={expanded.has(idx) ? undefined : 1}
+            numberOfLines={expanded.has(idx) ? undefined : 3}
           >
             {v}
           </Text>
         ))}
       </View>
-      {hasVotes && (
+      {belowThreshold ? (
+        <Text style={[styles.barCount, { textAlign: 'center', width: '100%', opacity: 0.6 }]}>{t('home.countingInProgress')}</Text>
+      ) : hasVotes && (
         <View style={styles.countsContainer}>
           {counts.map((c, idx) => (
             <Text key={idx} style={[styles.barCount, many && { fontSize: 9 }]}>{c.toLocaleString()}</Text>
@@ -437,6 +441,7 @@ export default function AccueilScreen() {
     const active = isActive(p);
     const variants = p.questions[0]?.variants ?? [];
     const { percents, counts, total } = computeVoteResults(p.votingResults, variants.length);
+    const belowThreshold = total <= VOTE_COUNT_THRESHOLD && !devMode;
     const endTime = p.startTimestamp + p.duration;
     const showPastHeader = !active && index === activeProposals.length;
 
@@ -489,10 +494,16 @@ export default function AccueilScreen() {
           ) : null}
 
           <View style={styles.statsContainer}>
-            <View style={styles.statColumn}>
-              <Text style={styles.statLabel}>{t('home.votes')}</Text>
-              <Text style={styles.statValue}>{total.toLocaleString()}</Text>
-            </View>
+            {belowThreshold ? (
+              <View style={styles.statColumn}>
+                <Text style={[styles.statValue, { opacity: 0.6 }]}>{t('home.countingInProgress')}</Text>
+              </View>
+            ) : (
+              <View style={styles.statColumn}>
+                <Text style={styles.statLabel}>{t('home.votes')}</Text>
+                <Text style={styles.statValue}>{total.toLocaleString()}</Text>
+              </View>
+            )}
             <View style={styles.statColumn}>
               <Text style={styles.statLabel}>{active ? t('home.endsIn') : t('home.badgeFinished')}</Text>
               <Text style={styles.statValue}>{active ? formatTimeRemaining(endTime) : formatTimeAgo(endTime)}</Text>
@@ -512,7 +523,7 @@ export default function AccueilScreen() {
                   {t('home.resultsNow')}
                 </Text>
               )}
-              <VoteResults variants={variants} percents={percents} counts={counts} />
+              <VoteResults variants={variants} percents={percents} counts={counts} belowThreshold={belowThreshold} />
             </>
           )}
         </View>

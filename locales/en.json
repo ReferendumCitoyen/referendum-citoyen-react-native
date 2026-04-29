@@ -16,7 +16,7 @@
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
-    "analyze": "Analyze",
+    "analyze": "Start analysis",
     "manualFill": "Fill manually",
     "open": "Open",
     "select": "Select",
@@ -52,7 +52,8 @@
     "badgeSoon": "Soon",
     "badgeFinished": "Finished",
     "votes": "Votes",
-    "endsIn": "Ends in",
+    "countingInProgress": "Counting in progress",
+    "endsIn": "Closes on",
     "starts": "Starts",
     "ended": "Ended",
     "voteButton": "Vote",
@@ -65,8 +66,9 @@
   },
   "voting": {
     "title": "Voting process",
-    "step1Title": "Scan your ID card anonymously",
-    "step1Description": "Scan your ID card to validate your age and nationality. Your data is encrypted and untraceable. You are 100% anonymous.",
+    "step1Title": "Validate the uniqueness of your vote (and that you're not a robot)",
+    "step1Description": "Validate your age and nationality. Your data is encrypted and untraceable. You are 100% anonymous.",
+    "step1Privacy": "Your identity will not be stored: your personal data is impossible to trace back, and is deleted immediately after the vote.",
     "step2Title": "Verify your age and nationality locally on your device",
     "step2Description": "This app verifies data from the NFC chip inside your ID card. Data is neither transferred nor stored on any third-party server.",
     "step3Title": "Anonymous vote",
@@ -238,7 +240,7 @@
     ],
     "origin": {
       "title": "Where it comes from",
-      "content": "Alexandre Jardin (writer, founder of #LesGueux) was convinced by his son Robinson Jardin (ex-NordVPN, now Nym) of blockchain’s potential for direct democracy.\n\nThey partnered with Alexis Roussel (Swiss digital democracy advocate, co-founder of Nym), who defined the application requirements.\n\nOpen-source app\nHosted by the Swiss Pirate Party\nLocal data processing - GDPR"
+      "content": "Alexandre Jardin (writer, founder of #LesGueux) was convinced by his son Robinson Jardin (ex-NordVPN, now Nym) of blockchain’s potential for direct democracy.\n\nThey partnered with Alexis Roussel (Swiss digital democracy advocate, co-founder of Nym), who defined the application requirements.\n\nOpen-source app\nLocal data processing - GDPR"
     }
   },
   "placeholderSteps": {

@@ -33,10 +33,10 @@ function formatMrzDateFr(yymmdd?: string | null): string {
 
 interface NFCData {
   personDetails?: NFCPersonDetails;
-  dg1Bytes?: string;
-  sodBytes?: string;
-  dg15Bytes?: string;
-  aaSignature?: string;
+  dg1Bytes?: Uint8Array | string;
+  sodBytes?: Uint8Array | string;
+  dg15Bytes?: Uint8Array | string;
+  aaSignature?: Uint8Array | string;
 }
 
 interface Step7Props {

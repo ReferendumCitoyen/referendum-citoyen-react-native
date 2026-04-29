@@ -47,6 +47,9 @@ const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout }) => {
           <Text style={modalStyles.stepDescription}>
             {t('voting.step1Description')}
           </Text>
+          <Text style={[modalStyles.stepDescription, { fontWeight: 'bold', color: '#DC2626', marginTop: 8 }]}>
+            {t('voting.step1Privacy')}
+          </Text>
         </View>
       </View>
     </View>
