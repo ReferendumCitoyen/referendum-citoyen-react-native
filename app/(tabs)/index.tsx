@@ -184,7 +184,6 @@ const VoteResults = ({ variants, percents, counts, belowThreshold }: VoteResults
               {
                 height: hasVotes ? calculateHeight(percents[idx] ?? 0) : 24,
                 backgroundColor: barColors[idx % barColors.length],
-                opacity: hasVotes ? 1 : 0.4,
               },
             ]} />
           </Pressable>
@@ -202,7 +201,7 @@ const VoteResults = ({ variants, percents, counts, belowThreshold }: VoteResults
         ))}
       </View>
       {belowThreshold ? (
-        <Text style={[styles.barCount, { textAlign: 'center', width: '100%', opacity: 0.6 }]}>{t('home.countingInProgress')}</Text>
+        <Text style={[styles.barCount, { textAlign: 'center', width: '100%' }]}>{t('home.countingInProgress')}</Text>
       ) : hasVotes && (
         <View style={styles.countsContainer}>
           {counts.map((c, idx) => (
@@ -496,7 +495,7 @@ export default function AccueilScreen() {
           <View style={styles.statsContainer}>
             {belowThreshold ? (
               <View style={styles.statColumn}>
-                <Text style={[styles.statValue, { opacity: 0.6 }]}>{t('home.countingInProgress')}</Text>
+                <Text style={styles.statValue}>{t('home.countingInProgress')}</Text>
               </View>
             ) : (
               <View style={styles.statColumn}>

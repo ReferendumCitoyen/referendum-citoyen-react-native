@@ -76,6 +76,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: BottomT
                     />
                   )}
                   <Text
+                    allowFontScaling={false}
                     style={[
                       styles.tabLabel,
                       isFocused && styles.tabLabelActive,
@@ -139,7 +140,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   tabLabel: {
     fontFamily: Typography.fontFamily.medium,
     fontWeight: Typography.fontWeight.medium,
-    fontSize: Platform.OS === 'android' ? 13 : Typography.fontSize.tabLabel,
+    fontSize: 13,
     lineHeight: Typography.lineHeight.tabLabel,
     letterSpacing: Typography.letterSpacing.tabLabel,
     color: colors.icon,
