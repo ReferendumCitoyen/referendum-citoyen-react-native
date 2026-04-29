@@ -1,27 +1,12 @@
+import { LightColors } from '@/contexts/ThemeContext';
+
 // Re-export theme utilities from ThemeContext
 export { LightColors, DarkColors, useColors, useTheme } from '@/contexts/ThemeContext';
 
-// Static colors for backward compatibility (use useColors() hook instead for theme support)
-export const Colors = {
-  primary: '#111F84',
-  secondary: '#3044DD',
-  white: '#FFFFFF',
-  black: '#000',
-  background: '#EDEFF9',
-  border: '#EDEFF9',
-  success: '#48C26D',
-  error: '#DD3030',
-  switchGray: '#E2E1E7',
-  voteBarOui: '#D5DCFF',
-  voteBarBlanc: '#BFC4DA',
-  voteBarNon: '#FFD2D2',
-  gradientStart: 'rgba(255, 255, 255, 0.1)',
-  gradientEnd: '#FFFFFF',
-  progressActive: '#3044DD',
-  progressInactive: 'rgba(48, 68, 221, 0.3)',
-  text: '#000000',
-  cardBackground: '#FFFFFF',
-};
+// Static colors alias — kept for screens that can't use the hook (e.g. StyleSheet
+// at module scope). Points at LightColors so there's only one source of truth.
+// Prefer useColors() in new code so dark mode works.
+export const Colors = LightColors;
 
 export const Typography = {
   fontFamily: {

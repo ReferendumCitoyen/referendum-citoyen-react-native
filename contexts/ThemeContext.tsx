@@ -40,6 +40,40 @@ interface ColorScheme {
   cardBackground: string;
   icon: string;
   buttonText: string;
+
+  // Semantic feedback (text + tinted surface)
+  errorText: string;
+  errorBackground: string;
+  successText: string;
+  successBackground: string;
+  warningText: string;
+  warningBackground: string;
+
+  // Neutral grays
+  textSecondary: string;
+  placeholder: string;
+
+  // Overlays
+  overlay: string;
+  cameraBackdrop: string;
+
+  // MRZ / camera scanner
+  scanReticleSuccess: string;
+  scanReticleWarning: string;
+  scanReticleError: string;
+  scanOverlayStrong: string;
+  scanOverlayMedium: string;
+  scanOverlayWeak: string;
+  scanOverlayDim: string;
+  scanOverlayText: string;
+  scanReticleNeutralBg: string;
+  scanReticleSuccessBg: string;
+  scanReticleErrorBg: string;
+  scanReticleInnerBg: string;
+  scanReticleSuccessInnerBg: string;
+
+  // Stats bar palette (home tab)
+  chartPalette: readonly string[];
 }
 
 export const LightColors: ColorScheme = {
@@ -63,6 +97,35 @@ export const LightColors: ColorScheme = {
   cardBackground: '#FFFFFF',
   icon: '#111F84',
   buttonText: '#FFFFFF',
+
+  errorText: '#DC2626',
+  errorBackground: '#FEF2F2',
+  successText: '#059669',
+  successBackground: '#F0FDF4',
+  warningText: '#92400E',
+  warningBackground: '#FEF3C7',
+
+  textSecondary: '#666666',
+  placeholder: '#999999',
+
+  overlay: 'rgba(0, 0, 0, 0.5)',
+  cameraBackdrop: '#000000',
+
+  scanReticleSuccess: '#10B981',
+  scanReticleWarning: '#FBBF24',
+  scanReticleError: '#EF4444',
+  scanOverlayStrong: 'rgba(255, 255, 255, 0.7)',
+  scanOverlayMedium: 'rgba(255, 255, 255, 0.4)',
+  scanOverlayWeak: 'rgba(255, 255, 255, 0.6)',
+  scanOverlayDim: 'rgba(255, 255, 255, 0.5)',
+  scanOverlayText: '#FFFFFF',
+  scanReticleNeutralBg: 'rgba(0, 0, 0, 0.25)',
+  scanReticleSuccessBg: 'rgba(16, 185, 129, 0.15)',
+  scanReticleErrorBg: 'rgba(239, 68, 68, 0.15)',
+  scanReticleInnerBg: 'rgba(255, 255, 255, 0.1)',
+  scanReticleSuccessInnerBg: 'rgba(16, 185, 129, 0.2)',
+
+  chartPalette: ['#3B82F6', '#EF4444', '#E5E7EB', '#F59E0B', '#22C55E'],
 };
 
 export const DarkColors: ColorScheme = {
@@ -86,6 +149,35 @@ export const DarkColors: ColorScheme = {
   cardBackground: '#2A2A2A',
   icon: '#FFFFFF',
   buttonText: '#FFFFFF',
+
+  errorText: '#F87171',
+  errorBackground: '#3A1F1F',
+  successText: '#34D399',
+  successBackground: '#1F3A2A',
+  warningText: '#FBBF24',
+  warningBackground: '#3A2F1F',
+
+  textSecondary: '#A3A3A3',
+  placeholder: '#777777',
+
+  overlay: 'rgba(0, 0, 0, 0.7)',
+  cameraBackdrop: '#000000',
+
+  scanReticleSuccess: '#34D399',
+  scanReticleWarning: '#FBBF24',
+  scanReticleError: '#F87171',
+  scanOverlayStrong: 'rgba(255, 255, 255, 0.7)',
+  scanOverlayMedium: 'rgba(255, 255, 255, 0.4)',
+  scanOverlayWeak: 'rgba(255, 255, 255, 0.6)',
+  scanOverlayDim: 'rgba(255, 255, 255, 0.5)',
+  scanOverlayText: '#FFFFFF',
+  scanReticleNeutralBg: 'rgba(0, 0, 0, 0.4)',
+  scanReticleSuccessBg: 'rgba(52, 211, 153, 0.18)',
+  scanReticleErrorBg: 'rgba(248, 113, 113, 0.18)',
+  scanReticleInnerBg: 'rgba(255, 255, 255, 0.1)',
+  scanReticleSuccessInnerBg: 'rgba(52, 211, 153, 0.22)',
+
+  chartPalette: ['#60A5FA', '#F87171', '#4B5563', '#FBBF24', '#34D399'],
 };
 
 const THEME_STORAGE_KEY = '@app_theme';

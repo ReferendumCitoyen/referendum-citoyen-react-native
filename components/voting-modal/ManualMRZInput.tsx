@@ -138,10 +138,10 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
     error: {
       fontFamily: Typography.fontFamily.semibold,
       fontSize: 13,
-      color: '#DC2626',
+      color: colors.errorText,
     },
     inputError: {
-      borderColor: '#DC2626',
+      borderColor: colors.errorText,
     },
     buttonRow: {
       gap: 12,
@@ -205,7 +205,7 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
         <Text style={{
           fontFamily: Typography.fontFamily.medium,
           fontSize: 14,
-          color: '#EF4444',
+          color: colors.errorText,
           textAlign: 'center',
         }}>
           {t('mrzManual.idCardOnly')}

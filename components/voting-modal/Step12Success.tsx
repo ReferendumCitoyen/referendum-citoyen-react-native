@@ -79,7 +79,7 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdent
                 fontFamily: Typography.fontFamily.medium,
                 fontWeight: Typography.fontWeight.medium,
                 fontSize: Typography.fontSize.small,
-                color: '#666666',
+                color: colors.textSecondary,
                 textAlign: 'center',
               }}>
                 {t('voting.step12VoteIdLabel')}
@@ -146,7 +146,7 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdent
                 fontFamily: Typography.fontFamily.medium,
                 fontWeight: Typography.fontWeight.medium,
                 fontSize: 12,
-                color: '#666666',
+                color: colors.textSecondary,
                 textAlign: 'center',
                 marginTop: 4,
               }}>
