@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -336,12 +336,14 @@ export default function VotingFlowScreen() {
     handleStepChange(13);
   }, [slideAnim, containerWidth, handleStepChange]);
 
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <View style={styles.topSection}>
         {/* Safe area spacer */}
-        <View style={{ height: insets.top, backgroundColor: 'white' }} />
+        <View style={{ height: insets.top, backgroundColor: colors.cardBackground }} />
 
         {/* Title Section - Hidden for Step 4, 5, and 6 */}
         {currentStep < 4 && (
@@ -354,7 +356,7 @@ export default function VotingFlowScreen() {
         <View
           style={[
             modalStyles.slidingWrapper,
-            currentStep < 4 && { backgroundColor: '#EDEFF9' }
+            currentStep < 4 && { backgroundColor: colors.background }
           ]}
           onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
         >
@@ -486,14 +488,14 @@ export default function VotingFlowScreen() {
         </View>
       </View>
 
-      <View style={[styles.bottomSection, currentStep < 4 && { backgroundColor: '#EDEFF9' }]}>
+      <View style={[styles.bottomSection, currentStep < 4 && { backgroundColor: colors.background }]}>
         {/* Progress and Navigation */}
         {currentStep < 4 && (
           <View style={styles.navigationSection}>
             <View style={styles.progressSection}>
-              <Animated.View style={[styles.progressBar, { opacity: progressOpacity1, backgroundColor: '#3044DD' }]} />
-              <Animated.View style={[styles.progressBar, { opacity: progressOpacity2, backgroundColor: '#3044DD' }]} />
-              <Animated.View style={[styles.progressBar, { opacity: progressOpacity3, backgroundColor: '#3044DD' }]} />
+              <Animated.View style={[styles.progressBar, { opacity: progressOpacity1, backgroundColor: colors.secondary }]} />
+              <Animated.View style={[styles.progressBar, { opacity: progressOpacity2, backgroundColor: colors.secondary }]} />
+              <Animated.View style={[styles.progressBar, { opacity: progressOpacity3, backgroundColor: colors.secondary }]} />
             </View>
             <TouchableOpacity
               style={styles.arrowButton}
@@ -523,48 +525,53 @@ export default function VotingFlowScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  topSection: {
-    // flex: 1 so the slidingWrapper inside (also flex: 1 on Android) can fill
-    // all the vertical space above the nav bar — keeps the white slide area
-    // consistent across steps 1–3 regardless of which slides are mounted.
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  bottomSection: {
-    // No flex: shrinks to the nav's intrinsic content height. topSection takes
-    // all remaining vertical space, and nav ends up naturally pinned to the
-    // screen bottom.
-  },
-  progressSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  navigationSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    gap: 39,
-  },
-  arrowButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3044DD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+type FlowColors = ReturnType<typeof useColors>;
+
+const createStyles = (colors: FlowColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.cardBackground,
+    },
+    topSection: {
+      // flex: 1 so the slidingWrapper inside (also flex: 1 on Android) can fill
+      // all the vertical space above the nav bar — keeps the slide area
+      // consistent across steps 1–3 regardless of which slides are mounted.
+      flex: 1,
+      backgroundColor: colors.cardBackground,
+    },
+    bottomSection: {
+      // No flex: shrinks to the nav's intrinsic content height. topSection takes
+      // all remaining vertical space, and nav ends up naturally pinned to the
+      // screen bottom.
+    },
+    progressSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+    },
+    progressBar: {
+      flex: 1,
+      height: 4,
+      borderRadius: 2,
+      // Translucent track over the brand-colored bottom bar; opacity is animated
+      // per-segment to indicate active vs inactive steps.
+      backgroundColor: colors.scanOverlayMedium,
+    },
+    navigationSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      gap: 39,
+    },
+    arrowButton: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.secondary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+  });

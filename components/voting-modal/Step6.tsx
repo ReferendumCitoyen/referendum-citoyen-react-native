@@ -229,7 +229,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             textAlign: 'center',
             marginVertical: 8,
             fontSize: 14,
-            color: scanStatus.includes('❌') ? '#DC2626' : scanStatus.includes('✅') ? '#059669' : colors.text
+            color: scanStatus.includes('❌') ? colors.errorText : scanStatus.includes('✅') ? colors.successText : colors.text
           }}>
             {scanStatus}
           </Text>
@@ -244,7 +244,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
                   width: 10,
                   height: 10,
                   borderRadius: 5,
-                  backgroundColor: scanStep >= step ? '#059669' : colors.border,
+                  backgroundColor: scanStep >= step ? colors.successText : colors.border,
                 }}
               />
             ))}
@@ -253,7 +253,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
         {devMode && debugError && (
           <View style={{
-            backgroundColor: '#FEF2F2',
+            backgroundColor: colors.errorBackground,
             borderRadius: 8,
             padding: 10,
             marginHorizontal: 16,
@@ -262,7 +262,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             <Text selectable style={{
               fontFamily: 'SpaceMono',
               fontSize: 10,
-              color: '#991B1B',
+              color: colors.errorText,
             }}>
               {debugError}
             </Text>
@@ -271,7 +271,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
         {devMode && nativeLogs.length > 0 && (
           <View style={{
-            backgroundColor: '#FEF2F2',
+            backgroundColor: colors.errorBackground,
             borderRadius: 8,
             padding: 10,
             marginHorizontal: 16,
@@ -282,7 +282,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
               <Text selectable style={{
                 fontFamily: 'SpaceMono',
                 fontSize: 10,
-                color: '#991B1B',
+                color: colors.errorText,
               }}>
                 {nativeLogs.join('\n')}
               </Text>

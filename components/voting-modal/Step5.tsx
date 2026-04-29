@@ -348,7 +348,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                   style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: '#000',
+                    backgroundColor: colors.cameraBackdrop,
                   }}
                 />
               )}
@@ -366,7 +366,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 onError={(e) => console.error('[Camera] error:', e?.code, e?.message)}
               />
             ) : (
-              <View style={{ flex: 1, backgroundColor: '#000' }} />
+              <View style={{ flex: 1, backgroundColor: colors.cameraBackdrop }} />
             )
           )}
           {/* ID card overlay — sibling of Camera, not child */}
@@ -384,30 +384,30 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               width: '88%',
               aspectRatio: 1.586,
               borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || isError ? 3 : 2,
-              borderColor: scanProgress === 'success' ? '#10B981' : isError ? '#EF4444' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.7)',
+              borderColor: scanProgress === 'success' ? colors.scanReticleSuccess : isError ? colors.scanReticleError : scanProgress === 'partial' ? colors.scanReticleWarning : colors.scanOverlayStrong,
               borderRadius: 12,
-              backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.15)' : isError ? 'rgba(239,68,68,0.15)' : 'rgba(0,0,0,0.25)',
+              backgroundColor: scanProgress === 'success' ? colors.scanReticleSuccessBg : isError ? colors.scanReticleErrorBg : colors.scanReticleNeutralBg,
               justifyContent: 'space-between',
               padding: 12,
             }}>
               <Text style={{
-                color: 'rgba(255,255,255,0.5)',
+                color: colors.scanOverlayDim,
                 fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                 alignSelf: 'flex-end',
               }}>{t('voting.step5CardOverlay')}</Text>
               <View style={{
-                backgroundColor: scanProgress === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                backgroundColor: scanProgress === 'success' ? colors.scanReticleSuccessInnerBg : colors.scanReticleInnerBg,
                 borderWidth: 1,
-                borderColor: scanProgress === 'success' ? '#10B981' : scanProgress === 'partial' ? '#FBBF24' : 'rgba(255,255,255,0.4)',
+                borderColor: scanProgress === 'success' ? colors.scanReticleSuccess : scanProgress === 'partial' ? colors.scanReticleWarning : colors.scanOverlayMedium,
                 borderRadius: 4, padding: 6,
               }}>
-                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
                   IDFRA{'<'.repeat(25)}
                 </Text>
-                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
                   1234567890FRA9001011M{'<'.repeat(9)}
                 </Text>
-                <Text style={{ color: scanProgress === 'success' ? '#10B981' : 'rgba(255,255,255,0.6)', fontSize: 7, letterSpacing: 1 }}>
+                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
                   NOM{'<'.repeat(2)}PRENOM{'<'.repeat(19)}
                 </Text>
               </View>
@@ -415,9 +415,9 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               );
             })()}
             <Text style={{
-              color: '#fff', fontSize: 14, fontWeight: '600',
+              color: colors.scanOverlayText, fontSize: 14, fontWeight: '600',
               textAlign: 'center', marginTop: 12,
-              textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
+              textShadowColor: colors.overlay, textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
             }}>
               {scanProgress === 'idle' && t('voting.step5Positioning')}
               {scanProgress === 'scanning' && t('voting.step5Scanning')}
@@ -431,16 +431,16 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         </View>
         {ocrUnavailable && (
           <View style={{
-            backgroundColor: '#FEF3C7',
+            backgroundColor: colors.warningBackground,
             borderLeftWidth: 4,
-            borderLeftColor: '#F59E0B',
+            borderLeftColor: colors.warningText,
             paddingVertical: 10,
             paddingHorizontal: 12,
             marginHorizontal: 12,
             marginTop: 12,
             borderRadius: 6,
           }}>
-            <Text style={{ color: '#92400E', fontSize: 13, lineHeight: 18 }}>
+            <Text style={{ color: colors.warningText, fontSize: 13, lineHeight: 18 }}>
               {t('voting.step5OcrUnavailable')}
             </Text>
           </View>

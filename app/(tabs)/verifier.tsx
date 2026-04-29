@@ -152,7 +152,7 @@ export default function VerifierScreen() {
                 }
               }}
               placeholder="0x..."
-              placeholderTextColor="#999"
+              placeholderTextColor={colors.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -190,7 +190,7 @@ export default function VerifierScreen() {
             <View style={styles.resultCard}>
               {/* Vote confirmation */}
               <View style={styles.voteConfirmation}>
-                <ShieldCheckIcon color="#22C55E" size={24} />
+                <ShieldCheckIcon color={colors.successText} size={24} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.voteConfirmationTitle}>Vote vérifié</Text>
                   <Text style={styles.voteConfirmationAnswer}>Ce vote a choisi : {votedFor}</Text>
@@ -234,7 +234,7 @@ export default function VerifierScreen() {
                       return (
                         <View key={idx} style={[styles.variantRow, isThisVote && styles.variantRowHighlight]}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
-                            {isThisVote && <ShieldCheckIcon color="#22C55E" size={14} />}
+                            {isThisVote && <ShieldCheckIcon color={colors.successText} size={14} />}
                             <Text style={[styles.variantName, isThisVote && styles.variantNameHighlight]} numberOfLines={1}>{v}</Text>
                           </View>
                           <Text style={[styles.variantCount, isThisVote && styles.variantCountHighlight]}>{count.toLocaleString()} ({pct}%)</Text>
@@ -339,7 +339,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   lookupResultError: {
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.body,
-    color: '#EF4444',
+    color: colors.errorText,
   },
   resultCard: {
     backgroundColor: colors.cardBackground,
@@ -350,14 +350,14 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#F0FFF4',
+    backgroundColor: colors.successBackground,
     borderRadius: 12,
     padding: 16,
   },
   voteConfirmationTitle: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.body,
-    color: '#22C55E',
+    color: colors.successText,
   },
   voteConfirmationAnswer: {
     fontFamily: Typography.fontFamily.semibold,
@@ -449,7 +449,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     borderRadius: 6,
   },
   variantRowHighlight: {
-    backgroundColor: '#F0FFF4',
+    backgroundColor: colors.successBackground,
   },
   variantName: {
     flex: 1,
@@ -460,7 +460,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   },
   variantNameHighlight: {
     fontFamily: Typography.fontFamily.bold,
-    color: '#22C55E',
+    color: colors.successText,
   },
   variantCount: {
     fontFamily: Typography.fontFamily.semibold,
@@ -469,7 +469,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     color: colors.text,
   },
   variantCountHighlight: {
-    color: '#22C55E',
+    color: colors.successText,
   },
   explorerLink: {
     flexDirection: 'row',

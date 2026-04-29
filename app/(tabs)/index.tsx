@@ -53,7 +53,7 @@ const PreloadBanner = React.memo(function PreloadBanner() {
     <View style={{
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#EEF2FF',
+      backgroundColor: colors.background,
       paddingVertical: 8,
       paddingHorizontal: 12,
       marginVertical: 8,
@@ -136,12 +136,11 @@ interface VoteResultsProps {
   belowThreshold: boolean;
 }
 
-// Blue, Red, White, then cycle for extras
-const barColors = ['#3B82F6', '#EF4444', '#E5E7EB', '#F59E0B', '#22C55E'];
-
 const VoteResults = ({ variants, percents, counts, belowThreshold }: VoteResultsProps) => {
   const colors = useColors();
   const styles = createStyles(colors);
+  // Blue, Red, neutral, warning, success — cycles for additional variants
+  const barColors = colors.chartPalette;
   const { t } = useTranslation();
   const maxHeight = 64;
   const minHeight = 2;
@@ -396,7 +395,7 @@ export default function AccueilScreen() {
       )}
 
       {loadError && (
-        <Text style={[styles.voteListItemText, { color: '#EF4444', paddingVertical: 12 }]}>
+        <Text style={[styles.voteListItemText, { color: colors.errorText, paddingVertical: 12 }]}>
           {loadError}
         </Text>
       )}
@@ -683,7 +682,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   devBadge: {
     paddingVertical: 2,
     paddingHorizontal: 6,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.errorText,
     borderRadius: 8,
   },
   pastHeader: {
@@ -705,18 +704,18 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   devBadgeText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 11,
-    color: '#FFFFFF',
+    color: colors.buttonText,
   },
   devInfoBadge: {
     paddingVertical: 2,
     paddingHorizontal: 6,
-    backgroundColor: '#6366F1',
+    backgroundColor: colors.secondary,
     borderRadius: 8,
   },
   devInfoText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 10,
-    color: '#FFFFFF',
+    color: colors.buttonText,
   },
   voteTitle: {
     fontFamily: Typography.fontFamily.bold,
@@ -825,6 +824,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,
-    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+    backgroundColor: 'transparent',
   },
 });

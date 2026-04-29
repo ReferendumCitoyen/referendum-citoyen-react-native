@@ -209,6 +209,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   },
   tabBarSpacer: {
     height: Spacing.tabBar.containerHeight,
-    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+    backgroundColor: 'transparent',
   },
 });

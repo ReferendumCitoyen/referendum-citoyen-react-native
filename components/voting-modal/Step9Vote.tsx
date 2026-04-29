@@ -91,7 +91,7 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
     >
       <View style={{
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: colors.overlay,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
