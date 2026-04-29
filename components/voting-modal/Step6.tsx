@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image, ScrollView } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
-import { useColors } from '@/constants/theme';
+import { useColors, Typography } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
@@ -260,7 +260,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             marginBottom: 8,
           }}>
             <Text selectable style={{
-              fontFamily: 'SpaceMono',
+              fontFamily: Typography.fontFamily.mono,
               fontSize: 10,
               color: colors.errorText,
             }}>
@@ -280,7 +280,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           }}>
             <ScrollView>
               <Text selectable style={{
-                fontFamily: 'SpaceMono',
+                fontFamily: Typography.fontFamily.mono,
                 fontSize: 10,
                 color: colors.errorText,
               }}>

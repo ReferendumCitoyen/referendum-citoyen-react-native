@@ -5,15 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from '@rarimo/rarime-rn-sdk';
-import * as SecureStore from 'expo-secure-store';
 import {
   RARIME_TESTNET_CONFIG,
   FREEDOM_TOOL_CONFIG,
-  PRIVATE_KEY_STORAGE_KEY,
   DEFAULT_PROPOSAL_ID,
   withRetry,
   formatRpcError,
 } from '@/constants/rarime-config';
+import { getOrCreatePrivateKey } from '@/utils/identity';
 import { findCachedProposal } from '@/utils/proposal-cache';
 import { useTranslation } from 'react-i18next';
 import type { PassportData } from '@/modules/e-document';
@@ -79,14 +78,10 @@ export default function VotingFlowScreen() {
     if (rarimeRef.current) return; // already initialised
     (async () => {
       try {
-        const { Rarime: RarimeClass, RarimeUtils: Utils, FreedomTool: FT } =
+        const { Rarime: RarimeClass, FreedomTool: FT } =
           await import('@rarimo/rarime-rn-sdk');
 
-        let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
-        if (!storedKey) {
-          storedKey = Utils.generateBJJPrivateKey();
-          await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
-        }
+        const storedKey = await getOrCreatePrivateKey();
         setPrivateKey(storedKey);
 
         const rarime = new RarimeClass({

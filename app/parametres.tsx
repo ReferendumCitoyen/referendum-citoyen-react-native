@@ -6,6 +6,7 @@ import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { LEGAL_URLS } from '@/constants/urls';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -49,7 +50,7 @@ export default function ParametresScreen() {
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL('https://referendum-citoyen.fr/politique-de-confidentialite')}
+            onPress={() => Linking.openURL(LEGAL_URLS.privacyPolicy)}
           >
             <Text style={styles.settingLabel}>{t('settings.privacyPolicy')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
@@ -59,7 +60,7 @@ export default function ParametresScreen() {
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL('https://referendum-citoyen.fr/conditions-generales')}
+            onPress={() => Linking.openURL(LEGAL_URLS.termsAndConditions)}
           >
             <Text style={styles.settingLabel}>{t('settings.termsAndConditions')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />

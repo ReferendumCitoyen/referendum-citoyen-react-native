@@ -2,11 +2,9 @@ import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Linking, TextInput, Keyboard } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
 import { useColors, Typography, Spacing } from '@/constants/theme';
-import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
+import { FREEDOM_TOOL_CONFIG, EXPLORER_TX_BASE_URL } from '@/constants/rarime-config';
 import SettingsButton from '@/components/SettingsButton';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
-
-const EXPLORER_BASE = 'https://scan.qtestnet.org/tx/';
 
 const ShieldCheckIcon = ({ color, size = 20 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -248,7 +246,7 @@ export default function VerifierScreen() {
                 <TouchableOpacity
                   style={styles.explorerLink}
                   activeOpacity={0.7}
-                  onPress={() => Linking.openURL(`${EXPLORER_BASE}${txHash}`)}
+                  onPress={() => Linking.openURL(`${EXPLORER_TX_BASE_URL}${txHash}`)}
                 >
                   <Text style={styles.explorerText}>Voir la transaction sur la blockchain</Text>
                   <ExternalLinkIcon color={colors.secondary} size={14} />
