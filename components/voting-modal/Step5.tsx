@@ -320,15 +320,55 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       <View style={stepSpecificStyles.step5Container}>
         <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
         <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
-          {isActive ? (
+          {/*
+            Camera lifecycle on Android (Volla in particular) needs all of
+            these together; missing any one of them brings back the
+            "preview shows once after install, then black on every
+            subsequent visit" bug:
+
+            1. <Camera /> stays mounted for the lifetime of Step 5.
+               Conditionally rendering it (or churning a `key` prop) tears
+               down the TextureView and its SurfaceTexture; Camera2 then
+               writes to a stale handle and the new TextureView shows
+               nothing — the HAL doesn't recover until the app process
+               restarts.
+            2. The `isActive` prop drives session start/stop instead of
+               mount/unmount. Vision-camera handles Camera2 pause/resume
+               internally without ever closing the device handle.
+            3. The wrapper View toggles `display: flex` / `display: none`
+               instead of conditional rendering. RN preserves the native
+               view (TextureView + SurfaceTexture) across `display: none`,
+               so requirement (1) actually holds.
+            4. `androidPreviewViewType="texture-view"`: default
+               "surface-view" renders on a separate hardware composer
+               layer that doesn't follow `slidingContainer`'s translateX
+               animation, so the preview ends up off-screen after a
+               slide. TextureView is a normal Android view in the
+               standard tree and follows transforms — same trade-off
+               VideoView (`surfaceType="textureView"`) already uses
+               elsewhere in this flow.
+          */}
+          <View style={{ flex: 1, display: isActive ? 'flex' : 'none' }}>
             <Camera
               style={{ flex: 1 }}
               device={device}
-              isActive={true}
+              isActive={!!isActive}
               frameProcessor={frameProcessor}
+              androidPreviewViewType="texture-view"
+              onError={(e) => console.error('[Camera] error:', e?.code, e?.message)}
+              onInitialized={() => console.log('[Camera] initialized')}
+              onStarted={() => console.log('[Camera] started')}
+              onStopped={() => console.log('[Camera] stopped')}
             />
-          ) : (
-            <View style={{ flex: 1, backgroundColor: '#000' }} />
+          </View>
+          {!isActive && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: '#000',
+              }}
+            />
           )}
           {/* ID card overlay — sibling of Camera, not child */}
           <View style={{

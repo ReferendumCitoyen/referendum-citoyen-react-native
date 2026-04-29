@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity } from 'react-native';
+import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -10,10 +10,25 @@ import { useTranslation } from 'react-i18next';
 interface NFCPersonDetails {
   firstName?: string;
   lastName?: string;
-  dateOfBirth?: string;
+  // Note: modules/e-document/index.ts renames Android's native
+  // `dateOfBirth` / `dateOfExpiry` to `birthDate` / `expiryDate` in the
+  // normalized PassportData payload, so we read the renamed names here.
+  // Reading dateOfBirth instead would always be undefined → 'N/A'.
+  birthDate?: string;
+  expiryDate?: string;
   nationality?: string;
   documentNumber?: string;
-  dateOfExpiry?: string;
+}
+
+// MRZ date is YYMMDD. ICAO 9303 century rule: YY >= 50 → 19xx, else 20xx.
+// Returns French JJ/MM/AAAA, or 'N/A' for missing/malformed input.
+function formatMrzDateFr(yymmdd?: string | null): string {
+  if (!yymmdd || yymmdd.length !== 6 || !/^\d{6}$/.test(yymmdd)) return 'N/A';
+  const yy = yymmdd.slice(0, 2);
+  const mm = yymmdd.slice(2, 4);
+  const dd = yymmdd.slice(4, 6);
+  const century = parseInt(yy, 10) >= 50 ? '19' : '20';
+  return `${dd}/${mm}/${century}${yy}`;
 }
 
 interface NFCData {
@@ -68,9 +83,16 @@ const Step7: React.FC<Step7Props> = ({
       setStatusText(t('voting.step7Verifying'));
       setErrorMessage(null);
     } else if (!isActive && hasStarted) {
+      // Do NOT reset hasCalledCallback / isVerifying here. Both effects
+      // share `hasStarted` in their deps, so when isActive flips true→false
+      // immediately after onSuccess, this effect runs first and clears the
+      // refs synchronously, but `setHasStarted(false)` is async. In the same
+      // commit, the verification effect then runs with state hasStarted=true
+      // and refs both false — and re-fires the whole register-identity flow.
+      // The on-chain signature has already been consumed, so the duplicate
+      // call fails with "signature used" and bumps the user back to vote
+      // selection. Refs get re-cleared on a fresh activation below.
       setHasStarted(false);
-      hasCalledCallback.current = false;
-      isVerifying.current = false;
     }
   }, [isActive, hasStarted]);
 
@@ -135,11 +157,27 @@ const Step7: React.FC<Step7Props> = ({
           const kind = status === DocumentStatus.NotRegistered ? 'registering' : 're-registering';
           console.log(`[Step7] ${kind} identity (status=${status})`);
           setStatusText(t('voting.step7Registering'));
-          await withRetry(
-            () => rarime.registerIdentity(passport),
-            { label: 'registerIdentity' }
-          );
-          console.log('[Step7] Identity registered');
+          try {
+            await withRetry(
+              () => rarime.registerIdentity(passport),
+              { label: 'registerIdentity' }
+            );
+            console.log('[Step7] Identity registered');
+          } catch (regErr: any) {
+            // Idempotency: if a prior run already submitted the registration
+            // (and the chain just hadn't propagated yet when we read the
+            // status), the relayer rejects the duplicate with "signature
+            // used", and the SDK's own pre-check throws "registered with
+            // this Private Key" once the chain catches up. Both mean the
+            // identity is in fact registered under our profileKey — the
+            // exact post-condition we want — so swallow them.
+            const m: string = regErr?.message ?? '';
+            const alreadyRegistered =
+              m.includes('signature used') ||
+              m.includes('registered with this Private Key');
+            if (!alreadyRegistered) throw regErr;
+            console.log('[Step7] Identity already registered (idempotent) — proceeding');
+          }
         }
 
         hasCalledCallback.current = true;
@@ -176,9 +214,14 @@ const Step7: React.FC<Step7Props> = ({
           />
         )}
 
-        <Text style={stepSpecificStyles.step7Description}>
-          {errorMessage || statusText}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {!errorMessage && hasStarted && (
+            <ActivityIndicator size="small" color={colors.text} />
+          )}
+          <Text style={stepSpecificStyles.step7Description}>
+            {errorMessage || statusText}
+          </Text>
+        </View>
 
         {nfcData?.personDetails && (
           <View style={{ marginTop: 16, padding: 16, backgroundColor: colors.white, borderRadius: 8 }}>
@@ -197,9 +240,7 @@ const Step7: React.FC<Step7Props> = ({
               opacity: 0.7,
             }}>
               {t('voting.step7BornOn', {
-                date: nfcData.personDetails.dateOfBirth
-                  ? `${nfcData.personDetails.dateOfBirth.slice(4, 6)}/${nfcData.personDetails.dateOfBirth.slice(2, 4)}/${nfcData.personDetails.dateOfBirth.slice(0, 2) >= '50' ? '19' : '20'}${nfcData.personDetails.dateOfBirth.slice(0, 2)}`
-                  : 'N/A',
+                date: formatMrzDateFr(nfcData.personDetails.birthDate),
               })}
             </Text>
             <Text style={{
