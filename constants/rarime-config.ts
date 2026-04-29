@@ -31,6 +31,10 @@ export const PRIVATE_KEY_STORAGE_KEY = "rarime_bjj_private_key";
 
 export const DEFAULT_PROPOSAL_ID = "236";
 
+// Q-testnet block explorer — used by the verifier tab to deep-link a tx hash.
+// Pinned to the same chain as votingRpcUrl above; if that moves, this moves.
+export const EXPLORER_TX_BASE_URL = "https://scan.qtestnet.org/tx/";
+
 /**
  * Retry wrapper for flaky RPC calls.
  * Retries up to `maxRetries` times with `delayMs` between attempts.

@@ -17,14 +17,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from "@rarimo/rarime-rn-sdk";
-import * as SecureStore from "expo-secure-store";
 import {
   RARIME_TESTNET_CONFIG,
   FREEDOM_TOOL_CONFIG,
-  PRIVATE_KEY_STORAGE_KEY,
   DEFAULT_PROPOSAL_ID,
   withRetry,
 } from "@/constants/rarime-config";
+import { getOrCreatePrivateKey } from "@/utils/identity";
 import Step1 from "@/components/voting-modal/Step1";
 import Step10 from "@/components/voting-modal/Step10";
 import Step11 from "@/components/voting-modal/Step11";
@@ -118,13 +117,9 @@ export default function VotingScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { Rarime: RarimeClass, RarimeUtils: Utils, FreedomTool: FT } =
+        const { Rarime: RarimeClass, FreedomTool: FT } =
           await import("@rarimo/rarime-rn-sdk");
-        let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
-        if (!storedKey) {
-          storedKey = Utils.generateBJJPrivateKey();
-          await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, storedKey);
-        }
+        const storedKey = await getOrCreatePrivateKey();
         rarimeRef.current = new RarimeClass({
           ...RARIME_TESTNET_CONFIG,
           userConfiguration: { userPrivateKey: storedKey },
