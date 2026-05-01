@@ -41,6 +41,7 @@
     "termsAndConditions": "Conditions générales",
     "contact": "Nous contacter",
     "nfcTest": "Test NFC",
+    "diagnostics": "Diagnostics",
     "version": "Version {{version}} ({{build}})"
   },
   "home": {

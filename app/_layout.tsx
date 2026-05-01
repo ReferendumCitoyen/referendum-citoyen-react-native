@@ -124,6 +124,13 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
+            name="diagnostics"
+            options={{
+              title: t('settings.diagnostics'),
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
             name="voting-flow"
             options={{
               headerShown: false,

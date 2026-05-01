@@ -76,6 +76,16 @@ export default function ParametresScreen() {
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
+          {/* Diagnostics Row */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => router.push('/diagnostics')}
+          >
+            <Text style={styles.settingLabel}>{t('settings.diagnostics')}</Text>
+            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+          </TouchableOpacity>
+
           {devMode && (
             <>
               {/* Hide Dev Tools */}
