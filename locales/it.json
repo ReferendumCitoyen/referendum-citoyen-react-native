@@ -41,6 +41,7 @@
     "rpc": "RPC",
     "smartContract": "Smart contract",
     "nfcTest": "Test NFC",
+    "diagnostics": "Diagnostica",
     "version": "Versione {{version}} ({{build}})"
   },
   "home": {
