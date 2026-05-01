@@ -114,7 +114,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
               {
                 name: 'NFCPassportReader',
                 git: 'https://github.com/eklchan/NFCPassportReader.git',
-                commit: 'e177ec1'
+                // Reverted from e177ec1 (Apr 15, b360e91) which removed
+                // `.pace` polling for an iOS 18 TestFlight crash workaround.
+                // On iOS 26 SDK that workaround breaks French CNIe scanning:
+                // production PassportReader without `.pace` polling cannot
+                // engage PACE auth, while the diagnostic (which adds `.pace`
+                // explicitly in NfcDiagnostic.swift) still works. Pin back
+                // to the previous fork commit which retains `.pace` polling.
+                commit: '69368850d7b151ca507e70225b7c3f0f0221587d'
               }
             ]
           }
