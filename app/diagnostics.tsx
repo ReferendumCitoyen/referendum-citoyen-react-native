@@ -31,5 +31,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     content: {
       padding: 16,
       gap: 16,
+      paddingBottom: 120,
     },
   });
