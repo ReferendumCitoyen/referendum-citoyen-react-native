@@ -19,14 +19,14 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
     // EF.CardAccess file ID = 011C
     private let efCardAccess: [UInt8] = [0x01, 0x1C]
 
-    func run(timeoutSeconds: Double) async throws -> [String: Any] {
+    func run(timeoutSeconds: Double, pacePolling: Bool = true) async throws -> [String: Any] {
         self.timeoutSeconds = timeoutSeconds
 
         return try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             self.logs = []
             self.log("=== NFC Diagnostic Start ===")
-            self.log("Timeout: \(timeoutSeconds)s")
+            self.log("Timeout: \(timeoutSeconds)s, PACE polling: \(pacePolling)")
 
             guard NFCTagReaderSession.readingAvailable else {
                 self.log("[ERROR] NFC reading not available on this device")
@@ -36,7 +36,7 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
             }
 
             var pollingOptions: NFCTagReaderSession.PollingOption = [.iso14443]
-            if #available(iOS 16.0, *) {
+            if pacePolling, #available(iOS 16.0, *) {
                 pollingOptions.insert(.pace)
             }
             self.session = NFCTagReaderSession(
@@ -44,7 +44,10 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
                 delegate: self,
                 queue: DispatchQueue.global(qos: .userInitiated)
             )
-            self.session?.alertMessage = "Approchez votre carte d'identite pour le diagnostic NFC..."
+            let alertMsg = pacePolling
+                ? "Approchez votre carte d'identite pour le diagnostic NFC..."
+                : "Approchez votre passeport pour le diagnostic NFC..."
+            self.session?.alertMessage = alertMsg
             self.session?.begin()
             self.log("Session started, polling \(pollingOptions)")
 

@@ -157,13 +157,28 @@ public class EDocumentModule: Module {
             debugLog("Starting NFC diagnostic (timeout: \(timeoutSeconds)s)")
 
             let diagnostic = NfcDiagnostic()
-            let result = try await diagnostic.run(timeoutSeconds: timeoutSeconds)
+            let result = try await diagnostic.run(timeoutSeconds: timeoutSeconds, pacePolling: true)
 
-            // Forward diagnostic logs via DEBUG_LOG events
             if let logs = result["logs"] as? [String] {
-                for logLine in logs {
-                    debugLog(logLine)
-                }
+                for logLine in logs { debugLog(logLine) }
+            }
+
+            let jsonData = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
+            return String(data: jsonData, encoding: .utf8) ?? "{}"
+        }
+
+        AsyncFunction("testPassportDetection") { (timeoutSeconds: Double) -> String in
+            let debugLog: (String) -> Void = { message in
+                self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG-P] \(message)"])
+            }
+
+            debugLog("Starting passport NFC diagnostic (timeout: \(timeoutSeconds)s, iso14443 only)")
+
+            let diagnostic = NfcDiagnostic()
+            let result = try await diagnostic.run(timeoutSeconds: timeoutSeconds, pacePolling: false)
+
+            if let logs = result["logs"] as? [String] {
+                for logLine in logs { debugLog(logLine) }
             }
 
             let jsonData = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])

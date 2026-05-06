@@ -131,6 +131,13 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
+            name="diagnostics-passport"
+            options={{
+              title: 'Diagnostic Passeport',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
             name="voting-flow"
             options={{
               headerShown: false,

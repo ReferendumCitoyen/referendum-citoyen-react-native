@@ -209,8 +209,15 @@ export async function testNfcDetection(timeoutSeconds: number = 30): Promise<Nfc
   if (Platform.OS !== 'ios') {
     throw new Error('testNfcDetection is only available on iOS')
   }
-
   const resultJson = await EDocumentModule.testNfcDetection(timeoutSeconds)
+  return JSON.parse(resultJson) as NfcDiagnosticResult
+}
+
+export async function testPassportDetection(timeoutSeconds: number = 30): Promise<NfcDiagnosticResult> {
+  if (Platform.OS !== 'ios') {
+    throw new Error('testPassportDetection is only available on iOS')
+  }
+  const resultJson = await EDocumentModule.testPassportDetection(timeoutSeconds)
   return JSON.parse(resultJson) as NfcDiagnosticResult
 }
 
