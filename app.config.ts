@@ -114,12 +114,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
               {
                 name: 'NFCPassportReader',
                 git: 'https://github.com/eklchan/NFCPassportReader.git',
-                // b38fb3c: conditional .pace polling based on skipPACE.
-                // skipPACE=false (CNIe/PACE mode) → .pace + .iso14443 so
-                // French CNIe (Type A, PACE-only) is detected.
-                // skipPACE=true (passport/BAC mode) → .iso14443 only so
-                // ISO 14443 Type B passports are detected by the NFC session.
-                commit: 'dc2b455a457fca4478d47a33d74b14f15ccc0104'
+                // 9201876: conditional .pace polling based on skipPACE.
+                // Built on 69368850 (retains can: param for CAN-PACE).
+                // skipPACE=false (CNIe) → .pace + .iso14443 (Type A detected).
+                // skipPACE=true (passport/BAC) → .iso14443 only (Type B detected).
+                commit: '92018762f6103bf13a12b0bede9539f066de18a9'
               }
             ]
           }
