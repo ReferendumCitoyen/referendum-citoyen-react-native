@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useColors, Typography } from '@/constants/theme';
-import { scanDocument } from '@/modules/e-document';
+import { scanDocument, testPassportDetection } from '@/modules/e-document';
 
 type StrategyResult = { success: true; name: string } | { success: false; error: string } | null;
 
@@ -19,16 +19,16 @@ function friendlyError(raw: string): string {
     return 'Format PACE-IM non supporté';
   if (m.includes('more than one') || m.includes('plusieurs tag'))
     return 'Plusieurs cartes détectées';
-  if (m.includes('tagnotvalid') || m.includes('tag not valid') || m.includes('tag invalide'))
-    return 'Carte non reconnue par le lecteur';
-  if (m.includes('connectionerror') || m.includes('connection error') || m.includes('connexion perdue'))
+  if (m.includes('tagnotvalid') || m.includes('tag not valid'))
+    return 'Document non reconnu par le lecteur';
+  if (m.includes('connectionerror') || m.includes('connection error'))
     return 'Connexion NFC perdue — réessayez';
   if (m.includes('timeout') || m.includes('aucun tag') || m.includes('no tag'))
-    return 'Délai dépassé — rapprochez la carte';
-  if (m.includes('invalid mrz') || m.includes('données mrz') || m.includes('mrz invalide'))
+    return 'Délai dépassé — rapprochez le document';
+  if (m.includes('invalid mrz') || m.includes('données mrz'))
     return 'Données MRZ incorrectes';
   if (m.includes('6982') || m.includes('security status'))
-    return 'Authentification refusée par la carte';
+    return 'Authentification refusée';
   if (m.includes('6985') || m.includes('conditions of use'))
     return "Conditions d'accès non remplies";
   if (m.includes('authentification') || m.includes('authentication'))
@@ -44,14 +44,12 @@ function friendlyError(raw: string): string {
   return first.length > 48 ? first.slice(0, 45) + '…' : first || 'Échec inattendu';
 }
 
-// Display raw DDMMYY digits as DD/MM/YY
 const fmtDate = (digits: string): string => {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 };
 
-// Convert DDMMYY → YYMMDD for MRZ key derivation
 const toMRZ = (digits: string): string =>
   digits.length === 6
     ? `${digits.slice(4, 6)}${digits.slice(2, 4)}${digits.slice(0, 2)}`
@@ -62,7 +60,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     promise,
     new Promise<T>((_, reject) =>
       setTimeout(
-        () => reject(new Error(`Délai dépassé (${label}) — réapprochez la carte et réessayez`)),
+        () => reject(new Error(`Délai dépassé (${label}) — réapprochez le document et réessayez`)),
         ms
       )
     ),
@@ -80,10 +78,10 @@ type Strategy = {
 };
 
 const PRODUCTION_STRATEGY: Strategy = {
-  id: 'mrz_pace',
+  id: 'mrz_bac',
   label: 'MRZ seul (flux production)',
-  desc: 'Identique à french-id-test et au vote — devrait fonctionner sur la carte 2',
-  type: 'I',
+  desc: 'skipPACE=true + MRZ — identique à nfc-scan-modal et passport-test',
+  type: 'P',
   needs: ['mrz'],
   primary: true,
   buildParams: (_can, docNumber, dob, expiry) => ({
@@ -96,9 +94,9 @@ const PRODUCTION_STRATEGY: Strategy = {
 // type I — PACE activé
 const PACE_STRATEGIES: Strategy[] = [
   {
-    id: 'pace_mrz',
-    label: 'PACE + MRZ',
-    desc: 'PACE avec MRZ uniquement, sans CAN',
+    id: 'mrz_pace',
+    label: 'PACE + MRZ seul',
+    desc: 'PACE activé + MRZ — si le passeport supporte PACE',
     type: 'I',
     needs: ['mrz'],
     buildParams: (_can, docNumber, dob, expiry) => ({
@@ -108,7 +106,7 @@ const PACE_STRATEGIES: Strategy[] = [
     }),
   },
   {
-    id: 'can',
+    id: 'can_only',
     label: 'PACE + CAN seul',
     desc: 'PACE avec CAN uniquement, sans MRZ',
     type: 'I',
@@ -116,9 +114,9 @@ const PACE_STRATEGIES: Strategy[] = [
     buildParams: (can) => ({ can }),
   },
   {
-    id: 'can_mrz',
+    id: 'can_mrz_pace',
     label: 'PACE + CAN + MRZ',
-    desc: 'PACE avec CAN et MRZ complets',
+    desc: 'PACE avec CAN + MRZ — certains passeports EU récents supportent CAN-PACE',
     type: 'I',
     needs: ['can', 'mrz'],
     buildParams: (can, docNumber, dob, expiry) => ({
@@ -131,31 +129,19 @@ const PACE_STRATEGIES: Strategy[] = [
   {
     id: 'pace_dummy',
     label: 'PACE sans credential',
-    desc: "PACE avec données vides",
+    desc: "PACE avec données vides — le document accepte-t-il n'importe quoi?",
     type: 'I',
     needs: [],
     buildParams: () => ({}),
   },
 ];
 
-// type P — skipPACE=true (mode BAC)
+// type P — skipPACE=true (contourne PACE, mode BAC)
 const BAC_STRATEGIES: Strategy[] = [
-  {
-    id: 'skip_pace_mrz',
-    label: 'BAC + MRZ',
-    desc: 'skipPACE + MRZ — utilisé par nfc-scan-modal en production',
-    type: 'P',
-    needs: ['mrz'],
-    buildParams: (_can, docNumber, dob, expiry) => ({
-      documentNumber: docNumber,
-      dateOfBirth: dob,
-      dateOfExpiry: expiry,
-    }),
-  },
   {
     id: 'skip_pace_can',
     label: 'BAC + CAN seul',
-    desc: 'skipPACE + CAN uniquement, sans MRZ',
+    desc: 'skipPACE + CAN uniquement — CAN utilisé en mode BAC?',
     type: 'P',
     needs: ['can'],
     buildParams: (can) => ({ can }),
@@ -163,7 +149,7 @@ const BAC_STRATEGIES: Strategy[] = [
   {
     id: 'skip_pace_can_mrz',
     label: 'BAC + CAN + MRZ',
-    desc: 'skipPACE + CAN + MRZ — couverture maximale',
+    desc: 'skipPACE + CAN + MRZ — couverture totale',
     type: 'P',
     needs: ['can', 'mrz'],
     buildParams: (can, docNumber, dob, expiry) => ({
@@ -176,29 +162,29 @@ const BAC_STRATEGIES: Strategy[] = [
   {
     id: 'open',
     label: 'BAC sans credential',
-    desc: 'skipPACE + aucune donnée — carte entièrement ouverte?',
+    desc: 'skipPACE + aucune donnée — document entièrement ouvert?',
     type: 'P',
     needs: [],
     buildParams: () => ({}),
   },
 ];
 
-export function NfcDiagnosticCard() {
+export function NfcPassportDiagnosticCard() {
   const colors = useColors();
   const styles = createStyles(colors);
 
-  // Detection probe state
-  const [isRunning, setIsRunning] = React.useState(false);
-  const [result, setResult] = React.useState<any>(null);
+  // Detection state
+  const [isDetecting, setIsDetecting] = React.useState(false);
+  const [detection, setDetection] = React.useState<any>(null);
   const [detectionError, setDetectionError] = React.useState<string | null>(null);
 
-  // Shared inputs
+  // Inputs
   const [can, setCan] = React.useState('');
   const [docNumber, setDocNumber] = React.useState('');
   const [dob, setDob] = React.useState('');
   const [expiry, setExpiry] = React.useState('');
 
-  // Per-strategy results
+  // Scan results
   const [running, setRunning] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<Record<string, StrategyResult>>({});
 
@@ -209,6 +195,20 @@ export function NfcDiagnosticCard() {
 
   const isEnabled = (needs: ('can' | 'mrz')[]) =>
     running === null && needs.every(n => (n === 'can' ? hasCan : hasMrz));
+
+  const runDetection = async () => {
+    setIsDetecting(true);
+    setDetection(null);
+    setDetectionError(null);
+    try {
+      const r = await withTimeout(testPassportDetection(30), 35_000, 'détection passeport');
+      setDetection(r);
+    } catch (ex: any) {
+      setDetectionError(ex?.message || 'Erreur inconnue');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
 
   const runStrategy = async (s: Strategy) => {
     setRunning(s.id);
@@ -230,21 +230,6 @@ export function NfcDiagnosticCard() {
     }
   };
 
-  const runDetection = async () => {
-    setIsRunning(true);
-    setResult(null);
-    setDetectionError(null);
-    try {
-      const { testNfcDetection } = await import('@/modules/e-document');
-      const r = await withTimeout(testNfcDetection(30), 35_000, 'détection NFC');
-      setResult(r);
-    } catch (ex: any) {
-      setDetectionError(ex?.message || 'Erreur inconnue');
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
   const renderStrategy = (s: Strategy) => {
     const enabled = isEnabled(s.needs);
     const res = results[s.id];
@@ -252,7 +237,7 @@ export function NfcDiagnosticCard() {
       <View key={s.id} style={styles.strategyRow}>
         <TouchableOpacity
           style={[
-            s.primary ? styles.primaryStrategyButton : styles.strategyButton,
+            s.primary ? styles.primaryButton : styles.strategyButton,
             !enabled && styles.disabled,
           ]}
           onPress={() => runStrategy(s)}
@@ -281,58 +266,46 @@ export function NfcDiagnosticCard() {
 
   return (
     <View style={styles.card}>
-      {/* ── Detection probe ── */}
-      <Text style={styles.cardTitle}>Diagnostic NFC</Text>
+      {/* ── Detection ── */}
+      <Text style={styles.cardTitle}>Détection NFC Passeport</Text>
       <Text style={styles.helpText}>
-        Teste la detection NFC brute sans PassportReader. Permet de verifier si
-        le tag est detecte et quels AID sont disponibles.
+        Polling iso14443 sans PACE — détecte les passeports (Type B).
       </Text>
-
       <TouchableOpacity
-        style={[styles.button, isRunning && styles.disabled]}
+        style={[styles.button, isDetecting && styles.disabled]}
         onPress={runDetection}
-        disabled={isRunning}
+        disabled={isDetecting}
       >
-        {isRunning ? (
+        {isDetecting ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color="#fff" />
             <Text style={styles.buttonText}>Detection en cours...</Text>
           </View>
         ) : (
-          <Text style={styles.buttonText}>Tester la detection NFC</Text>
+          <Text style={styles.buttonText}>Tester la detection (Passeport)</Text>
         )}
       </TouchableOpacity>
 
       {detectionError && (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Diagnostic: {detectionError}</Text>
+          <Text style={styles.errorText}>{detectionError}</Text>
         </View>
       )}
 
-      {result && (
+      {detection && (
         <View style={styles.results}>
           <View style={styles.resultRow}>
             <Text style={styles.resultLabel}>Tag detecte:</Text>
-            <Text style={[styles.resultValue, { color: result.tagDetected ? '#10B981' : '#EF4444' }]}>
-              {result.tagDetected ? 'OUI' : 'NON'}
+            <Text style={[styles.resultValue, { color: detection.tagDetected ? '#10B981' : '#EF4444' }]}>
+              {detection.tagDetected ? 'OUI' : 'NON'}
             </Text>
           </View>
-          {result.tags?.map((tag: any, idx: number) => (
+          {detection.tags?.map((tag: any, idx: number) => (
             <View key={idx}>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Type:</Text>
-                <Text style={styles.resultValue}>{tag.type}</Text>
-              </View>
               {tag.identifier && (
                 <View style={styles.resultRow}>
                   <Text style={styles.resultLabel}>UID:</Text>
                   <Text style={styles.resultValue}>{tag.identifier}</Text>
-                </View>
-              )}
-              {tag.initialSelectedAID !== undefined && (
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>AID initial:</Text>
-                  <Text style={styles.resultValue}>{tag.initialSelectedAID || '(vide)'}</Text>
                 </View>
               )}
               {tag.historicalBytes && (
@@ -343,10 +316,10 @@ export function NfcDiagnosticCard() {
               )}
             </View>
           ))}
-          {result.aidProbeResults?.length > 0 && (
+          {detection.aidProbeResults?.length > 0 && (
             <>
               <Text style={styles.sectionSubtitle}>SELECT AID:</Text>
-              {result.aidProbeResults.map((probe: any, idx: number) => (
+              {detection.aidProbeResults.map((probe: any, idx: number) => (
                 <View style={styles.resultRow} key={idx}>
                   <Text style={styles.resultLabel}>{probe.name.split('(')[0].trim()}:</Text>
                   <Text style={[styles.resultValue, { color: probe.success ? '#10B981' : '#EF4444' }]}>
@@ -356,23 +329,10 @@ export function NfcDiagnosticCard() {
               ))}
             </>
           )}
-          {result.cardAccessProbe && (
-            <>
-              <Text style={styles.sectionSubtitle}>EF.CardAccess:</Text>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Status:</Text>
-                <Text style={[styles.resultValue, { color: result.cardAccessProbe.success ? '#10B981' : '#EF4444' }]}>
-                  {result.cardAccessProbe.success
-                    ? `OK (${result.cardAccessProbe.dataLength} bytes)`
-                    : `FAIL at ${result.cardAccessProbe.step}`}
-                </Text>
-              </View>
-            </>
-          )}
         </View>
       )}
 
-      {/* ── Shared inputs ── */}
+      {/* ── Inputs ── */}
       <Text style={styles.sectionTitle}>Scan PassportReader</Text>
       <View style={styles.inputRow}>
         <View style={styles.inputGroup}>
@@ -389,7 +349,7 @@ export function NfcDiagnosticCard() {
           />
         </View>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>N° document (MRZ)</Text>
+          <Text style={styles.inputLabel}>N° passeport (MRZ)</Text>
           <TextInput
             style={styles.textInput}
             value={docNumber}
@@ -440,14 +400,14 @@ export function NfcDiagnosticCard() {
       {/* ── PACE (type I) ── */}
       <View style={[styles.groupHeader, { marginTop: 8 }]}>
         <Text style={styles.groupHeaderText}>Tests PACE (type I)</Text>
-        <Text style={styles.groupHeaderHint}>PACE activé — 3 variantes de credentials</Text>
+        <Text style={styles.groupHeaderHint}>PACE activé — 4 variantes de credentials</Text>
       </View>
       {PACE_STRATEGIES.map(renderStrategy)}
 
       {/* ── Sans PACE / BAC (type P) ── */}
       <View style={[styles.groupHeader, { marginTop: 8 }]}>
         <Text style={styles.groupHeaderText}>Tests sans PACE (type P)</Text>
-        <Text style={styles.groupHeaderHint}>PACE contourné — 4 variantes de credentials</Text>
+        <Text style={styles.groupHeaderHint}>PACE contourné — 3 variantes de credentials</Text>
       </View>
       {BAC_STRATEGIES.map(renderStrategy)}
     </View>
@@ -479,19 +439,35 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.textSecondary,
       lineHeight: 18,
     },
-    // Detection button
     button: {
-      backgroundColor: '#7C3AED',
+      backgroundColor: '#1D4ED8',
       paddingVertical: 14,
       borderRadius: 8,
       alignItems: 'center',
     },
-    disabled: {
-      opacity: 0.4,
+    primaryButton: {
+      backgroundColor: '#059669',
+      paddingVertical: 13,
+      paddingHorizontal: 14,
+      borderRadius: 8,
+      alignItems: 'center',
     },
+    strategyButton: {
+      backgroundColor: '#5B21B6',
+      paddingVertical: 11,
+      paddingHorizontal: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    disabled: { opacity: 0.4 },
     buttonText: {
       fontFamily: Typography.fontFamily.semibold,
       fontSize: 16,
+      color: '#FFFFFF',
+    },
+    strategyButtonText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 14,
       color: '#FFFFFF',
     },
     loadingRow: {
@@ -510,7 +486,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 14,
       color: '#DC2626',
     },
-    // Detection results
     results: {
       backgroundColor: colors.background,
       borderRadius: 8,
@@ -543,15 +518,8 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.textSecondary,
       marginTop: 8,
     },
-    // Inputs
-    inputRow: {
-      flexDirection: 'row',
-      gap: 10,
-    },
-    inputGroup: {
-      flex: 1,
-      gap: 4,
-    },
+    inputRow: { flexDirection: 'row', gap: 10 },
+    inputGroup: { flex: 1, gap: 4 },
     inputLabel: {
       fontFamily: Typography.fontFamily.medium,
       fontSize: 11,
@@ -581,7 +549,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       paddingVertical: 10,
       paddingHorizontal: 10,
     },
-    // Group headers
     groupHeader: {
       backgroundColor: colors.background,
       borderRadius: 8,
@@ -599,29 +566,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 11,
       color: colors.textSecondary,
     },
-    // Strategy buttons
-    strategyRow: {
-      gap: 4,
-    },
-    primaryStrategyButton: {
-      backgroundColor: '#059669',
-      paddingVertical: 13,
-      paddingHorizontal: 14,
-      borderRadius: 8,
-      alignItems: 'center',
-    },
-    strategyButton: {
-      backgroundColor: '#5B21B6',
-      paddingVertical: 11,
-      paddingHorizontal: 14,
-      borderRadius: 8,
-      alignItems: 'center',
-    },
-    strategyButtonText: {
-      fontFamily: Typography.fontFamily.semibold,
-      fontSize: 14,
-      color: '#FFFFFF',
-    },
+    strategyRow: { gap: 4 },
     strategyDesc: {
       fontFamily: Typography.fontFamily.medium,
       fontSize: 11,

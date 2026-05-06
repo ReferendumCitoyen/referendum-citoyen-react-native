@@ -86,6 +86,16 @@ export default function ParametresScreen() {
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
+          {/* Passport Diagnostics */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => router.push('/diagnostics-passport')}
+          >
+            <Text style={styles.settingLabel}>Diagnostic Passeport</Text>
+            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+          </TouchableOpacity>
+
           {devMode && (
             <>
               {/* Hide Dev Tools */}
