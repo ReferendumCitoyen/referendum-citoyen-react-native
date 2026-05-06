@@ -77,9 +77,15 @@ type Strategy = {
   buildParams: (can: string, docNumber: string, dob: string, expiry: string) => object;
 };
 
+// Passports don't use CAN — all strategies are MRZ-only or credential-free.
+// NOTE: scan buttons currently require a new build to detect Type B passports.
+// The NFCPassportReader library adds .pace to the NFC session regardless of
+// skipPACE, which blocks Type B passport detection. Fix: make .pace conditional
+// on !skipPACE in the eklchan fork. Until then, only the detection button works.
+
 const PRODUCTION_STRATEGY: Strategy = {
   id: 'mrz_bac',
-  label: 'MRZ seul (flux production)',
+  label: 'BAC + MRZ (flux production)',
   desc: 'skipPACE=true + MRZ — identique à nfc-scan-modal et passport-test',
   type: 'P',
   needs: ['mrz'],
@@ -91,11 +97,11 @@ const PRODUCTION_STRATEGY: Strategy = {
   }),
 };
 
-// type I — PACE activé
+// type I — PACE activé (no CAN — standard passports don't use CAN-PACE)
 const PACE_STRATEGIES: Strategy[] = [
   {
     id: 'mrz_pace',
-    label: 'PACE + MRZ seul',
+    label: 'PACE + MRZ',
     desc: 'PACE activé + MRZ — si le passeport supporte PACE',
     type: 'I',
     needs: ['mrz'],
@@ -106,63 +112,21 @@ const PACE_STRATEGIES: Strategy[] = [
     }),
   },
   {
-    id: 'can_only',
-    label: 'PACE + CAN seul',
-    desc: 'PACE avec CAN uniquement, sans MRZ',
-    type: 'I',
-    needs: ['can'],
-    buildParams: (can) => ({ can }),
-  },
-  {
-    id: 'can_mrz_pace',
-    label: 'PACE + CAN + MRZ',
-    desc: 'PACE avec CAN + MRZ — certains passeports EU récents supportent CAN-PACE',
-    type: 'I',
-    needs: ['can', 'mrz'],
-    buildParams: (can, docNumber, dob, expiry) => ({
-      can,
-      documentNumber: docNumber,
-      dateOfBirth: dob,
-      dateOfExpiry: expiry,
-    }),
-  },
-  {
     id: 'pace_dummy',
     label: 'PACE sans credential',
-    desc: "PACE avec données vides — le document accepte-t-il n'importe quoi?",
+    desc: "PACE avec données vides — le passeport accepte-t-il n'importe quoi?",
     type: 'I',
     needs: [],
     buildParams: () => ({}),
   },
 ];
 
-// type P — skipPACE=true (contourne PACE, mode BAC)
+// type P — skipPACE=true (mode BAC, no CAN)
 const BAC_STRATEGIES: Strategy[] = [
-  {
-    id: 'skip_pace_can',
-    label: 'BAC + CAN seul',
-    desc: 'skipPACE + CAN uniquement — CAN utilisé en mode BAC?',
-    type: 'P',
-    needs: ['can'],
-    buildParams: (can) => ({ can }),
-  },
-  {
-    id: 'skip_pace_can_mrz',
-    label: 'BAC + CAN + MRZ',
-    desc: 'skipPACE + CAN + MRZ — couverture totale',
-    type: 'P',
-    needs: ['can', 'mrz'],
-    buildParams: (can, docNumber, dob, expiry) => ({
-      can,
-      documentNumber: docNumber,
-      dateOfBirth: dob,
-      dateOfExpiry: expiry,
-    }),
-  },
   {
     id: 'open',
     label: 'BAC sans credential',
-    desc: 'skipPACE + aucune donnée — document entièrement ouvert?',
+    desc: 'skipPACE + aucune donnée — passeport entièrement ouvert?',
     type: 'P',
     needs: [],
     buildParams: () => ({}),
@@ -178,8 +142,7 @@ export function NfcPassportDiagnosticCard() {
   const [detection, setDetection] = React.useState<any>(null);
   const [detectionError, setDetectionError] = React.useState<string | null>(null);
 
-  // Inputs
-  const [can, setCan] = React.useState('');
+  // Inputs — no CAN (passports don't use it)
   const [docNumber, setDocNumber] = React.useState('');
   const [dob, setDob] = React.useState('');
   const [expiry, setExpiry] = React.useState('');
@@ -190,11 +153,10 @@ export function NfcPassportDiagnosticCard() {
 
   if (Platform.OS !== 'ios') return null;
 
-  const hasCan = can.length === 6;
   const hasMrz = docNumber.length >= 3 && dob.length === 6 && expiry.length === 6;
 
   const isEnabled = (needs: ('can' | 'mrz')[]) =>
-    running === null && needs.every(n => (n === 'can' ? hasCan : hasMrz));
+    running === null && needs.every(n => n === 'mrz' ? hasMrz : false);
 
   const runDetection = async () => {
     setIsDetecting(true);
@@ -214,7 +176,7 @@ export function NfcPassportDiagnosticCard() {
     setRunning(s.id);
     setResults(r => ({ ...r, [s.id]: null }));
     try {
-      const params = s.buildParams(can, docNumber, toMRZ(dob), toMRZ(expiry));
+      const params = s.buildParams('', docNumber, toMRZ(dob), toMRZ(expiry));
       const data = await withTimeout(
         scanDocument(s.type, params, new Uint8Array(32)),
         45_000,
@@ -269,8 +231,16 @@ export function NfcPassportDiagnosticCard() {
       {/* ── Detection ── */}
       <Text style={styles.cardTitle}>Détection NFC Passeport</Text>
       <Text style={styles.helpText}>
-        Polling iso14443 sans PACE — détecte les passeports (Type B).
+        Polling iso14443 sans PACE pour les passeports (Type B). Bougez
+        lentement — jusqu'à 30 secondes.
       </Text>
+      <View style={styles.positionHint}>
+        <Text style={styles.positionHintText}>
+          Placez la 4e de couverture du passeport (dos) contre le haut du
+          iPhone, puce vers le téléphone. La puce est dans la couverture,
+          pas dans les pages.
+        </Text>
+      </View>
       <TouchableOpacity
         style={[styles.button, isDetecting && styles.disabled]}
         onPress={runDetection}
@@ -332,24 +302,24 @@ export function NfcPassportDiagnosticCard() {
         </View>
       )}
 
-      {/* ── Inputs ── */}
+      {/* ── Scan limitation banner ── */}
+      <View style={styles.warningBanner}>
+        <Text style={styles.warningText}>
+          Les boutons de scan ne détectent pas encore les passeports (Type B) —
+          le lecteur NFC utilise le polling PACE qui bloque les passeports.
+          Un nouveau build est nécessaire pour corriger cela.
+          La détection ci-dessus fonctionne.
+        </Text>
+      </View>
+
+      {/* ── Inputs (no CAN — passports don't use it) ── */}
       <Text style={styles.sectionTitle}>Scan PassportReader</Text>
+      <Text style={styles.helpText}>
+        N° passeport + dates depuis la zone MRZ (page 2 du passeport). Pas de CAN.
+      </Text>
       <View style={styles.inputRow}>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>CAN (6 chiffres)</Text>
-          <TextInput
-            style={styles.canInput}
-            value={can}
-            onChangeText={t => setCan(t.replace(/\D/g, '').slice(0, 6))}
-            placeholder="000000"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="number-pad"
-            maxLength={6}
-            autoCorrect={false}
-          />
-        </View>
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>N° passeport (MRZ)</Text>
+          <Text style={styles.inputLabel}>N° passeport (MRZ, 9 chars)</Text>
           <TextInput
             style={styles.textInput}
             value={docNumber}
@@ -393,7 +363,7 @@ export function NfcPassportDiagnosticCard() {
       {/* ── Production ── */}
       <View style={styles.groupHeader}>
         <Text style={styles.groupHeaderText}>Flux production</Text>
-        <Text style={styles.groupHeaderHint}>Remplir les 3 champs MRZ</Text>
+        <Text style={styles.groupHeaderHint}>N° passeport + naissance + expiration</Text>
       </View>
       {renderStrategy(PRODUCTION_STRATEGY)}
 
@@ -525,19 +495,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 11,
       color: colors.textSecondary,
     },
-    canInput: {
-      fontFamily: Typography.fontFamily.semibold,
-      fontSize: 18,
-      color: colors.text,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 8,
-      paddingVertical: 10,
-      paddingHorizontal: 10,
-      letterSpacing: 4,
-      textAlign: 'center',
-    },
     textInput: {
       fontFamily: Typography.fontFamily.medium,
       fontSize: 14,
@@ -548,6 +505,32 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 8,
       paddingVertical: 10,
       paddingHorizontal: 10,
+    },
+    positionHint: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 10,
+      borderLeftWidth: 3,
+      borderLeftColor: '#1D4ED8',
+    },
+    positionHintText: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 17,
+    },
+    warningBanner: {
+      backgroundColor: '#FEF3C7',
+      borderRadius: 8,
+      padding: 12,
+      borderLeftWidth: 3,
+      borderLeftColor: '#F59E0B',
+    },
+    warningText: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 12,
+      color: '#92400E',
+      lineHeight: 17,
     },
     groupHeader: {
       backgroundColor: colors.background,
