@@ -119,7 +119,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 // French CNIe (Type A, PACE-only) is detected.
                 // skipPACE=true (passport/BAC mode) → .iso14443 only so
                 // ISO 14443 Type B passports are detected by the NFC session.
-                commit: 'b38fb3c'
+                commit: 'dc2b455a457fca4478d47a33d74b14f15ccc0104'
               }
             ]
           }
