@@ -5,7 +5,7 @@ import CoreNFC
 /// Probes tag detection, AID selection, and CardAccess to diagnose
 /// why French CNIe is not detected on iOS.
 @available(iOS 13.0, *)
-class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
+class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable {
 
     private var session: NFCTagReaderSession?
     private var continuation: CheckedContinuation<[String: Any], Error>?
