@@ -5,7 +5,7 @@ import CoreNFC
 /// Probes tag detection, AID selection, and CardAccess to diagnose
 /// why French CNIe is not detected on iOS.
 @available(iOS 13.0, *)
-class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable {
+class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate {
 
     private var session: NFCTagReaderSession?
     private var continuation: CheckedContinuation<[String: Any], Error>?
@@ -229,7 +229,7 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable 
     // MARK: - CardAccess Probing
 
     private func probeCardAccess(tag: NFCISO7816Tag) async -> [String: Any] {
-        log("--- Probing EF.CardAccess ---")
+        log("--- Probing EF.CardAccess (MF path) ---")
 
         // First SELECT MF (3F00)
         let selectMF = NFCISO7816APDU(
@@ -241,16 +241,47 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable 
             expectedResponseLength: 256
         )
 
+        var mfResult: [String: Any]
         do {
             let (_, sw1, sw2) = try await tag.sendCommand(apdu: selectMF)
             log("  [TX] SELECT MF 3F00")
             log("  [RX] SW=\(String(format: "%02X%02X", sw1, sw2))")
+            mfResult = try await readCardAccessEF(tag: tag, label: "MF")
         } catch {
             log("  [ERROR] SELECT MF: \(error.localizedDescription)")
-            return ["success": false, "step": "SELECT_MF", "error": error.localizedDescription]
+            mfResult = ["success": false, "step": "SELECT_MF", "error": error.localizedDescription]
         }
 
-        // SELECT EF.CardAccess (011C) — short EF ID select
+        // Probe EF.CardAccess via French CNIe AID (A0000001510000)
+        log("--- Probing EF.CardAccess (French CNIe AID path) ---")
+        let selectCNIe = NFCISO7816APDU(
+            instructionClass: 0x00,
+            instructionCode: 0xA4,
+            p1Parameter: 0x04,
+            p2Parameter: 0x0C,
+            data: Data(french_AID),
+            expectedResponseLength: 256
+        )
+        var cnIeResult: [String: Any]
+        do {
+            let (_, sw1, sw2) = try await tag.sendCommand(apdu: selectCNIe)
+            log("  [TX] SELECT French CNIe AID A0000001510000")
+            log("  [RX] SW=\(String(format: "%02X%02X", sw1, sw2))")
+            if sw1 == 0x90 && sw2 == 0x00 {
+                cnIeResult = try await readCardAccessEF(tag: tag, label: "CNIe AID")
+            } else {
+                cnIeResult = ["success": false, "step": "SELECT_AID", "sw": String(format: "%02X%02X", sw1, sw2)]
+            }
+        } catch {
+            log("  [ERROR] SELECT CNIe AID: \(error.localizedDescription)")
+            cnIeResult = ["success": false, "step": "SELECT_AID", "error": error.localizedDescription]
+        }
+
+        return ["mfPath": mfResult, "cnIeAidPath": cnIeResult]
+    }
+
+    private func readCardAccessEF(tag: NFCISO7816Tag, label: String) async throws -> [String: Any] {
+        // SELECT EF.CardAccess (011C)
         let selectEF = NFCISO7816APDU(
             instructionClass: 0x00,
             instructionCode: 0xA4,
@@ -260,21 +291,15 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable 
             expectedResponseLength: 256
         )
 
-        do {
-            let (_, sw1, sw2) = try await tag.sendCommand(apdu: selectEF)
-            let sw = String(format: "%02X%02X", sw1, sw2)
-            log("  [TX] SELECT EF.CardAccess 011C")
-            log("  [RX] SW=\(sw)")
+        let (_, sw1ef, sw2ef) = try await tag.sendCommand(apdu: selectEF)
+        let swEF = String(format: "%02X%02X", sw1ef, sw2ef)
+        log("  [\(label)] SELECT EF.CardAccess 011C → SW=\(swEF)")
 
-            if sw1 != 0x90 || sw2 != 0x00 {
-                return ["success": false, "step": "SELECT_EF", "sw": sw]
-            }
-        } catch {
-            log("  [ERROR] SELECT EF.CardAccess: \(error.localizedDescription)")
-            return ["success": false, "step": "SELECT_EF", "error": error.localizedDescription]
+        if sw1ef != 0x90 || sw2ef != 0x00 {
+            return ["success": false, "step": "SELECT_EF", "sw": swEF]
         }
 
-        // READ BINARY from offset 0, up to 256 bytes
+        // READ BINARY
         let readBinary = NFCISO7816APDU(
             instructionClass: 0x00,
             instructionCode: 0xB0,
@@ -284,24 +309,18 @@ class NfcDiagnostic: NSObject, NFCTagReaderSessionDelegate, @unchecked Sendable 
             expectedResponseLength: 256
         )
 
-        do {
-            let (responseData, sw1, sw2) = try await tag.sendCommand(apdu: readBinary)
-            let sw = String(format: "%02X%02X", sw1, sw2)
-            let responseHex = responseData.map { String(format: "%02X", $0) }.joined()
-            log("  [TX] READ BINARY 0000")
-            log("  [RX] SW=\(sw) len=\(responseData.count) data=\(responseHex.prefix(80))...")
+        let (responseData, sw1, sw2) = try await tag.sendCommand(apdu: readBinary)
+        let sw = String(format: "%02X%02X", sw1, sw2)
+        let responseHex = responseData.map { String(format: "%02X", $0) }.joined()
+        log("  [\(label)] READ BINARY → SW=\(sw) len=\(responseData.count) data=\(responseHex.prefix(80))...")
 
-            return [
-                "success": sw1 == 0x90 && sw2 == 0x00,
-                "step": "READ_BINARY",
-                "sw": sw,
-                "dataLength": responseData.count,
-                "dataHex": responseHex,
-            ]
-        } catch {
-            log("  [ERROR] READ BINARY: \(error.localizedDescription)")
-            return ["success": false, "step": "READ_BINARY", "error": error.localizedDescription]
-        }
+        return [
+            "success": sw1 == 0x90 && sw2 == 0x00,
+            "step": "READ_BINARY",
+            "sw": sw,
+            "dataLength": responseData.count,
+            "dataHex": responseHex,
+        ]
     }
 
     // MARK: - Helpers

@@ -359,14 +359,22 @@ export function NfcDiagnosticCard() {
           {result.cardAccessProbe && (
             <>
               <Text style={styles.sectionSubtitle}>EF.CardAccess:</Text>
-              <View style={styles.resultRow}>
-                <Text style={styles.resultLabel}>Status:</Text>
-                <Text style={[styles.resultValue, { color: result.cardAccessProbe.success ? '#10B981' : '#EF4444' }]}>
-                  {result.cardAccessProbe.success
-                    ? `OK (${result.cardAccessProbe.dataLength} bytes)`
-                    : `FAIL at ${result.cardAccessProbe.step}`}
-                </Text>
-              </View>
+              {(['mfPath', 'cnIeAidPath'] as const).map(key => {
+                const probe = result.cardAccessProbe[key];
+                if (!probe) return null;
+                const label = key === 'mfPath' ? 'Via MF:' : 'Via CNIe AID:';
+                const ok = probe.success === true;
+                return (
+                  <View style={styles.resultRow} key={key}>
+                    <Text style={styles.resultLabel}>{label}</Text>
+                    <Text style={[styles.resultValue, { color: ok ? '#10B981' : '#EF4444' }]}>
+                      {ok
+                        ? `OK (${probe.dataLength} bytes)`
+                        : `FAIL at ${probe.step || '?'}`}
+                    </Text>
+                  </View>
+                );
+              })}
             </>
           )}
         </View>
