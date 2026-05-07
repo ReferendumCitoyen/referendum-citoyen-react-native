@@ -114,11 +114,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
               {
                 name: 'NFCPassportReader',
                 git: 'https://github.com/eklchan/NFCPassportReader.git',
-                // 9201876: conditional .pace polling based on skipPACE.
-                // Built on 69368850 (retains can: param for CAN-PACE).
+                // 769add3: conditional .pace polling (now on main branch).
                 // skipPACE=false (CNIe) → .pace + .iso14443 (Type A detected).
                 // skipPACE=true (passport/BAC) → .iso14443 only (Type B detected).
-                commit: '92018762f6103bf13a12b0bede9539f066de18a9'
+                // Retains can: param for CAN-PACE support.
+                commit: '769add3d2952bdb823cd0f88838bb817e3e39f5c'
               }
             ]
           }
