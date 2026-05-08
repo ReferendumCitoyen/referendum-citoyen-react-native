@@ -63,17 +63,17 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return () => clearTimeout(timer);
   }, [isActive, hasScanned]);
 
-  // MRZ Parser
+  // MRZ Parser — TD3 (passport: 2 lines × 44 chars)
   const parseMRZ = useCallback((lines: string[]) => {
-    if (lines.length < 3) return null;
+    if (lines.length < 2) return null;
     try {
-      const td1Lines = lines.slice(-3);
-      const sanitized = td1Lines.map(el => {
+      const td3Lines = lines.slice(-2);
+      const sanitized = td3Lines.map(el => {
         const cleaned = el.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-        return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned.padEnd(30, '<');
+        return cleaned.length > 44 ? cleaned.substring(0, 44) : cleaned.padEnd(44, '<');
       });
       const result = parse(sanitized, { autocorrect: true });
-      if (result?.valid && result.format === 'TD1') return result;
+      if (result?.valid && result.format === 'TD3') return result;
     } catch {}
     return null;
   }, []);
@@ -118,9 +118,11 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   };
 
   const buildConsensus = useCallback((history: string[][]): string[] => {
-    return [0, 1, 2].map(lineIdx => {
+    const lineCount = history[0]?.length ?? 2;
+    const lineLen = lineCount === 2 ? 44 : 30; // TD3=2×44, TD1=3×30
+    return Array.from({ length: lineCount }, (_, lineIdx) => {
       let result = '';
-      for (let pos = 0; pos < 30; pos++) {
+      for (let pos = 0; pos < lineLen; pos++) {
         const chars: Record<string, number> = {};
         for (const read of history) {
           const ch = read[lineIdx]?.[pos] || '<';
@@ -134,7 +136,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
 
   const isMRZLike = (line: string): boolean => {
     const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-    return (cleaned.includes('<<') || cleaned.startsWith('ID')) && cleaned.length >= 20;
+    return (cleaned.includes('<<') || cleaned.startsWith('ID') || cleaned.startsWith('P<') || cleaned.startsWith('P<')) && cleaned.length >= 20;
   };
 
   const handleMRZSuccess = useCallback((result: ReturnType<typeof parse>) => {
@@ -186,47 +188,48 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       console.log(`[Step5 OCR] ${lines.length} lines, ${mrzLikeCount} MRZ-like:`);
       mrzLikeLines.forEach((l, i) => console.log(`  MRZ[${i}]: "${l}"`));
 
-      // Detect passport MRZ: 2 lines, first starts with P
-      if (mrzLikeCount === 2) {
+      // Detect TD1 ID card (3 lines of 30 chars) — warn user to use passport instead
+      if (mrzLikeCount >= 3) {
         const firstLine = mrzLikeLines[0].replaceAll(' ', '').toUpperCase();
-        if (firstLine.startsWith('P')) {
+        if (firstLine.startsWith('ID') || firstLine.startsWith('I<') || firstLine.startsWith('AC')) {
           passportDetectCount.current++;
           if (passportDetectCount.current >= 3) {
-            setScanProgress('passport_detected');
+            setScanProgress('passport_detected'); // reused state: "wrong document"
           }
           return;
         }
       }
 
-      if (mrzLikeCount > 0 && mrzLikeCount < 3) {
+      if (mrzLikeCount > 0 && mrzLikeCount < 2) {
         setScanProgress('partial');
       } else if (mrzLikeCount === 0) {
         setScanProgress('scanning');
       }
 
-      // Try parsing the raw single frame directly
+      // Try parsing the raw single frame as TD3 directly
       const result = parseMRZ(lines);
       if (result?.valid) {
         handleMRZSuccess(result);
         return;
       }
 
-      // Accumulate for consensus if we have 3 MRZ-like lines
-      if (mrzLikeCount >= 3) {
-        const sanitized = mrzLikeLines.slice(-3).map(sanitizeMRZLine);
+      // Accumulate for consensus if we have 2 MRZ-like lines (TD3 passport)
+      if (mrzLikeCount >= 2) {
+        const sanitized = mrzLikeLines.slice(-2).map(l => {
+          const c = l.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+          return c.length > 44 ? c.substring(0, 44) : c.padEnd(44, '<');
+        });
         mrzHistoryRef.current.push(sanitized);
-        // Cap at 15 reads to avoid stale data
         if (mrzHistoryRef.current.length > 15) {
           mrzHistoryRef.current = mrzHistoryRef.current.slice(-15);
         }
 
-        // Try consensus after ≥3 accumulated reads
         if (mrzHistoryRef.current.length >= 3) {
           const consensus = buildConsensus(mrzHistoryRef.current);
           console.log(`[Step5 Consensus] (${mrzHistoryRef.current.length} reads):`, consensus);
           try {
             const consensusResult = parse(consensus, { autocorrect: true });
-            if (consensusResult?.valid && consensusResult.format === 'TD1') {
+            if (consensusResult?.valid && consensusResult.format === 'TD3') {
               handleMRZSuccess(consensusResult);
             }
           } catch {}
@@ -382,7 +385,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               return (
             <View style={{
               width: '88%',
-              aspectRatio: 1.586,
+              aspectRatio: 1.42,
               borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || isError ? 3 : 2,
               borderColor: scanProgress === 'success' ? colors.scanReticleSuccess : isError ? colors.scanReticleError : scanProgress === 'partial' ? colors.scanReticleWarning : colors.scanOverlayStrong,
               borderRadius: 12,
@@ -394,7 +397,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 color: colors.scanOverlayDim,
                 fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                 alignSelf: 'flex-end',
-              }}>{t('voting.step5CardOverlay')}</Text>
+              }}>PASSEPORT</Text>
               <View style={{
                 backgroundColor: scanProgress === 'success' ? colors.scanReticleSuccessInnerBg : colors.scanReticleInnerBg,
                 borderWidth: 1,
@@ -402,13 +405,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 borderRadius: 4, padding: 6,
               }}>
                 <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
-                  IDFRA{'<'.repeat(25)}
+                  {'P<FRA NOM<<PRENOM<<<<<<<<<<<<<<<<<<<<<<<<'}
                 </Text>
                 <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
-                  1234567890FRA9001011M{'<'.repeat(9)}
-                </Text>
-                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
-                  NOM{'<'.repeat(2)}PRENOM{'<'.repeat(19)}
+                  {'12AB34567<FRA9001011M3001011<<<<<<<<<<<2'}
                 </Text>
               </View>
             </View>

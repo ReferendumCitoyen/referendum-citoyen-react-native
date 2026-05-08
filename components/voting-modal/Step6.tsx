@@ -32,6 +32,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const [scanStatus, setScanStatus] = useState("");
   const [scanStep, setScanStep] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
+  const [idCardDetected, setIdCardDetected] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [nativeLogs, setNativeLogs] = useState<string[]>([]);
 
@@ -107,6 +108,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     // Scan NFC on the same screen for both platforms
     try {
       setIsScanning(true);
+      setIdCardDetected(false);
       setScanStatus(t('voting.step6Init'));
       setNativeLogs([]);
 
@@ -146,7 +148,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         timeoutId = setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
       });
 
-      const scanPromise = scanDocument('I', {
+      const scanPromise = scanDocument('P', {
         documentNumber: mrzData.documentNumber,
         dateOfBirth: mrzData.birthDate,
         dateOfExpiry: mrzData.expiryDate,
@@ -176,6 +178,28 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         setScanStatus(t('voting.step6InvalidMrz'));
         setIsScanning(false);
         if (onGoBack) { setTimeout(() => { onGoBack(); }, 1500); }
+        return;
+      }
+
+      // Detect if an ID card was held instead of a passport.
+      // PACE-IM is unambiguously an ID card protocol; 6982/SECURITY STATUS on a
+      // skipPACE=true scan means the chip required PACE before BAC — characteristic
+      // of a French CNIe, not a passport.
+      const errLower = (error.message || '').toLowerCase();
+      const isIDCard =
+        errLower.includes('step2im') ||
+        errLower.includes('pace-im') ||
+        errLower.includes('im not yet') ||
+        errLower.includes("carte d'identit") ||
+        errLower.includes('pace non support') ||
+        ((errLower.includes('6982') || errLower.includes('security status')) &&
+          !errLower.includes('passeport'));
+
+      if (isIDCard) {
+        setIdCardDetected(true);
+        setScanStatus('');
+        setIsScanning(false);
+        setShowRetry(true);
         return;
       }
 
@@ -223,6 +247,36 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         }}>
           {t('voting.step6Instruction')}
         </Text>
+
+        {idCardDetected && (
+          <View style={{
+            backgroundColor: '#FEF3C7',
+            borderRadius: 10,
+            padding: 14,
+            marginHorizontal: 16,
+            borderLeftWidth: 4,
+            borderLeftColor: '#F59E0B',
+          }}>
+            <Text style={{
+              fontFamily: Typography.fontFamily.semibold,
+              fontSize: 14,
+              color: '#92400E',
+              textAlign: 'center',
+              marginBottom: 4,
+            }}>
+              {t('voting.step6IdCardDetected')}
+            </Text>
+            <Text style={{
+              fontFamily: Typography.fontFamily.medium,
+              fontSize: 13,
+              color: '#92400E',
+              textAlign: 'center',
+              lineHeight: 18,
+            }}>
+              {t('voting.step6UsePassportInstead')}
+            </Text>
+          </View>
+        )}
 
         {scanStatus && (
           <Text style={{
@@ -294,7 +348,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           <TouchableOpacity
             style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={() => { setShowRetry(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
+            onPress={() => { setShowRetry(false); setIdCardDetected(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>
