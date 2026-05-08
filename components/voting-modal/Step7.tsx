@@ -121,15 +121,6 @@ const Step7: React.FC<Step7Props> = ({
     // if init genuinely fails.
     if (!rarime || !passport) return;
 
-    // TD3 (passport) DG1 is 93 bytes; TD1 (ID card) is 95 bytes.
-    // The ZK circuits only support TD1 — catch passport use early.
-    if (passport.dataGroup1.length !== 95) {
-      hasCalledCallback.current = true;
-      setErrorMessage(t('voting.step7WrongDocumentType'));
-      onFatalError?.();
-      return;
-    }
-
     isVerifying.current = true;
     (async () => {
       try {
