@@ -67,9 +67,10 @@ public class EDocumentModule: Module {
             }
 
             // For ID cards, skip DG15 (not present on French CNIe)
+            // For passports, also read DG12 (issuing authority, date of issue) and DG14 (chip auth info)
             let tagsToRead: [DataGroupId] = documentType == "I"
                 ? [.DG1, .DG2, .DG11, .SOD]
-                : [.DG1, .DG2, .DG11, .DG15, .SOD]
+                : [.DG1, .DG2, .DG11, .DG12, .DG14, .DG15, .SOD]
 
             do {
                 debugLog("Starting PassportReader...")
@@ -127,6 +128,8 @@ public class EDocumentModule: Module {
                 let passport = Passport.fromNFCPassportModel(nfcPassport)
                 debugLog("DG1 size: \(passport.dg1.count) chars")
                 debugLog("DG11 size: \(passport.dg11?.count ?? 0) chars")
+                debugLog("DG12 size: \(passport.dg12?.count ?? 0) chars")
+                debugLog("DG14 size: \(passport.dg14?.count ?? 0) chars")
                 debugLog("DG15 size: \(passport.dg15?.count ?? 0) chars")
                 debugLog("SOD size: \(passport.sod.count) chars")
                 debugLog("Signature size: \(passport.signature?.count ?? 0) chars")

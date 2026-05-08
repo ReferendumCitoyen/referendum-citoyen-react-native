@@ -35,10 +35,14 @@ struct Passport: Codable {
     let sod: String // base64
     let signature: String? // base64 — absent when no Active Authentication
     let dg11: String? // base64
+    let dg12: String? // base64 — issuing authority + date of issue
+    let dg14: String? // base64 — chip authentication / PACE security info
 
     static func fromNFCPassportModel(_ model: NFCPassportModel) -> Passport {
         let dg1 = model.getDataGroup(.DG1)?.data ?? []
         let dg11 = model.getDataGroup(.DG11)?.data
+        let dg12 = model.getDataGroup(.DG12)?.data
+        let dg14 = model.getDataGroup(.DG14)?.data
         let dg15 = model.getDataGroup(.DG15)?.data
         let sod = model.getDataGroup(.SOD)?.data ?? []
 
@@ -69,7 +73,9 @@ struct Passport: Codable {
             dg15: dg15.map { Data($0).base64EncodedString() },
             sod: Data(sod).base64EncodedString(),
             signature: aaSignature.isEmpty ? nil : Data(aaSignature).base64EncodedString(),
-            dg11: dg11.map { Data($0).base64EncodedString() }
+            dg11: dg11.map { Data($0).base64EncodedString() },
+            dg12: dg12.map { Data($0).base64EncodedString() },
+            dg14: dg14.map { Data($0).base64EncodedString() }
         )
     }
     

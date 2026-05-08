@@ -36,6 +36,8 @@ export interface PassportData {
   dg1Bytes: Uint8Array
   dg15Bytes?: Uint8Array
   dg11Bytes?: Uint8Array
+  dg12Bytes?: Uint8Array
+  dg14Bytes?: Uint8Array
   aaSignature?: Uint8Array
 }
 
@@ -90,6 +92,8 @@ export async function scanDocument(
       dg1Bytes: Buffer.from(get(eDocumentJson, 'dg1', '') || '', 'base64'),
       dg15Bytes: decodeBase64('dg15'),
       dg11Bytes: decodeBase64('dg11'),
+      dg12Bytes: decodeBase64('dg12'),
+      dg14Bytes: decodeBase64('dg14'),
       aaSignature: decodeBase64('signature'),
     }
   } else if (Platform.OS === 'android') {

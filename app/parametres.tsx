@@ -76,17 +76,7 @@ export default function ParametresScreen() {
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
-          {/* Diagnostics Row */}
-          <TouchableOpacity
-            style={styles.settingRow}
-            activeOpacity={0.7}
-            onPress={() => router.push('/diagnostics')}
-          >
-            <Text style={styles.settingLabel}>{t('settings.diagnostics')}</Text>
-            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-          </TouchableOpacity>
-
-          {/* Passport Diagnostics */}
+          {/* Diagnostic Passeport */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
@@ -105,6 +95,16 @@ export default function ParametresScreen() {
                 onPress={() => setDevMode(false)}
               >
                 <Text style={[styles.settingValue, { color: colors.secondary }]}>Hide Dev Tools</Text>
+              </TouchableOpacity>
+
+              {/* Diagnostic NFC (CNIe) */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                activeOpacity={0.7}
+                onPress={() => router.push('/diagnostics')}
+              >
+                <Text style={styles.settingLabel}>Diagnostic NFC (CNIe)</Text>
+                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
               </TouchableOpacity>
 
               {/* French ID Test Row */}
