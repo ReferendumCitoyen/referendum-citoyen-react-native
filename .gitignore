@@ -45,6 +45,7 @@ Thumbs.db
 # personal working notes & local audit logs (e.g. TODO.local.md, eas-builds.local.log)
 *.local.md
 *.local.log
+notes/
 
 # typescript
 *.tsbuildinfo

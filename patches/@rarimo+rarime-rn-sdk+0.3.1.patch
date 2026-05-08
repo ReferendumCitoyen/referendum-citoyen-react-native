@@ -1,17 +1,43 @@
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
-index 2719106..2aae5d0 100644
+index 2719106..375ab75 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
-@@ -151,7 +151,7 @@ export class FreedomTool {
+@@ -149,16 +149,31 @@ export class FreedomTool {
+             // votes mask
+             answers.map((v) => 1 << Number(v)),
              // User payload: (nullifier, citizenship, identity_creation_timestamp)
++            // TD1 main.nr returns tmp.0..tmp.9 (10 query outputs) before passthroughs;
++            // TD3 returns tmp.0..tmp.8 (9 outputs). Citizenship is the last element of
++            // the query tuple — index 9 for TD1, index 8 for TD3 — but the SDK reads
++            // pub_signals[5]/[6] which corresponds to the *citizenship* field within
++            // the query tuple (5th in TD1, 6th in TD3). See main.nr in the
++            // passport-zk-circuits-noir repo.
              [
                  "0x" + queryProof.pub_signals[0],
 -                "0x" + queryProof.pub_signals[6],
-+                "0x" + queryProof.pub_signals[passport.dataGroup1.length <= 95 ? 5 : 6],
++                "0x" + queryProof.pub_signals[passport.dataGroup1.length === 95 ? 5 : 6],
                  identityCreationTimestamp,
              ],
          ]);
-@@ -182,7 +182,9 @@ export class FreedomTool {
+         const smtProof = await rarime.getSMTProof(passport);
+-        const txCallData = idCardVoting.contractInterface.encodeFunctionData("executeTD1Noir", [
++        // current_date passthrough: TD1 has 10 query outputs + event_id + event_data +
++        // id_state_root + selector → current_date at index 14. TD3 has 9 query outputs
++        // → current_date at index 13.
++        const isTD3 = passport.dataGroup1.length === 93;
++        const currentDateIdx = isTD3 ? 13 : 14;
++        // TD1 uses executeTD1Noir on IDCardVoting; TD3 uses executeNoir on
++        // BioPassportVoting (sendVoteContractAddress determines which contract).
++        // Both have the same 4-arg signature.
++        const fnName = isTD3 ? "executeNoir" : "executeTD1Noir";
++        const txCallData = idCardVoting.contractInterface.encodeFunctionData(fnName, [
+             smtProof.root,
+-            "0x" + queryProof.pub_signals[14],
++            "0x" + queryProof.pub_signals[currentDateIdx],
+             userDataEncoded,
+             "0x" + queryProof.proof,
+         ]);
+@@ -182,7 +197,9 @@ export class FreedomTool {
              body: JSON.stringify(sendVoteRequest),
          });
          if (!sendVoteResponse.ok) {
@@ -22,11 +48,43 @@ index 2719106..2aae5d0 100644
          }
          const sendVoteResponseParsed = await sendVoteResponse.json();
          return sendVoteResponseParsed.data.id;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
+index 9655e7b..6940a23 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
+@@ -22,6 +22,7 @@ export interface RarimeConfiguration {
+ }
+ export declare class Rarime {
+     private config;
++    static registerBundledCircuit(name: string, jsonObjectOrString: object | string): void;
+     constructor(config: RarimeConfiguration);
+     getPassportInfo(passport: RarimePassport): Promise<[
+         StateKeeper.PassportInfoStructOutput,
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
-index fd0ba76..b421d95 100644
+index fd0ba76..c061590 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
-@@ -41,19 +41,23 @@ export class Rarime {
+@@ -11,8 +11,19 @@ import { toPaddedHex32, wrapPem } from "./utils";
+ import { Poseidon } from "@iden3/js-crypto";
+ import { Time } from "@distributedlab/tools";
+ const ZERO_BYTES = new Uint8Array(64);
++// Registry of pre-bundled circuit bytecode JSON strings, keyed by circuit name.
++// Populated by the host app at startup via Rarime.registerBundledCircuit() so the
++// SDK can use circuits that aren't published on Rarimo's GCS bucket — currently
++// only the TD3 (passport) query circuit, self-compiled from
++// rarimo/passport-zk-circuits-noir and shipped in app assets.
++const bundledCircuits = {};
+ export class Rarime {
+     config;
++    static registerBundledCircuit(name, jsonObjectOrString) {
++        bundledCircuits[name] = typeof jsonObjectOrString === "string"
++            ? jsonObjectOrString
++            : JSON.stringify(jsonObjectOrString);
++    }
+     constructor(config) {
+         if (config.userConfiguration.userPrivateKey.startsWith("0x")) {
+             config.userConfiguration.userPrivateKey =
+@@ -41,19 +52,20 @@ export class Rarime {
          if (activeIdentity === ZERO_BYTES_STRING) {
              return DocumentStatus.NotRegistered;
          }
@@ -40,21 +98,39 @@ index fd0ba76..b421d95 100644
          return DocumentStatus.RegisteredWithOtherPk;
      }
      async registerIdentity(passport) {
-         const passportStatus = await this.getDocumentStatus(passport);
+-        const passportStatus = await this.getDocumentStatus(passport);
 -        if (passportStatus === DocumentStatus.RegisteredWithOtherPk) {
 -            throw new Error("This document was registered with other Private Key");
 -        }
-         if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
-             throw new Error("This document was registered with this Private Key");
-         }
-+        // RegisteredWithOtherPk is allowed — the relayer rotates the
-+        // on-chain activeIdentity to the new profileKey. Necessary when the
-+        // local private key was regenerated (e.g. SecureStore wiped, app
-+        // reinstalled without restoring keys).
+-        if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
+-            throw new Error("This document was registered with this Private Key");
+-        }
++        // Throws for RegisteredWithOtherPk / RegisteredWithThisPk removed — the
++        // app layer (components/voting-modal/Step7.tsx) decides the policy.
++        // Dev builds allow rotation so a single passport can be re-tested
++        // after a SecureStore wipe; prod builds block at the app level so a
++        // double-vote isn't possible by silently rotating keys.
          const hashAlgoOID = passport.extractDGHashAlgo();
          const hashAlgo = HashAlgorithm.fromOID(hashAlgoOID);
          const hashLength = hashAlgo.getByteLength();
-@@ -82,50 +86,25 @@ export class Rarime {
+@@ -72,9 +84,14 @@ export class Rarime {
+         return contract.getProof(smtProofIndex);
+     }
+     async generateQueryProof(queryProofParams, passport) {
+-        const circuit = NoirCircuitParams.fromName("query_identity");
++        // TD1 ID-card DG1 = 95 bytes, TD3 passport DG1 = 93 bytes. The published
++        // Rarimo Noir circuits only cover TD1; the TD3 query circuit is self-compiled
++        // and shipped in-app via Rarime.registerBundledCircuit().
++        const isTD3 = passport.dataGroup1.length === 93;
++        const circuitName = isTD3 ? "query_identity_td3" : "query_identity";
++        const circuit = NoirCircuitParams.fromName(circuitName);
+         await NoirCircuitParams.downloadTrustedSetup();
+-        const byteCode = await circuit.downloadByteCode();
++        const byteCode = bundledCircuits[circuitName] ?? (await circuit.downloadByteCode());
+         const profileKey = "0x" +
+             RarimeUtils.getProfileKey(this.config.userConfiguration.userPrivateKey);
+         const passportInfo = await this.getPassportInfo(passport);
+@@ -82,50 +99,25 @@ export class Rarime {
              throw new Error(`profile key mismatch. profileKey = ${profileKey}, passportInfo.activeIdentity = ${passportInfo[0].activeIdentity}`);
          }
          const smtProof = await this.getSMTProof(passport);
@@ -120,11 +196,22 @@ index fd0ba76..b421d95 100644
              timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
              identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
          };
-@@ -164,9 +143,8 @@ export class Rarime {
-         const circuit = NoirCircuitParams.fromName("register_light_" + hashLength);
+@@ -161,12 +153,17 @@ export class Rarime {
+         return txCallData;
+     }
+     async generateLiteRegisterProof(hashLength, passport) {
+-        const circuit = NoirCircuitParams.fromName("register_light_" + hashLength);
++        // TD3 (passport, DG1=93) and TD1 (ID card, DG1=95) use the same lite-register
++        // circuit shape but a different compile-time DG1 length. The TD3 variants are
++        // self-compiled and bundled in-app — URL fallback won't work since Rarimo
++        // doesn't host them.
++        const isTD3 = passport.dataGroup1.length === 93;
++        const circuitName = (isTD3 ? "register_light_td3_" : "register_light_") + hashLength;
++        const circuit = NoirCircuitParams.fromName(circuitName);
          await NoirCircuitParams.downloadTrustedSetup();
-         const byteCode = await circuit.downloadByteCode();
+-        const byteCode = await circuit.downloadByteCode();
 -        const isAndroid = Platform.OS === "android";
++        const byteCode = bundledCircuits[circuitName] ?? (await circuit.downloadByteCode());
          let inputs = {
 -            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), isAndroid),
 +            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), true),
@@ -189,7 +276,7 @@ index c63669b..fe870a5 100644
      getCertificate() {
          const buffer = Buffer.from(this.sod);
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
-index 741f34f..dfa985b 100644
+index 741f34f..48df8fd 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
 @@ -1,4 +1,4 @@
@@ -198,6 +285,32 @@ index 741f34f..dfa985b 100644
  import { default as NoirModule } from './src/NoirModule';
  export class NoirCircuitParams {
      name;
+@@ -115,11 +115,24 @@ export class NoirCircuitParams {
+ }
+ const supportedNoirCircuits = [
+     new NoirCircuitParams('query_identity', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/query_identity_td1.json', 24),
++    // TD3 (passport) query circuit is self-compiled from rarimo/passport-zk-circuits-noir
++    // and bundled in the app at assets/circuits/query_identity_td3.json. URL is unused
++    // because the bytecode is provided via Rarime.registerBundledCircuit() at app startup.
++    new NoirCircuitParams('query_identity_td3', 'bundled://query_identity_td3', 23),
+     new NoirCircuitParams('register_light_160', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_160.json', 3),
+     new NoirCircuitParams('register_light_224', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_224.json', 3),
+     new NoirCircuitParams('register_light_256', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_256.json', 3),
+     new NoirCircuitParams('register_light_384', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_384.json', 3),
+     new NoirCircuitParams('register_light_512', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_512.json', 3),
++    // TD3 (passport) lite register circuits — self-compiled from
++    // rarimo/passport-zk-circuits-noir/register_identity_light_td1, with
++    // dg1: [u8; 95] swapped for [u8; 93] and the same hash-byte generic.
++    // Bundled in app assets; URLs unused. Same 3 pub_signals as TD1.
++    new NoirCircuitParams('register_light_td3_160', 'bundled://register_light_td3_160', 3),
++    new NoirCircuitParams('register_light_td3_224', 'bundled://register_light_td3_224', 3),
++    new NoirCircuitParams('register_light_td3_256', 'bundled://register_light_td3_256', 3),
++    new NoirCircuitParams('register_light_td3_384', 'bundled://register_light_td3_384', 3),
++    new NoirCircuitParams('register_light_td3_512', 'bundled://register_light_td3_512', 3),
+ ];
+ export default NoirModule;
+ //# sourceMappingURL=RnNoirModule.js.map
+\ No newline at end of file
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
 index dea6423..00490d6 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
@@ -224,7 +337,7 @@ index dea6423..00490d6 100644
        }
      }
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
-index 02b4873..9e6c88f 100644
+index 02b4873..cfd61da 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
 +++ b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
 @@ -95,7 +95,10 @@ export class Rarime {
@@ -239,27 +352,29 @@ index 02b4873..9e6c88f 100644
        return DocumentStatus.RegisteredWithThisPk;
      }
  
-@@ -105,14 +108,15 @@ export class Rarime {
-   public async registerIdentity(passport: RarimePassport): Promise<String> {
-     const passportStatus = await this.getDocumentStatus(passport);
+@@ -103,16 +106,11 @@ export class Rarime {
+   }
  
+   public async registerIdentity(passport: RarimePassport): Promise<String> {
+-    const passportStatus = await this.getDocumentStatus(passport);
+-
 -    if (passportStatus === DocumentStatus.RegisteredWithOtherPk) {
 -      throw new Error("This document was registered with other Private Key");
 -    }
 -
-     if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
-       throw new Error("This document was registered with this Private Key");
-     }
- 
-+    // RegisteredWithOtherPk is allowed — the relayer rotates the
-+    // on-chain activeIdentity to the new profileKey. Necessary when the
-+    // local private key was regenerated (e.g. SecureStore wiped, app
-+    // reinstalled without restoring keys).
-+
+-    if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
+-      throw new Error("This document was registered with this Private Key");
+-    }
+-
++    // Throws for RegisteredWithOtherPk / RegisteredWithThisPk removed — the
++    // app layer (components/voting-modal/Step7.tsx) decides the policy.
++    // Dev builds allow rotation so a single passport can be re-tested after
++    // a SecureStore wipe; prod builds block at the app level so a double-vote
++    // isn't possible by silently rotating keys.
      const hashAlgoOID = passport.extractDGHashAlgo();
  
      const hashAlgo = HashAlgorithm.fromOID(hashAlgoOID);
-@@ -181,55 +185,30 @@ export class Rarime {
+@@ -181,55 +179,30 @@ export class Rarime {
  
      const smtProof = await this.getSMTProof(passport);
  
@@ -330,7 +445,7 @@ index 02b4873..9e6c88f 100644
        timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
        identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
      };
-@@ -296,13 +275,12 @@ export class Rarime {
+@@ -296,13 +269,12 @@ export class Rarime {
  
      const byteCode = await circuit.downloadByteCode();
  

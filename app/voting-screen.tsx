@@ -119,6 +119,17 @@ export default function VotingScreen() {
       try {
         const { Rarime: RarimeClass, FreedomTool: FT } =
           await import("@rarimo/rarime-rn-sdk");
+        // Register all self-compiled TD3 (passport) circuits. Rarimo only publishes
+        // TD1 Noir circuits on its GCS bucket; the TD3 variants are compiled from
+        // rarimo/passport-zk-circuits-noir source (with [u8; 95] → [u8; 93]) via
+        // nargo and bundled at assets/circuits/. Without these, the SDK falls back
+        // to TD1 circuits which reject 93-byte DG1 with SwoirError 4.
+        RarimeClass.registerBundledCircuit("query_identity_td3", require("@/assets/circuits/query_identity_td3.json"));
+        RarimeClass.registerBundledCircuit("register_light_td3_160", require("@/assets/circuits/register_light_td3_160.json"));
+        RarimeClass.registerBundledCircuit("register_light_td3_224", require("@/assets/circuits/register_light_td3_224.json"));
+        RarimeClass.registerBundledCircuit("register_light_td3_256", require("@/assets/circuits/register_light_td3_256.json"));
+        RarimeClass.registerBundledCircuit("register_light_td3_384", require("@/assets/circuits/register_light_td3_384.json"));
+        RarimeClass.registerBundledCircuit("register_light_td3_512", require("@/assets/circuits/register_light_td3_512.json"));
         const storedKey = await getOrCreatePrivateKey();
         rarimeRef.current = new RarimeClass({
           ...RARIME_TESTNET_CONFIG,
@@ -397,6 +408,7 @@ export default function VotingScreen() {
               nfcData={nfcData}
               onSuccess={handleVerificationSuccess}
               onError={handleVerificationError}
+              onFatalError={handleGoBackToMRZScan}
               rarime={rarimeRef.current ?? undefined}
               passport={passportRef.current ?? undefined}
               freedomTool={freedomToolRef.current ?? undefined}
