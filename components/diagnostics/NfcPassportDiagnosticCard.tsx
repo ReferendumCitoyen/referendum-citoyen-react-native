@@ -1,7 +1,9 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,8 +12,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
 import { useColors, Typography } from '@/constants/theme';
 import { scanDocument, testPassportDetection } from '@/modules/e-document';
+import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from 'react-native-vision-camera';
+import { useTextRecognition } from 'react-native-vision-camera-text-recognition';
+import { Worklets } from 'react-native-worklets-core';
+import { parse } from 'mrz';
 
 type MRZData = {
   docType: string;
@@ -34,7 +43,15 @@ type ScanSuccess = {
   sodSize: number;
   dg15Size: number;
   dg11Size: number;
+  dg12Size: number;
+  dg14Size: number;
   aaPresent: boolean;
+  placeOfBirth: string | null;
+  personalNumber: string | null;
+  dgHashList: number[];
+  dscSigAlgo: string | null;
+  issuingAuthority: string | null;
+  dateOfIssue: string | null;
 };
 
 type StrategyResult = ScanSuccess | { success: false; error: string } | null;
@@ -154,6 +171,139 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+// ── SOD / DSC parsing ────────────────────────────────────────────────────────
+
+// Pattern-scan the SOD for DG hash entries.
+// SHA-256 pattern: 30 25 02 01 [DG# 01-10] 04 20 [32-byte hash]
+function parseSodDGHashes(sod: Uint8Array): number[] {
+  const found: Set<number> = new Set();
+  for (let i = 0; i < sod.length - 38; i++) {
+    if (
+      sod[i]   === 0x30 && sod[i+1] === 0x25 &&
+      sod[i+2] === 0x02 && sod[i+3] === 0x01 &&
+      sod[i+4] >= 0x01 && sod[i+4] <= 0x10 &&
+      sod[i+5] === 0x04 && sod[i+6] === 0x20
+    ) {
+      found.add(sod[i+4]);
+    }
+  }
+  return Array.from(found).sort((a, b) => a - b);
+}
+
+// Scan the SOD for the document signing algorithm OID.
+function parseSodSigAlgo(sod: Uint8Array): string {
+  const arr = Array.from(sod);
+  const has = (seq: number[]) =>
+    arr.some((_, i) => seq.every((b, j) => arr[i + j] === b));
+  if (has([0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x04])) return 'ECDSA-SHA512';
+  if (has([0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x03])) return 'ECDSA-SHA384';
+  if (has([0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x02])) return 'ECDSA-SHA256';
+  if (has([0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x0d])) return 'RSA-PSS-SHA512';
+  if (has([0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x0c])) return 'RSA-PSS-SHA384';
+  if (has([0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x0b])) return 'RSA-SHA256';
+  if (has([0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x05])) return 'RSA-SHA1';
+  return 'unknown';
+}
+
+// Extract the personal number from the MRZ optional field (positions 29-42 of line 2).
+function parseMrzOptional(dg1: Uint8Array): string | null {
+  let i = 0;
+  while (i < dg1.length - 3) {
+    if (dg1[i] === 0x5F && dg1[i+1] === 0x1F) {
+      i += 2;
+      let len = dg1[i++];
+      if (len & 0x80) { const n = len & 0x7F; len = 0; for (let j = 0; j < n; j++) len = (len << 8) | dg1[i++]; }
+      if (len < 88) return null;
+      const line2 = Array.from(dg1.slice(i + 44, i + 88)).map(b => String.fromCharCode(b)).join('');
+      // Positions 28-41 (0-indexed) of line 2 = optional/personal number field
+      const raw = line2.slice(28, 42).replace(/^<+|<+$/g, '').replace(/</g, ' ').trim();
+      return raw || null;
+    }
+    i++;
+  }
+  return null;
+}
+
+// Parse DG11 for place of birth (5F11) and personal number (5F10).
+function parseDG11Fields(dg11: Uint8Array): { placeOfBirth?: string; personalNumber?: string } {
+  const result: { placeOfBirth?: string; personalNumber?: string } = {};
+  let i = 0;
+  if (dg11[i] === 0x6B) { i++; if (dg11[i] & 0x80) i += (dg11[i] & 0x7F) + 1; else i++; }
+  while (i < dg11.length - 1) {
+    if (dg11[i] === 0x5C) { i++; i += dg11[i] + 1; continue; }
+    if (dg11[i] === 0x5F) {
+      const tag = (dg11[i] << 8) | dg11[i+1]; i += 2;
+      let len = dg11[i++];
+      if (len & 0x80) { const n = len & 0x7F; len = 0; for (let j = 0; j < n; j++) len = (len << 8) | dg11[i++]; }
+      const val = Array.from(dg11.slice(i, i + len)).map(b => String.fromCharCode(b)).join('').replace(/</g, ' ').trim();
+      if (tag === 0x5F11) result.placeOfBirth = val;
+      if (tag === 0x5F10) result.personalNumber = val;
+      i += len;
+    } else { i++; }
+  }
+  return result;
+}
+
+// Parse DG12 for issuing authority (5F19) and date of issue (5F26).
+function parseDG12(dg12: Uint8Array): { issuingAuthority?: string; dateOfIssue?: string } {
+  const result: { issuingAuthority?: string; dateOfIssue?: string } = {};
+  let i = 0;
+  if (dg12[i] === 0x6C) { i++; if (dg12[i] & 0x80) i += (dg12[i] & 0x7F) + 1; else i++; }
+  while (i < dg12.length - 1) {
+    if (dg12[i] === 0x5C) { i++; i += dg12[i] + 1; continue; }
+    if (dg12[i] === 0x5F) {
+      const tag = (dg12[i] << 8) | dg12[i+1]; i += 2;
+      let len = dg12[i++];
+      if (len & 0x80) { const n = len & 0x7F; len = 0; for (let j = 0; j < n; j++) len = (len << 8) | dg12[i++]; }
+      const val = Array.from(dg12.slice(i, i + len)).map(b => String.fromCharCode(b)).join('').trim();
+      if (tag === 0x5F19) result.issuingAuthority = val;
+      if (tag === 0x5F26) result.dateOfIssue = val; // YYYYMMDD
+      i += len;
+    } else { i++; }
+  }
+  return result;
+}
+
+// Summarise DG14 security info OIDs (chip authentication / PACE).
+function parseDG14Summary(dg14: Uint8Array): string {
+  const arr = Array.from(dg14);
+  const has = (seq: number[]) => arr.some((_, i) => seq.every((b, j) => arr[i + j] === b));
+  const parts: string[] = [];
+  // BSI Chip Authentication OIDs: 0.4.0.127.0.7.2.2.3.x
+  if (has([0x04,0x00,0x7f,0x00,0x07,0x02,0x02,0x03])) parts.push('Chip Authentication');
+  // BSI PACE OIDs: 0.4.0.127.0.7.2.2.4.x
+  if (has([0x04,0x00,0x7f,0x00,0x07,0x02,0x02,0x04])) parts.push('PACE');
+  // BSI Terminal Authentication: 0.4.0.127.0.7.2.2.2
+  if (has([0x04,0x00,0x7f,0x00,0x07,0x02,0x02,0x02])) parts.push('Terminal Auth');
+  return parts.length ? parts.join(', ') : 'no BSI protocols detected';
+}
+
+function fmtISODate(yyyymmdd: string): string {
+  if (yyyymmdd.length !== 8) return yyyymmdd;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const m = parseInt(yyyymmdd.slice(4, 6), 10) - 1;
+  return `${parseInt(yyyymmdd.slice(6, 8), 10)} ${months[m] ?? '?'} ${yyyymmdd.slice(0, 4)}`;
+}
+
+// Camera MRZ parser (TD3 — passports, 2×44 chars)
+function parseTD3MRZ_cam(lines: string[]): { valid: boolean; linesFound: number; fields?: any } | null {
+  const isMRZLike = (line: string) => {
+    const c = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+    return (c.includes('<<') || c.startsWith('P<')) && c.replace(/[A-Z0-9<]/g, '').length < 5 && c.length >= 30;
+  };
+  const mrzLines = lines.filter(isMRZLike);
+  if (mrzLines.length < 2) return { valid: false, linesFound: mrzLines.length };
+  try {
+    const td3 = mrzLines.slice(-2).map(l => {
+      const c = l.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
+      return c.length > 44 ? c.slice(0, 44) : c.padEnd(44, '<');
+    });
+    const result = parse(td3, { autocorrect: true });
+    if (result?.valid && result.format === 'TD3') return { valid: true, linesFound: 2, fields: result.fields };
+  } catch {}
+  return { valid: false, linesFound: mrzLines.length };
+}
+
 type Strategy = {
   id: string;
   label: string;
@@ -238,6 +388,71 @@ export function NfcPassportDiagnosticCard() {
   const [running, setRunning] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<Record<string, StrategyResult>>({});
 
+  // Fullscreen photo viewer
+  const [fullscreenPhoto, setFullscreenPhoto] = React.useState<string | null>(null);
+
+  // Camera MRZ scanner
+  const device = useCameraDevice('back');
+  const { hasPermission: camHasPerm, requestPermission: camRequestPerm } = useCameraPermission();
+  const { scanText } = useTextRecognition({ language: 'latin' });
+  const [showCamera, setShowCamera] = React.useState(false);
+  const [camProgress, setCamProgress] = React.useState<'scanning' | 'partial' | 'success'>('scanning');
+  const lastMRZKeyRef = React.useRef<string | null>(null);
+  const consecutiveMatchRef = React.useRef(0);
+
+  const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
+    const result = parseTD3MRZ_cam(lines);
+    if (result?.valid && result.fields) {
+      const key = `${result.fields.documentNumber}-${result.fields.birthDate}-${result.fields.expirationDate}`;
+      if (key === lastMRZKeyRef.current) {
+        consecutiveMatchRef.current++;
+      } else {
+        consecutiveMatchRef.current = 1;
+        lastMRZKeyRef.current = key;
+      }
+      if (consecutiveMatchRef.current < 2) { setCamProgress('partial'); return; }
+      // Convert YYMMDD (MRZ) → DDMMYY (form state)
+      const toDDMMYY = (yymmdd: string) =>
+        yymmdd.length === 6 ? yymmdd.slice(4, 6) + yymmdd.slice(2, 4) + yymmdd.slice(0, 2) : '';
+      setDocNumber((result.fields.documentNumber || '').trim().toUpperCase());
+      setDob(toDDMMYY(result.fields.birthDate || ''));
+      setExpiry(toDDMMYY(result.fields.expirationDate || ''));
+      setCamProgress('success');
+      consecutiveMatchRef.current = 0;
+      lastMRZKeyRef.current = null;
+      setTimeout(() => setShowCamera(false), 500);
+    } else {
+      setCamProgress(result && result.linesFound > 0 ? 'partial' : 'scanning');
+    }
+  });
+
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet';
+    runAtTargetFps(2, () => {
+      'worklet';
+      const data = scanText(frame);
+      try {
+        let text = '';
+        if (data) {
+          if (Array.isArray(data) && data.length) text = (data as any[]).map((el: any) => el.resultText).join('\n');
+          else if (data && 'resultText' in data) text = (data as any).resultText as string;
+          if (text) onMRZDetected(text.split('\n'));
+        }
+      } catch {}
+    });
+  }, [scanText, onMRZDetected]);
+
+  const openMRZCamera = async () => {
+    if (!camHasPerm) {
+      const ok = await camRequestPerm();
+      if (!ok) return;
+    }
+    setCamProgress('scanning');
+    lastMRZKeyRef.current = null;
+    consecutiveMatchRef.current = 0;
+    setShowCamera(true);
+  };
+
   if (Platform.OS !== 'ios') return null;
 
   const hasMrz = docNumber.length >= 3 && dob.length === 6 && expiry.length === 6;
@@ -273,16 +488,30 @@ export function NfcPassportDiagnosticCard() {
       const name = [p.firstName, p.lastName].filter(Boolean).join(' ') || '(nom vide)';
       const mrz = data.dg1Bytes?.length ? parseTD3MRZ(data.dg1Bytes) : null;
 
+      // ── Parse enriched fields ─────────────────────────────────────────
+      const dg11Fields = data.dg11Bytes?.length ? parseDG11Fields(data.dg11Bytes) : {};
+      const placeOfBirth = dg11Fields.placeOfBirth ?? null;
+      const personalNumDG11 = dg11Fields.personalNumber ?? null;
+      const personalNumMRZ = data.dg1Bytes?.length ? parseMrzOptional(data.dg1Bytes) : null;
+      const personalNumber = personalNumDG11 || personalNumMRZ;
+      const dgHashList = data.sodBytes?.length ? parseSodDGHashes(data.sodBytes) : [];
+      const dscSigAlgo = data.sodBytes?.length ? parseSodSigAlgo(data.sodBytes) : null;
+      const dg12Info = data.dg12Bytes?.length ? parseDG12(data.dg12Bytes) : {};
+      const dg14Summary = data.dg14Bytes?.length ? parseDG14Summary(data.dg14Bytes) : null;
+
       // ── Full diagnostic dump ──────────────────────────────────────────
       console.log('[PASSPORT DIAG] ═══ Strategy:', s.label, '═══');
       console.log('[PASSPORT DIAG] docCode:', data.docCode);
       const { passportImageRaw: _img, ...pNoPhoto } = p;
       console.log('[PASSPORT DIAG] personDetails (raw from iOS):', JSON.stringify(pNoPhoto, null, 2));
       console.log('[PASSPORT DIAG] MRZ parsed:', mrz ? JSON.stringify(mrz, null, 2) : 'dg1 empty or parse failed');
+      if (personalNumber) console.log('[PASSPORT DIAG] MRZ personal number:', personalNumber);
       console.log('[PASSPORT DIAG] DG sizes:');
       console.log('  dg1 (MRZ):', data.dg1Bytes?.length ?? 0, 'bytes');
       console.log('  sod (signatures):', data.sodBytes?.length ?? 0, 'bytes');
       console.log('  dg11 (supplementary):', data.dg11Bytes?.length ?? 0, 'bytes');
+      console.log('  dg12 (doc details):', data.dg12Bytes?.length ?? 0, 'bytes');
+      console.log('  dg14 (chip auth info):', data.dg14Bytes?.length ?? 0, 'bytes');
       console.log('  dg15 (AA pubkey):', data.dg15Bytes?.length ?? 0, 'bytes');
       console.log('  aaSignature:', data.aaSignature?.length ?? 0, 'bytes');
       if (data.dg1Bytes?.length) {
@@ -290,71 +519,58 @@ export function NfcPassportDiagnosticCard() {
       }
       if (data.dg11Bytes?.length) {
         console.log('[PASSPORT DIAG] DG11 hex:', Array.from(data.dg11Bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
-        // Parse DG11 TLV fields
-        try {
-          const dg11 = data.dg11Bytes;
-          const DG11_TAGS: Record<string, string> = {
-            '5f0e': 'Full Name', '5f0f': 'Other Names', '5f10': 'Personal Number',
-            '5f2b': 'Full DOB', '5f11': 'Place of Birth', '5f42': 'Address',
-            '5f12': 'Phone', '5f13': 'Profession',
-          };
-          let di = 0;
-          // skip outer 6B tag+len
-          if (dg11[di] === 0x6B) { di++; if (dg11[di] & 0x80) di += (dg11[di] & 0x7F) + 1; else di++; }
-          while (di < dg11.length) {
-            if (dg11[di] === 0x5C) { di++; di += dg11[di] + 1; continue; } // skip tag list
-            let tag = (dg11[di] & 0x1F) === 0x1F
-              ? (dg11[di++].toString(16).padStart(2,'0') + dg11[di++].toString(16).padStart(2,'0'))
-              : dg11[di++].toString(16).padStart(2,'0');
-            let flen = dg11[di++];
-            if (flen & 0x80) { const n = flen & 0x7F; flen = 0; for (let j=0;j<n;j++) flen=(flen<<8)|dg11[di++]; }
-            const val = Array.from(dg11.slice(di, di+flen)).map(b=>String.fromCharCode(b)).join('').replace(/</g,' ').trim();
-            console.log(`[PASSPORT DIAG] DG11 ${DG11_TAGS[tag] ?? tag}: "${val}"`);
-            di += flen;
-          }
-        } catch {}
+        if (placeOfBirth) console.log('[PASSPORT DIAG] DG11 Place of Birth:', placeOfBirth);
+        if (personalNumDG11) console.log('[PASSPORT DIAG] DG11 Personal Number:', personalNumDG11);
+      }
+      if (data.dg12Bytes?.length) {
+        console.log('[PASSPORT DIAG] DG12 hex:', Array.from(data.dg12Bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
+        if (dg12Info.issuingAuthority) console.log('[PASSPORT DIAG] DG12 Issuing Authority:', dg12Info.issuingAuthority);
+        if (dg12Info.dateOfIssue) console.log('[PASSPORT DIAG] DG12 Date of Issue:', dg12Info.dateOfIssue, '→', fmtISODate(dg12Info.dateOfIssue));
+      } else {
+        console.log('[PASSPORT DIAG] DG12: not returned by native module (build with DG12 in tagsToRead)');
+      }
+      if (data.dg14Bytes?.length) {
+        console.log('[PASSPORT DIAG] DG14 hex (first 48 bytes):', Array.from(data.dg14Bytes.slice(0, 48)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+        console.log('[PASSPORT DIAG] DG14 security protocols:', dg14Summary);
+      } else {
+        console.log('[PASSPORT DIAG] DG14: absent (chip does not advertise extended access control)');
       }
       if (data.dg15Bytes?.length) {
         console.log('[PASSPORT DIAG] DG15 hex:', Array.from(data.dg15Bytes).map(b => b.toString(16).padStart(2, '0')).join(' '));
-        // Identify AA key algorithm from known OIDs
         const d15 = Array.from(data.dg15Bytes);
         const matchBytes = (seq: number[]) => d15.some((_,i) => seq.every((b,j) => d15[i+j] === b));
         const aaAlgo =
           matchBytes([0x2b,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x0d]) ? 'EC brainpoolP512r1 (512-bit)' :
           matchBytes([0x2b,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x0b]) ? 'EC brainpoolP384r1 (384-bit)' :
           matchBytes([0x2b,0x24,0x03,0x03,0x02,0x08,0x01,0x01,0x07]) ? 'EC brainpoolP256r1 (256-bit)' :
-          matchBytes([0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07])       ? 'EC NIST P-256 (256-bit)' :
+          matchBytes([0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07])      ? 'EC NIST P-256 (256-bit)' :
           matchBytes([0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x01]) ? 'RSA' : 'Unknown';
         console.log('[PASSPORT DIAG] DG15 AA key algorithm:', aaAlgo);
-        // EC uncompressed point starts with 04 after the BIT STRING tag
         const ptIdx = d15.indexOf(0x04, 20);
         if (ptIdx >= 0) {
           const coordLen = (data.dg15Bytes.length - ptIdx - 1) / 2;
-          console.log('[PASSPORT DIAG] DG15 AA key size:', coordLen * 8, 'bits (EC uncompressed point)');
+          console.log('[PASSPORT DIAG] DG15 AA key size:', coordLen * 8, 'bits');
         }
       }
       if (data.aaSignature?.length) {
         const sigLen = data.aaSignature.length;
         const sigType = sigLen === 64 ? 'ECDSA P-256/brainpool256 (r=32, s=32)' :
                         sigLen === 96 ? 'ECDSA P-384/brainpool384 (r=48, s=48)' :
-                        sigLen === 128 ? 'ECDSA P-512 or RSA-1024 (128 bytes)' :
+                        sigLen === 128 ? 'ECDSA P-512 or RSA-1024' :
                         sigLen >= 256 ? `RSA-${sigLen*8}` : `${sigLen} bytes`;
         console.log('[PASSPORT DIAG] AA signature type:', sigType);
         console.log('[PASSPORT DIAG] AA signature hex:', Array.from(data.aaSignature).map(b => b.toString(16).padStart(2, '0')).join(' '));
       }
       if (data.sodBytes?.length) {
-        const sod = Array.from(data.sodBytes.slice(0, 64));
-        console.log('[PASSPORT DIAG] SOD (first 64 bytes):', sod.map(b => b.toString(16).padStart(2, '0')).join(' '));
-        // Identify hash algorithm from SOD
+        console.log('[PASSPORT DIAG] SOD DG hash list (DGs present on chip):', dgHashList.map(n => `DG${n}`).join(', '));
+        console.log('[PASSPORT DIAG] SOD DSC signing algorithm:', dscSigAlgo);
         const hashOIDs: Record<string, string> = {
-          '608648016503040201': 'SHA-256',
-          '608648016503040202': 'SHA-384',
-          '608648016503040203': 'SHA-512',
-          '2a864886f70d020900': 'SHA-1',
+          '608648016503040201': 'SHA-256', '608648016503040202': 'SHA-384',
+          '608648016503040203': 'SHA-512', '2a864886f70d020900': 'SHA-1',
         };
         const sodHex = Array.from(data.sodBytes.slice(0, 128)).map(b=>b.toString(16).padStart(2,'0')).join('');
         const hashAlgo = Object.entries(hashOIDs).find(([oid]) => sodHex.includes(oid));
-        console.log('[PASSPORT DIAG] SOD hash algorithm:', hashAlgo ? hashAlgo[1] : 'unknown');
+        console.log('[PASSPORT DIAG] SOD DG hash algorithm:', hashAlgo ? hashAlgo[1] : 'unknown');
       }
       if (p.passportImageRaw) {
         const ph = p.passportImageRaw;
@@ -372,7 +588,15 @@ export function NfcPassportDiagnosticCard() {
         sodSize: data.sodBytes?.length ?? 0,
         dg15Size: data.dg15Bytes?.length ?? 0,
         dg11Size: data.dg11Bytes?.length ?? 0,
+        dg12Size: data.dg12Bytes?.length ?? 0,
+        dg14Size: data.dg14Bytes?.length ?? 0,
         aaPresent: (data.aaSignature?.length ?? 0) > 0,
+        placeOfBirth,
+        personalNumber,
+        dgHashList,
+        dscSigAlgo,
+        issuingAuthority: dg12Info.issuingAuthority ?? null,
+        dateOfIssue: dg12Info.dateOfIssue ?? null,
       } }));
     } catch (ex: any) {
       setResults(r => ({ ...r, [s.id]: { success: false, error: ex?.message || 'Erreur inconnue' } }));
@@ -416,10 +640,16 @@ export function NfcPassportDiagnosticCard() {
             {/* Photo + identity side by side */}
             <View style={styles.richRow}>
               {res.photoB64 ? (
-                <Image
-                  source={{ uri: `data:image/png;base64,${res.photoB64}` }}
-                  style={styles.photo}
-                />
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setFullscreenPhoto(res.photoB64!)}
+                >
+                  <Image
+                    source={{ uri: `data:image/png;base64,${res.photoB64}` }}
+                    style={styles.photo}
+                  />
+                  <Text style={styles.photoHint}>tap to enlarge</Text>
+                </TouchableOpacity>
               ) : null}
               <View style={styles.richFields}>
                 {res.mrz ? (
@@ -439,15 +669,33 @@ export function NfcPassportDiagnosticCard() {
                 )}
               </View>
             </View>
+            {/* Extra identity fields */}
+            {(res.placeOfBirth || res.personalNumber || res.issuingAuthority || res.dateOfIssue) && (
+              <View style={styles.chipInfo}>
+                <Text style={styles.chipInfoTitle}>Document details</Text>
+                {res.placeOfBirth ? <Text style={styles.chipInfoRow}>🏙 Born in: {res.placeOfBirth}</Text> : null}
+                {res.personalNumber ? <Text style={styles.chipInfoRow}>🔢 Personal №: {res.personalNumber}</Text> : null}
+                {res.issuingAuthority ? <Text style={styles.chipInfoRow}>🏛 Issued by: {res.issuingAuthority}</Text> : null}
+                {res.dateOfIssue ? <Text style={styles.chipInfoRow}>📅 Date of issue: {fmtISODate(res.dateOfIssue)}</Text> : null}
+              </View>
+            )}
             {/* Chip info */}
             <View style={styles.chipInfo}>
               <Text style={styles.chipInfoTitle}>Chip data</Text>
+              {res.dgHashList.length > 0 && (
+                <Text style={styles.chipInfoRow}>
+                  📦 DGs on chip: {res.dgHashList.map(n => `DG${n}`).join(' · ')}
+                </Text>
+              )}
+              {res.dscSigAlgo && <Text style={styles.chipInfoRow}>🔏 DSC signed with: {res.dscSigAlgo}</Text>}
               <Text style={styles.chipInfoRow}>DG1 (MRZ) · {res.dg1Size} bytes</Text>
-              <Text style={styles.chipInfoRow}>SOD (signatures) · {res.sodSize} bytes</Text>
+              <Text style={styles.chipInfoRow}>SOD · {res.sodSize} bytes</Text>
               {res.dg11Size > 0 && <Text style={styles.chipInfoRow}>DG11 (supplementary) · {res.dg11Size} bytes</Text>}
-              {res.dg15Size > 0 && <Text style={styles.chipInfoRow}>DG15 (AA public key) · {res.dg15Size} bytes</Text>}
+              {res.dg12Size > 0 && <Text style={styles.chipInfoRow}>DG12 (doc details) · {res.dg12Size} bytes</Text>}
+              {res.dg14Size > 0 && <Text style={styles.chipInfoRow}>DG14 (chip auth) · {res.dg14Size} bytes</Text>}
+              {res.dg15Size > 0 && <Text style={styles.chipInfoRow}>DG15 (AA key) · {res.dg15Size} bytes</Text>}
               <Text style={[styles.chipInfoRow, { color: res.aaPresent ? '#10B981' : colors.textSecondary }]}>
-                {res.aaPresent ? '✓ Active Authentication (clone-proof chip)' : '— No Active Authentication'}
+                {res.aaPresent ? '✓ Active Authentication (clone-proof)' : '— No Active Authentication'}
               </Text>
             </View>
           </View>
@@ -458,6 +706,32 @@ export function NfcPassportDiagnosticCard() {
 
   return (
     <View style={styles.card}>
+      {/* ── Fullscreen photo modal ── */}
+      <Modal
+        visible={fullscreenPhoto !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullscreenPhoto(null)}
+        statusBarTranslucent
+      >
+        <TouchableOpacity
+          style={styles.photoModalBg}
+          activeOpacity={1}
+          onPress={() => setFullscreenPhoto(null)}
+        >
+          {fullscreenPhoto ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${fullscreenPhoto}` }}
+              style={styles.photoModalImg}
+              resizeMode="contain"
+            />
+          ) : null}
+          <View style={styles.photoModalClose}>
+            <Text style={styles.photoModalCloseText}>✕</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── Detection ── */}
       <Text style={styles.cardTitle}>Détection NFC Passeport</Text>
       <Text style={styles.helpText}>
@@ -547,6 +821,49 @@ export function NfcPassportDiagnosticCard() {
       <Text style={styles.helpText}>
         N° passeport + dates depuis la zone MRZ (page 2 du passeport). Pas de CAN.
       </Text>
+
+      {/* MRZ camera scanner */}
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: '#7C3AED' }]}
+        onPress={openMRZCamera}
+        disabled={running !== null}
+      >
+        <Text style={styles.buttonText}>📷 Scanner le MRZ</Text>
+      </TouchableOpacity>
+
+      {showCamera ? (
+        <View style={styles.cameraContainer}>
+          {device ? (
+            <Camera
+              style={styles.cameraView}
+              device={device}
+              isActive={showCamera}
+              frameProcessor={frameProcessor}
+            />
+          ) : (
+            <View style={[styles.cameraView, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#fff' }}>Caméra indisponible</Text>
+            </View>
+          )}
+          <View style={styles.cameraOverlayBottom}>
+            <View style={[
+              styles.mrzFrame,
+              camProgress === 'partial' && styles.mrzFramePartial,
+              camProgress === 'success' && styles.mrzFrameSuccess,
+            ]}>
+              <Text style={styles.mrzFrameLine}>P{'<'}XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</Text>
+              <Text style={styles.mrzFrameLine}>XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX</Text>
+            </View>
+            <Text style={styles.cameraStatusLabel}>
+              {camProgress === 'scanning' ? 'Cadrez les 2 lignes MRZ...' : camProgress === 'partial' ? 'Détecté — stabilisation...' : '✓ MRZ lu !'}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.closeCamBtn} onPress={() => setShowCamera(false)}>
+            <Text style={styles.closeCamText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <View style={styles.inputRow}>
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>N° passeport (MRZ, 9 chars)</Text>
@@ -597,19 +914,6 @@ export function NfcPassportDiagnosticCard() {
       </View>
       {renderStrategy(PRODUCTION_STRATEGY)}
 
-      {/* ── PACE (type I) ── */}
-      <View style={[styles.groupHeader, { marginTop: 8 }]}>
-        <Text style={styles.groupHeaderText}>Tests PACE (type I)</Text>
-        <Text style={styles.groupHeaderHint}>PACE activé — 4 variantes de credentials</Text>
-      </View>
-      {PACE_STRATEGIES.map(renderStrategy)}
-
-      {/* ── Sans PACE / BAC (type P) ── */}
-      <View style={[styles.groupHeader, { marginTop: 8 }]}>
-        <Text style={styles.groupHeaderText}>Tests sans PACE (type P)</Text>
-        <Text style={styles.groupHeaderHint}>PACE contourné — 3 variantes de credentials</Text>
-      </View>
-      {BAC_STRATEGIES.map(renderStrategy)}
     </View>
   );
 }
@@ -839,6 +1143,67 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.textSecondary,
       paddingHorizontal: 2,
     },
+    cameraContainer: {
+      width: '100%',
+      height: 260,
+      borderRadius: 10,
+      overflow: 'hidden',
+      backgroundColor: '#000',
+      position: 'relative',
+    },
+    cameraView: {
+      width: '100%',
+      height: '100%',
+    },
+    cameraOverlayBottom: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      padding: 10,
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+    },
+    mrzFrame: {
+      width: '100%',
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.55)',
+      borderRadius: 6,
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      gap: 2,
+    },
+    mrzFramePartial: { borderColor: '#FBBF24' },
+    mrzFrameSuccess: { borderColor: '#10B981', borderWidth: 3 },
+    mrzFrameLine: {
+      color: 'rgba(255,255,255,0.8)',
+      fontSize: 7,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+      letterSpacing: 0.5,
+    },
+    cameraStatusLabel: {
+      color: '#fff',
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 12,
+    },
+    closeCamBtn: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      borderRadius: 14,
+      width: 28,
+      height: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    closeCamText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
     strategyResult: {
       borderLeftWidth: 3,
       paddingLeft: 8,
@@ -848,5 +1213,38 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     strategyResultText: {
       fontFamily: Typography.fontFamily.semibold,
       fontSize: 12,
+    },
+    photoHint: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 10,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 2,
+    },
+    photoModalBg: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.96)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    photoModalImg: {
+      width: SCREEN_W,
+      height: SCREEN_H,
+    },
+    photoModalClose: {
+      position: 'absolute',
+      top: 52,
+      right: 16,
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      borderRadius: 22,
+      width: 44,
+      height: 44,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    photoModalCloseText: {
+      color: '#fff',
+      fontSize: 20,
+      fontWeight: '600',
     },
   });

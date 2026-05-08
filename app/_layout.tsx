@@ -126,7 +126,7 @@ function RootLayoutNav() {
           <Stack.Screen
             name="diagnostics"
             options={{
-              title: t('settings.diagnostics'),
+              title: 'Diagnostic NFC (CNIe)',
               headerBackTitle: t('navigation.back'),
             }}
           />
