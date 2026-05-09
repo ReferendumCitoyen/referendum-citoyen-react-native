@@ -134,6 +134,24 @@ const Step7: React.FC<Step7Props> = ({
         );
         console.log('[Step7] Document status:', status);
 
+        // Phase A.1 bail-out probe: for TD3 passports, log the resolved
+        // registerIdentity_<suite> name before the lite-register attempt
+        // (which currently fails server-side because no TD3 lite verifier
+        // is deployed). The logged name is what we'd download from
+        // https://storage.googleapis.com/.../passport-zk-circuits-noir/v0.1.x/<name>.json
+        // and pass to the heavy-register flow once Phase A.2-A.4 lands.
+        // If this throws or the name is not in iOS/Android RariMe's published
+        // variant table, Option A is dead for this passport.
+        if (passport.dataGroup1.length === 93) {
+          try {
+            const { name, suite } = (passport as any).extractCircuitSuite();
+            console.log(`[Step7][PhaseA.1] TD3 suite resolved: ${name}`);
+            console.log(`[Step7][PhaseA.1] suite details: sigId=${suite.signatureType.staticId} hash=${suite.passportHashType} doc=${suite.documentType} ec=${suite.ecChunkNumber} ecPos=${suite.ecDigestPosition} dg1Pos=${suite.dg1DigestPositionShift} aa=${suite.aaType ? 'present' : 'NA'}`);
+          } catch (probeErr: any) {
+            console.error(`[Step7][PhaseA.1] suite resolver failed: ${probeErr?.message || probeErr}`);
+          }
+        }
+
         // Step 2: (Re)register identity whenever the on-chain activeIdentity
         // doesn't match the current local private key's profileKey. That
         // covers both never-registered passports and passports registered
