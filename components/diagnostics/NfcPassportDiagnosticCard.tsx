@@ -21,6 +21,7 @@ import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtT
 import { useTextRecognition } from 'react-native-vision-camera-text-recognition';
 import { Worklets } from 'react-native-worklets-core';
 import { parse } from 'mrz';
+import { CircuitSuiteProbe } from './CircuitSuiteProbe';
 
 type MRZData = {
   docType: string;
@@ -52,6 +53,12 @@ type ScanSuccess = {
   dscSigAlgo: string | null;
   issuingAuthority: string | null;
   dateOfIssue: string | null;
+  // Raw bytes retained so the CircuitSuiteProbe can re-parse the SOD
+  // without going through the native module again.
+  dg1Bytes: Uint8Array;
+  sodBytes: Uint8Array;
+  dg15Bytes?: Uint8Array;
+  aaSignature?: Uint8Array;
 };
 
 type StrategyResult = ScanSuccess | { success: false; error: string } | null;
@@ -387,6 +394,9 @@ export function NfcPassportDiagnosticCard() {
   // Scan results
   const [running, setRunning] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<Record<string, StrategyResult>>({});
+  // Per-strategy toggle for the technical-details (CircuitSuiteProbe) panel.
+  // Defaults closed; users opt in when they want to see SOD/cert/circuit details.
+  const [showProbe, setShowProbe] = React.useState<Record<string, boolean>>({});
 
   // Fullscreen photo viewer
   const [fullscreenPhoto, setFullscreenPhoto] = React.useState<string | null>(null);
@@ -597,6 +607,10 @@ export function NfcPassportDiagnosticCard() {
         dscSigAlgo,
         issuingAuthority: dg12Info.issuingAuthority ?? null,
         dateOfIssue: dg12Info.dateOfIssue ?? null,
+        dg1Bytes: data.dg1Bytes ?? new Uint8Array(),
+        sodBytes: data.sodBytes ?? new Uint8Array(),
+        dg15Bytes: data.dg15Bytes,
+        aaSignature: data.aaSignature,
       } }));
     } catch (ex: any) {
       setResults(r => ({ ...r, [s.id]: { success: false, error: ex?.message || 'Erreur inconnue' } }));
@@ -698,6 +712,25 @@ export function NfcPassportDiagnosticCard() {
                 {res.aaPresent ? '✓ Active Authentication (clone-proof)' : '— No Active Authentication'}
               </Text>
             </View>
+            {/* Circuit-suite probe (read-only inspection of SOD + DG15 + DSC).
+                Default-collapsed so the normal diagnostic UX stays clean. */}
+            <TouchableOpacity
+              style={styles.probeToggle}
+              onPress={() => setShowProbe(p => ({ ...p, [s.id]: !p[s.id] }))}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.probeToggleText}>
+                {showProbe[s.id] ? '▼ Hide technical details' : '▶ Show technical details'}
+              </Text>
+            </TouchableOpacity>
+            {showProbe[s.id] && res.dg1Bytes && res.sodBytes && (
+              <CircuitSuiteProbe
+                dg1Bytes={res.dg1Bytes}
+                sodBytes={res.sodBytes}
+                dg15Bytes={res.dg15Bytes}
+                aaSignature={res.aaSignature}
+              />
+            )}
           </View>
         )}
       </View>
@@ -1135,6 +1168,17 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontFamily: Typography.fontFamily.medium,
       fontSize: 12,
       color: colors.textSecondary,
+    },
+    probeToggle: {
+      marginTop: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+      alignSelf: 'flex-start',
+    },
+    probeToggleText: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 12,
+      color: colors.secondary ?? colors.text,
     },
     strategyRow: { gap: 4 },
     strategyDesc: {
