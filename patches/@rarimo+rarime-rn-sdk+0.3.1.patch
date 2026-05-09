@@ -784,10 +784,10 @@ index 0000000..c061c26
 +};
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
 new file mode 100644
-index 0000000..443afa3
+index 0000000..85a3973
 --- /dev/null
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
-@@ -0,0 +1,300 @@
+@@ -0,0 +1,313 @@
 +// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
 +// composes into one of the published `registerIdentity_<suite>.json` filenames
 +// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
@@ -911,9 +911,14 @@ index 0000000..443afa3
 +                }
 +            }
 +        }
++        const keySize = bitsToCircuitKeySize(bitLen);
++        if (!keySize) {
++            throw new Error(`Unsupported RSA modulus length ${bitLen} bits `
++                + `(supported: 1024/2048/3072/4096); extend bitsToCircuitKeySize in SuiteResolver.ts`);
++        }
 +        return {
 +            algorithm,
-+            keySize: bitsToCircuitKeySize(bitLen),
++            keySize,
 +            exponent: bigintToCircuitExponent(exponent),
 +            salt,
 +            curve: null,
@@ -959,6 +964,14 @@ index 0000000..443afa3
 +            case CircuitCurve.SECP521R1:
 +                keySize = CircuitKeySize.B521;
 +                break;
++        }
++        if (!curve) {
++            throw new Error(`Unsupported ECDSA named curve OID "${curveOid ?? "<missing>"}" `
++                + `(specifiedCurve=${ecParams.specifiedCurve ? "yes" : "no"}); `
++                + `extend CURVE_OID_MAP in SuiteResolver.ts`);
++        }
++        if (!keySize) {
++            throw new Error(`Curve ${curve} has no CircuitKeySize mapping`);
 +        }
 +        return {
 +            algorithm: CircuitAlgorithm.ECDSA,
@@ -1709,10 +1722,10 @@ index 0000000..a463a75
 +}
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
 new file mode 100644
-index 0000000..03a9217
+index 0000000..0b4cde3
 --- /dev/null
 +++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
-@@ -0,0 +1,364 @@
+@@ -0,0 +1,383 @@
 +// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
 +// composes into one of the published `registerIdentity_<suite>.json` filenames
 +// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
@@ -1880,9 +1893,16 @@ index 0000000..03a9217
 +      }
 +    }
 +
++    const keySize = bitsToCircuitKeySize(bitLen);
++    if (!keySize) {
++      throw new Error(
++        `Unsupported RSA modulus length ${bitLen} bits `
++        + `(supported: 1024/2048/3072/4096); extend bitsToCircuitKeySize in SuiteResolver.ts`,
++      );
++    }
 +    return {
 +      algorithm,
-+      keySize: bitsToCircuitKeySize(bitLen),
++      keySize,
 +      exponent: bigintToCircuitExponent(exponent),
 +      salt,
 +      curve: null,
@@ -1927,6 +1947,18 @@ index 0000000..03a9217
 +        keySize = CircuitKeySize.B521; break;
 +    }
 +
++    if (!curve) {
++      throw new Error(
++        `Unsupported ECDSA named curve OID "${curveOid ?? "<missing>"}" `
++        + `(specifiedCurve=${ecParams.specifiedCurve ? "yes" : "no"}); `
++        + `extend CURVE_OID_MAP in SuiteResolver.ts`,
++      );
++    }
++    if (!keySize) {
++      throw new Error(
++        `Curve ${curve} has no CircuitKeySize mapping`,
++      );
++    }
 +    return {
 +      algorithm: CircuitAlgorithm.ECDSA,
 +      keySize,
