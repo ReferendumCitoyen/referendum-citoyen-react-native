@@ -229,11 +229,36 @@ index fd0ba76..2dea7f0 100644
          }
          return verifySodResponse;
      }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
+index e4b2f67..57f39d9 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
+@@ -53,6 +53,10 @@ export declare class RarimePassport {
+     extractSignature(): Uint8Array;
+     getMRZData(): MRZData;
+     getCertificate(): CertificateSet;
++    extractCircuitSuite(): {
++        suite: import("./helpers/CircuitSuite").RegisterIdentityCircuitType;
++        name: string;
++    };
+     verifyPassport(proposalInfo: ProposalInfo): void;
+     private extractEcdsaPassportKey;
+     private extractRsaPassportKey;
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
-index c63669b..fe870a5 100644
+index c63669b..76e3085 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
-@@ -95,35 +95,30 @@ export class RarimePassport {
+@@ -5,6 +5,9 @@ import { HashAlgorithm } from "./helpers/HashAlgorithm";
+ import { Sod } from "./utils";
+ import { DG1, DG15, SOD } from "@li0ard/tsemrtd";
+ import { MRZ_ZERO_DATE } from "./Freedomtool";
++import { buildCircuitName } from "./helpers/CircuitSuite";
++import { pickSlaveCertificate, resolveCircuitSuite, hashWith } from "./helpers/SuiteResolver";
++import { passportHashTypeFromOID } from "./helpers/SODAlgorithm";
+ export var DocumentStatus;
+ (function (DocumentStatus) {
+     DocumentStatus["NotRegistered"] = "NOT_REGISTERED";
+@@ -95,35 +98,30 @@ export class RarimePassport {
      }
      getMRZData() {
          const mrz = DG1.load(this.dataGroup1);
@@ -286,6 +311,42 @@ index c63669b..fe870a5 100644
      }
      getCertificate() {
          const buffer = Buffer.from(this.sod);
+@@ -131,6 +129,35 @@ export class RarimePassport {
+         const certificates = sod.certificates;
+         return certificates;
+     }
++    // Resolve this passport's SOD into a Rarimo registerIdentity_<suite> name.
++    // Throws with a structured reason if the passport's signature suite isn't
++    // covered by SUPPORTED_SIGNATURE_TYPES (Rarimo hasn't published a heavy
++    // register circuit for it). See helpers/SuiteResolver.ts.
++    extractCircuitSuite() {
++        const certs = this.getCertificate();
++        const slaveCert = pickSlaveCertificate(certs);
++        if (!slaveCert)
++            throw new Error("SOD has no slave certificate");
++        const dgHashOid = this.extractDGHashAlgo();
++        const passportHashType = passportHashTypeFromOID(dgHashOid);
++        const encapsulatedContent = this.extractEncapsulatedContent();
++        const signedAttributes = this.extractSignedAttributes();
++        const ecHash = hashWith(passportHashType, encapsulatedContent);
++        const result = resolveCircuitSuite({
++            slaveCert,
++            sodSignatureOid: this.getSignatureAlgorithm(),
++            dgHashOid,
++            encapsulatedContent,
++            signedAttributes,
++            dg1: this.dataGroup1,
++            dg15: this.dataGroup15,
++            ecHash,
++        });
++        if ("error" in result) {
++            throw new Error(`Cannot resolve circuit suite for this passport: ${result.error}`);
++        }
++        return { suite: result.suite, name: buildCircuitName(result.suite) };
++    }
+     verifyPassport(proposalInfo) {
+         const mrz = this.getMRZData();
+         if (proposalInfo.criteria.citizenshipWhitelist.length &&
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
 index 741f34f..48df8fd 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
@@ -322,6 +383,805 @@ index 741f34f..48df8fd 100644
  export default NoirModule;
  //# sourceMappingURL=RnNoirModule.js.map
 \ No newline at end of file
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts
+new file mode 100644
+index 0000000..897c0cd
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts
+@@ -0,0 +1,104 @@
++export declare enum CircuitAlgorithm {
++    RSA = "RSA",
++    RSAPSS = "RSAPSS",
++    ECDSA = "ECDSA"
++}
++export declare enum CircuitKeySize {
++    B160 = "B160",
++    B192 = "B192",
++    B224 = "B224",
++    B256 = "B256",
++    B320 = "B320",
++    B384 = "B384",
++    B512 = "B512",
++    B521 = "B521",
++    B1024 = "B1024",
++    B2048 = "B2048",
++    B3072 = "B3072",
++    B4096 = "B4096"
++}
++export declare enum CircuitExponent {
++    E3 = "E3",
++    E65537 = "E65537",
++    E37187 = "E37187",
++    E58333 = "E58333",
++    E45347 = "E45347",
++    E46271 = "E46271"
++}
++export declare enum CircuitSalt {
++    S32 = "S32",
++    S48 = "S48",
++    S64 = "S64"
++}
++export declare enum CircuitCurve {
++    SECP160R1 = "SECP160R1",
++    SECP192R1 = "SECP192R1",
++    SECP224R1 = "SECP224R1",
++    SECP256R1 = "SECP256R1",
++    SECP384R1 = "SECP384R1",
++    SECP512R1 = "SECP512R1",
++    SECP521R1 = "SECP521R1",
++    BRAINPOOLP160R1 = "BRAINPOOLP160R1",
++    BRAINPOOLP192R1 = "BRAINPOOLP192R1",
++    BRAINPOOLP224R1 = "BRAINPOOLP224R1",
++    BRAINPOOLP256R1 = "BRAINPOOLP256R1",
++    BRAINPOOLP320R1 = "BRAINPOOLP320R1",
++    BRAINPOOLP384R1 = "BRAINPOOLP384R1",
++    BRAINPOOLP512R1 = "BRAINPOOLP512R1"
++}
++export declare enum CircuitHashAlgorithm {
++    HA160 = "HA160",
++    HA192 = "HA192",
++    HA224 = "HA224",
++    HA256 = "HA256",
++    HA384 = "HA384",
++    HA512 = "HA512"
++}
++export declare enum CircuitDocumentType {
++    TD1 = "TD1",
++    TD3 = "TD3"
++}
++export declare function documentTypeId(t: CircuitDocumentType): number;
++export declare enum CircuitPassportHashType {
++    SHA1 = "sha1",
++    SHA224 = "sha224",
++    SHA256 = "sha256",
++    SHA384 = "sha384",
++    SHA512 = "sha512"
++}
++export declare function passportHashId(h: CircuitPassportHashType): number;
++export declare function passportHashChunkSize(h: CircuitPassportHashType): number;
++export interface CircuitSignatureType {
++    staticId: number;
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++    hashAlgorithm: CircuitHashAlgorithm;
++}
++export interface CircuitAAAlgorithm {
++    staticId: number;
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize | null;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++    hashAlgorithm: CircuitHashAlgorithm | null;
++}
++export interface CircuitAAType {
++    aaAlgorithm: CircuitAAAlgorithm;
++    dg15DigestPositionShift: number;
++    dg15ChunkNumber: number;
++    aaKeyPositionShift: number;
++}
++export interface RegisterIdentityCircuitType {
++    signatureType: CircuitSignatureType;
++    passportHashType: CircuitPassportHashType;
++    documentType: CircuitDocumentType;
++    ecChunkNumber: number;
++    ecDigestPosition: number;
++    dg1DigestPositionShift: number;
++    aaType: CircuitAAType | null;
++}
++export declare function buildCircuitName(suite: RegisterIdentityCircuitType): string;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js
+new file mode 100644
+index 0000000..75800de
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js
+@@ -0,0 +1,135 @@
++// Type definitions for resolving a passport's SOD signature suite to a
++// Rarimo registerIdentity_<suite> circuit variant.
++//
++// Ported from rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++// (original 482 lines Swift). We mirror the staticId tables exactly so the
++// resulting suite string composes the same filename as the iOS app uses, e.g.
++//   registerIdentity_20_256_3_5_336_248_NA   (ECDSA-P256, SHA256, TD3, no AA)
++//
++// The 30+ pre-compiled variants live at
++//   https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/registerIdentity_<suite>.json
++// and have on-chain UltraPlonk verifier contracts deployed on Q-testnet.
++export var CircuitAlgorithm;
++(function (CircuitAlgorithm) {
++    CircuitAlgorithm["RSA"] = "RSA";
++    CircuitAlgorithm["RSAPSS"] = "RSAPSS";
++    CircuitAlgorithm["ECDSA"] = "ECDSA";
++})(CircuitAlgorithm || (CircuitAlgorithm = {}));
++export var CircuitKeySize;
++(function (CircuitKeySize) {
++    CircuitKeySize["B160"] = "B160";
++    CircuitKeySize["B192"] = "B192";
++    CircuitKeySize["B224"] = "B224";
++    CircuitKeySize["B256"] = "B256";
++    CircuitKeySize["B320"] = "B320";
++    CircuitKeySize["B384"] = "B384";
++    CircuitKeySize["B512"] = "B512";
++    CircuitKeySize["B521"] = "B521";
++    CircuitKeySize["B1024"] = "B1024";
++    CircuitKeySize["B2048"] = "B2048";
++    CircuitKeySize["B3072"] = "B3072";
++    CircuitKeySize["B4096"] = "B4096";
++})(CircuitKeySize || (CircuitKeySize = {}));
++export var CircuitExponent;
++(function (CircuitExponent) {
++    CircuitExponent["E3"] = "E3";
++    CircuitExponent["E65537"] = "E65537";
++    CircuitExponent["E37187"] = "E37187";
++    CircuitExponent["E58333"] = "E58333";
++    CircuitExponent["E45347"] = "E45347";
++    CircuitExponent["E46271"] = "E46271";
++})(CircuitExponent || (CircuitExponent = {}));
++export var CircuitSalt;
++(function (CircuitSalt) {
++    CircuitSalt["S32"] = "S32";
++    CircuitSalt["S48"] = "S48";
++    CircuitSalt["S64"] = "S64";
++})(CircuitSalt || (CircuitSalt = {}));
++export var CircuitCurve;
++(function (CircuitCurve) {
++    CircuitCurve["SECP160R1"] = "SECP160R1";
++    CircuitCurve["SECP192R1"] = "SECP192R1";
++    CircuitCurve["SECP224R1"] = "SECP224R1";
++    CircuitCurve["SECP256R1"] = "SECP256R1";
++    CircuitCurve["SECP384R1"] = "SECP384R1";
++    CircuitCurve["SECP512R1"] = "SECP512R1";
++    CircuitCurve["SECP521R1"] = "SECP521R1";
++    CircuitCurve["BRAINPOOLP160R1"] = "BRAINPOOLP160R1";
++    CircuitCurve["BRAINPOOLP192R1"] = "BRAINPOOLP192R1";
++    CircuitCurve["BRAINPOOLP224R1"] = "BRAINPOOLP224R1";
++    CircuitCurve["BRAINPOOLP256R1"] = "BRAINPOOLP256R1";
++    CircuitCurve["BRAINPOOLP320R1"] = "BRAINPOOLP320R1";
++    CircuitCurve["BRAINPOOLP384R1"] = "BRAINPOOLP384R1";
++    CircuitCurve["BRAINPOOLP512R1"] = "BRAINPOOLP512R1";
++})(CircuitCurve || (CircuitCurve = {}));
++export var CircuitHashAlgorithm;
++(function (CircuitHashAlgorithm) {
++    CircuitHashAlgorithm["HA160"] = "HA160";
++    CircuitHashAlgorithm["HA192"] = "HA192";
++    CircuitHashAlgorithm["HA224"] = "HA224";
++    CircuitHashAlgorithm["HA256"] = "HA256";
++    CircuitHashAlgorithm["HA384"] = "HA384";
++    CircuitHashAlgorithm["HA512"] = "HA512";
++})(CircuitHashAlgorithm || (CircuitHashAlgorithm = {}));
++export var CircuitDocumentType;
++(function (CircuitDocumentType) {
++    CircuitDocumentType["TD1"] = "TD1";
++    CircuitDocumentType["TD3"] = "TD3";
++})(CircuitDocumentType || (CircuitDocumentType = {}));
++// Returns the integer encoded into the circuit name. TD1→1, TD3→3.
++export function documentTypeId(t) {
++    return t === CircuitDocumentType.TD1 ? 1 : 3;
++}
++// Hash byte/bit length used for the encapsulated-content padded chunking.
++export var CircuitPassportHashType;
++(function (CircuitPassportHashType) {
++    CircuitPassportHashType["SHA1"] = "sha1";
++    CircuitPassportHashType["SHA224"] = "sha224";
++    CircuitPassportHashType["SHA256"] = "sha256";
++    CircuitPassportHashType["SHA384"] = "sha384";
++    CircuitPassportHashType["SHA512"] = "sha512";
++})(CircuitPassportHashType || (CircuitPassportHashType = {}));
++// Bit length encoded into the circuit name (160/224/256/384/512).
++export function passportHashId(h) {
++    switch (h) {
++        case CircuitPassportHashType.SHA1: return 160;
++        case CircuitPassportHashType.SHA224: return 224;
++        case CircuitPassportHashType.SHA256: return 256;
++        case CircuitPassportHashType.SHA384: return 384;
++        case CircuitPassportHashType.SHA512: return 512;
++    }
++}
++// SHA block size in bits. Used by smartChunking to compute ec chunk count.
++export function passportHashChunkSize(h) {
++    switch (h) {
++        case CircuitPassportHashType.SHA1:
++        case CircuitPassportHashType.SHA224:
++        case CircuitPassportHashType.SHA256:
++            return 512;
++        case CircuitPassportHashType.SHA384:
++        case CircuitPassportHashType.SHA512:
++            return 1024;
++    }
++}
++// Compose the variant name in the iOS-canonical format. Mirrors
++// RegisterIdentityCircuitType.buildName() in Swift.
++//   registerIdentity_<sigId>_<hashBits>_<docId>_<ecChunks>_<ecDigestPos>_<dg1Shift>_<NA | aaId_dg15Shift_dg15Chunks_aaKeyShift>
++export function buildCircuitName(suite) {
++    let name = "registerIdentity";
++    name += `_${suite.signatureType.staticId}`;
++    name += `_${passportHashId(suite.passportHashType)}`;
++    name += `_${documentTypeId(suite.documentType)}`;
++    name += `_${suite.ecChunkNumber}`;
++    name += `_${suite.ecDigestPosition}`;
++    name += `_${suite.dg1DigestPositionShift}`;
++    if (suite.aaType) {
++        name += `_${suite.aaType.aaAlgorithm.staticId}`;
++        name += `_${suite.aaType.dg15DigestPositionShift}`;
++        name += `_${suite.aaType.dg15ChunkNumber}`;
++        name += `_${suite.aaType.aaKeyPositionShift}`;
++    }
++    else {
++        name += "_NA";
++    }
++    return name;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts
+new file mode 100644
+index 0000000..ff0e631
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts
+@@ -0,0 +1,9 @@
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++export interface SodAlgorithmInfo {
++    circuitSignature: CircuitAlgorithm;
++    circuitHash: CircuitHashAlgorithm;
++}
++export declare function fromSodSignatureOID(oid: string): SodAlgorithmInfo;
++export declare function fromHashOID(oid: string): CircuitHashAlgorithm;
++import { CircuitPassportHashType } from "./CircuitSuite";
++export declare function passportHashTypeFromOID(oid: string): CircuitPassportHashType;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js
+new file mode 100644
+index 0000000..7b98f3a
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js
+@@ -0,0 +1,92 @@
++// Maps SOD signature-algorithm OIDs to the (CircuitAlgorithm, CircuitHashAlgorithm)
++// pair used to look up a row in SUPPORTED_SIGNATURE_TYPES.
++//
++// Mirrors rarime-ios-app/Rarime/Code/Models/Circuits/SODAlgorithm.swift, but
++// keyed by OID instead of human-readable algo name (Swift's X.509 lib gives
++// names like "ecdsa-with-SHA256"; @peculiar/asn1 gives raw OIDs).
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++// SOD signature algorithm OIDs (the OID of `signerInfo.signatureAlgorithm`)
++const SHA1_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.5";
++const SHA224_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.14";
++const SHA256_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.11";
++const SHA384_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.12";
++const SHA512_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.13";
++const RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++const RSASSA_PSS = "1.2.840.113549.1.1.10";
++const ECDSA_WITH_SHA1 = "1.2.840.10045.4.1";
++const ECDSA_WITH_SHA224 = "1.2.840.10045.4.3.1";
++const ECDSA_WITH_SHA256 = "1.2.840.10045.4.3.2";
++const ECDSA_WITH_SHA384 = "1.2.840.10045.4.3.3";
++const ECDSA_WITH_SHA512 = "1.2.840.10045.4.3.4";
++// Hash algorithm OIDs (used as the `algorithm` of `ldsObject.algorithm` for DG
++// hashes, or as `digestAlgorithm` of signerInfo for signed-attributes digest)
++const ID_SHA1 = "1.3.14.3.2.26";
++const ID_SHA224 = "2.16.840.1.101.3.4.2.4";
++const ID_SHA256 = "2.16.840.1.101.3.4.2.1";
++const ID_SHA384 = "2.16.840.1.101.3.4.2.2";
++const ID_SHA512 = "2.16.840.1.101.3.4.2.3";
++// Resolve SOD's signerInfo.signatureAlgorithm OID into a (signature, hash) pair.
++// The hash component is what appears in the `_<hashBits>_` slot of the suite
++// name only when the signature OID encodes its own hash (e.g. ecdsa-with-SHA256);
++// for bare RSA / RSA-PSS the hash comes from the cert's signatureAlgorithm
++// instead and the caller has to overlay it.
++export function fromSodSignatureOID(oid) {
++    switch (oid) {
++        case RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case SHA1_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA160 };
++        case SHA224_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA224 };
++        case SHA256_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case SHA384_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA384 };
++        case SHA512_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA512 };
++        case RSASSA_PSS:
++            // RSA-PSS hash comes from the PSS parameters; iOS defaults to SHA-256
++            // when not set, but real passports always set it. The caller should
++            // overlay the actual hash from the parsed PSS params.
++            return { circuitSignature: CircuitAlgorithm.RSAPSS, circuitHash: CircuitHashAlgorithm.HA256 };
++        case ECDSA_WITH_SHA1:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA160 };
++        case ECDSA_WITH_SHA224:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA224 };
++        case ECDSA_WITH_SHA256:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case ECDSA_WITH_SHA384:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA384 };
++        case ECDSA_WITH_SHA512:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA512 };
++        default:
++            throw new Error(`Unsupported SOD signature OID: ${oid}`);
++    }
++}
++// Resolve a hash-algorithm OID (e.g. ldsObject.algorithm.algorithm) to the
++// CircuitHashAlgorithm enum used by the suite. Throws on unknown OIDs.
++export function fromHashOID(oid) {
++    switch (oid) {
++        case ID_SHA1: return CircuitHashAlgorithm.HA160;
++        case ID_SHA224: return CircuitHashAlgorithm.HA224;
++        case ID_SHA256: return CircuitHashAlgorithm.HA256;
++        case ID_SHA384: return CircuitHashAlgorithm.HA384;
++        case ID_SHA512: return CircuitHashAlgorithm.HA512;
++        default:
++            throw new Error(`Unsupported hash algorithm OID: ${oid}`);
++    }
++}
++// CircuitPassportHashType raw-string variant of fromHashOID. Pads the
++// passportHashType field of the suite (used for SHA-block-size lookups).
++import { CircuitPassportHashType } from "./CircuitSuite";
++export function passportHashTypeFromOID(oid) {
++    switch (oid) {
++        case ID_SHA1: return CircuitPassportHashType.SHA1;
++        case ID_SHA224: return CircuitPassportHashType.SHA224;
++        case ID_SHA256: return CircuitPassportHashType.SHA256;
++        case ID_SHA384: return CircuitPassportHashType.SHA384;
++        case ID_SHA512: return CircuitPassportHashType.SHA512;
++        default:
++            throw new Error(`Unsupported passport hash OID: ${oid}`);
++    }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts
+new file mode 100644
+index 0000000..c061c26
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts
+@@ -0,0 +1,29 @@
++import { Certificate } from "@peculiar/asn1-x509";
++import { CertificateSet } from "@peculiar/asn1-cms";
++import { CircuitAlgorithm, CircuitExponent, CircuitKeySize, CircuitPassportHashType, CircuitSalt, CircuitCurve, RegisterIdentityCircuitType } from "./CircuitSuite";
++export declare function pickSlaveCertificate(certificates: CertificateSet): Certificate | null;
++export declare function extractSignatureSuiteFromCert(cert: Certificate): {
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize | null;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++};
++export declare function findSubarrayIndex(haystack: Uint8Array, needle: Uint8Array): number;
++export declare function getChunkNumber(byteLen: number, chunkSizeBits: number): number;
++export declare function hashWith(algo: CircuitPassportHashType, data: Uint8Array): Uint8Array;
++export declare function resolveCircuitSuite(args: {
++    slaveCert: Certificate;
++    sodSignatureOid: string;
++    dgHashOid: string;
++    encapsulatedContent: Uint8Array;
++    signedAttributes: Uint8Array;
++    dg1: Uint8Array;
++    dg15?: Uint8Array;
++    ecHash: Uint8Array;
++}): {
++    suite: RegisterIdentityCircuitType;
++    signatureTypeId: number;
++} | {
++    error: string;
++};
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
+new file mode 100644
+index 0000000..443afa3
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
+@@ -0,0 +1,300 @@
++// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
++// composes into one of the published `registerIdentity_<suite>.json` filenames
++// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
++//
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++//     (the Passport.getRegisterIdentityCircuitType() extension at lines 162-273)
++//
++// The resolver returns null when the passport's signature suite isn't in
++// SUPPORTED_SIGNATURE_TYPES — that's the bail-out signal that Rarimo doesn't
++// have a published heavy-register circuit for this document.
++import { Buffer } from "buffer";
++import { sha1 } from "@noble/hashes/sha1";
++import { sha224, sha256 } from "@noble/hashes/sha256";
++import { sha384, sha512 } from "@noble/hashes/sha512";
++import { AsnConvert } from "@peculiar/asn1-schema";
++import { RSAPublicKey, RsaSaPssParams } from "@peculiar/asn1-rsa";
++import { ECParameters } from "@peculiar/asn1-ecc";
++import { id_ecPublicKey } from "@peculiar/asn1-ecc";
++import { CircuitAlgorithm, CircuitDocumentType, CircuitExponent, CircuitKeySize, CircuitPassportHashType, CircuitSalt, CircuitCurve, passportHashChunkSize, } from "./CircuitSuite";
++import { getSupportedSignatureTypeId, } from "./SupportedCircuits";
++import { fromSodSignatureOID, passportHashTypeFromOID, } from "./SODAlgorithm";
++// OIDs we discriminate on for the slave-cert publicKey algorithm.
++const ID_RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++// Map ECDSA named-curve OIDs to CircuitCurve. Source: RFC 5480 + Brainpool RFC 5639.
++// Mirrors iOS RegisterIdentityCircuitType.getPublicKeyCurve()'s switch table.
++const CURVE_OID_MAP = {
++    "1.3.132.0.7": CircuitCurve.SECP160R1, // secp160r1
++    "1.2.840.10045.3.1.1": CircuitCurve.SECP192R1, // prime192v1 / P-192
++    "1.3.132.0.33": CircuitCurve.SECP224R1, // secp224r1 / P-224
++    "1.2.840.10045.3.1.7": CircuitCurve.SECP256R1, // prime256v1 / P-256
++    "1.3.132.0.34": CircuitCurve.SECP384R1, // secp384r1 / P-384
++    "1.3.132.0.35": CircuitCurve.SECP521R1, // secp521r1 / P-521
++    "1.3.36.3.3.2.8.1.1.1": CircuitCurve.BRAINPOOLP160R1,
++    "1.3.36.3.3.2.8.1.1.3": CircuitCurve.BRAINPOOLP192R1,
++    "1.3.36.3.3.2.8.1.1.5": CircuitCurve.BRAINPOOLP224R1,
++    "1.3.36.3.3.2.8.1.1.7": CircuitCurve.BRAINPOOLP256R1,
++    "1.3.36.3.3.2.8.1.1.9": CircuitCurve.BRAINPOOLP320R1,
++    "1.3.36.3.3.2.8.1.1.11": CircuitCurve.BRAINPOOLP384R1,
++    "1.3.36.3.3.2.8.1.1.13": CircuitCurve.BRAINPOOLP512R1,
++};
++// Round modulus bit length to the nearest CircuitKeySize bucket. iOS only
++// supports a fixed set; off-spec sizes return null and bubble up as "no row".
++function bitsToCircuitKeySize(bits) {
++    switch (bits) {
++        case 160: return CircuitKeySize.B160;
++        case 192: return CircuitKeySize.B192;
++        case 224: return CircuitKeySize.B224;
++        case 256: return CircuitKeySize.B256;
++        case 320: return CircuitKeySize.B320;
++        case 384: return CircuitKeySize.B384;
++        case 512: return CircuitKeySize.B512;
++        case 521: return CircuitKeySize.B521;
++        case 1024: return CircuitKeySize.B1024;
++        case 2048: return CircuitKeySize.B2048;
++        case 3072: return CircuitKeySize.B3072;
++        case 4096: return CircuitKeySize.B4096;
++        default: return null;
++    }
++}
++// Map raw RSA public exponent integer to the closed CircuitExponent set.
++function bigintToCircuitExponent(e) {
++    switch (e) {
++        case 3n: return CircuitExponent.E3;
++        case 65537n: return CircuitExponent.E65537;
++        case 37187n: return CircuitExponent.E37187;
++        case 58333n: return CircuitExponent.E58333;
++        case 45347n: return CircuitExponent.E45347;
++        case 46271n: return CircuitExponent.E46271;
++        default: return null;
++    }
++}
++function saltLengthToCircuitSalt(salt) {
++    switch (salt) {
++        case 32: return CircuitSalt.S32;
++        case 48: return CircuitSalt.S48;
++        case 64: return CircuitSalt.S64;
++        default: return null;
++    }
++}
++// Pick the document signer cert out of the CMS CertificateSet. SOD usually
++// has exactly one cert (the DSC); we take the first one with a `.certificate`
++// field. Returns null if none.
++export function pickSlaveCertificate(certificates) {
++    for (const choice of certificates) {
++        if (choice.certificate)
++            return choice.certificate;
++    }
++    return null;
++}
++// Extract (algorithm, keySize, exponent, salt, curve) from the slave cert's
++// public key + signature algorithm. The hash component is overlaid by the
++// caller (it comes from the SOD's signing OID, not the cert's pubkey info).
++export function extractSignatureSuiteFromCert(cert) {
++    const spkAlgoOid = cert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm;
++    const sigAlgoOid = cert.signatureAlgorithm.algorithm;
++    // RSA family — the cert's signatureAlgorithm OID encodes RSA vs RSA-PSS.
++    // Note: iOS treats all of {rsaEncryption, sha*WithRSAEncryption} as RSA;
++    // RSA-PSS is only when sigAlgoOid === "1.2.840.113549.1.1.10".
++    if (spkAlgoOid === ID_RSA_ENCRYPTION) {
++        const rsaPub = AsnConvert.parse(cert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey, RSAPublicKey);
++        const modulusBytes = new Uint8Array(rsaPub.modulus);
++        // Strip leading zero (ASN.1 INTEGER sign byte) before measuring bit length.
++        const stripped = modulusBytes[0] === 0x00 ? modulusBytes.subarray(1) : modulusBytes;
++        const bitLen = stripped.length * 8;
++        const exponent = BigInt("0x" + Buffer.from(rsaPub.publicExponent).toString("hex"));
++        let algorithm = CircuitAlgorithm.RSA;
++        let salt = null;
++        if (sigAlgoOid === "1.2.840.113549.1.1.10") {
++            algorithm = CircuitAlgorithm.RSAPSS;
++            // Salt length lives in the cert's signatureAlgorithm.parameters.
++            if (cert.signatureAlgorithm.parameters) {
++                try {
++                    const pssParams = AsnConvert.parse(cert.signatureAlgorithm.parameters, RsaSaPssParams);
++                    salt = saltLengthToCircuitSalt(pssParams.saltLength);
++                }
++                catch (_) {
++                    // Defaults: PKCS#1 v2.1 says missing salt = 20, but no published
++                    // variant uses 20-byte salt; treat as unknown.
++                    salt = null;
++                }
++            }
++        }
++        return {
++            algorithm,
++            keySize: bitsToCircuitKeySize(bitLen),
++            exponent: bigintToCircuitExponent(exponent),
++            salt,
++            curve: null,
++        };
++    }
++    // ECDSA — public key algorithm is id-ecPublicKey; named curve in parameters.
++    if (spkAlgoOid === id_ecPublicKey) {
++        if (!cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
++            throw new Error("ECDSA public key has no parameters");
++        }
++        const ecParams = AsnConvert.parse(cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters, ECParameters);
++        const curveOid = ecParams.namedCurve ?? null;
++        const curve = curveOid ? CURVE_OID_MAP[curveOid] ?? null : null;
++        // Key size in bits derived from the named curve's field size.
++        let keySize = null;
++        switch (curve) {
++            case CircuitCurve.SECP160R1:
++            case CircuitCurve.BRAINPOOLP160R1:
++                keySize = CircuitKeySize.B160;
++                break;
++            case CircuitCurve.SECP192R1:
++            case CircuitCurve.BRAINPOOLP192R1:
++                keySize = CircuitKeySize.B192;
++                break;
++            case CircuitCurve.SECP224R1:
++            case CircuitCurve.BRAINPOOLP224R1:
++                keySize = CircuitKeySize.B224;
++                break;
++            case CircuitCurve.SECP256R1:
++            case CircuitCurve.BRAINPOOLP256R1:
++                keySize = CircuitKeySize.B256;
++                break;
++            case CircuitCurve.BRAINPOOLP320R1:
++                keySize = CircuitKeySize.B320;
++                break;
++            case CircuitCurve.SECP384R1:
++            case CircuitCurve.BRAINPOOLP384R1:
++                keySize = CircuitKeySize.B384;
++                break;
++            case CircuitCurve.BRAINPOOLP512R1:
++                keySize = CircuitKeySize.B512;
++                break;
++            case CircuitCurve.SECP521R1:
++                keySize = CircuitKeySize.B521;
++                break;
++        }
++        return {
++            algorithm: CircuitAlgorithm.ECDSA,
++            keySize,
++            exponent: null,
++            salt: null,
++            curve,
++        };
++    }
++    throw new Error(`Unsupported public key OID: ${spkAlgoOid}`);
++}
++// Find a contiguous Uint8Array within another. Returns -1 if not found.
++// Used to locate DG1 hash inside encapsulatedContent and EC hash inside
++// signedAttributes — those byte offsets become the dg1DigestPositionShift
++// and ecDigestPosition fields of the suite (× 8 for bit-units).
++export function findSubarrayIndex(haystack, needle) {
++    if (needle.length === 0)
++        return 0;
++    outer: for (let i = 0; i <= haystack.length - needle.length; i++) {
++        for (let j = 0; j < needle.length; j++) {
++            if (haystack[i + j] !== needle[j])
++                continue outer;
++        }
++        return i;
++    }
++    return -1;
++}
++// Number of SHA chunks needed to hash `len` bytes (including the SHA padding
++// byte 0x80 + 64-bit length suffix). Mirrors iOS getChunkNumber():
++//   length = byteLen*8 + 1 + 64
++//   chunks = ceil(length / chunkSize)
++export function getChunkNumber(byteLen, chunkSizeBits) {
++    const lengthBits = byteLen * 8 + 1 + 64;
++    return Math.ceil(lengthBits / chunkSizeBits);
++}
++// Compute hash bytes for a CircuitPassportHashType. Used to find DG1 / DG15
++// hashes inside the encapsulated content.
++export function hashWith(algo, data) {
++    switch (algo) {
++        case CircuitPassportHashType.SHA1: return sha1(data);
++        case CircuitPassportHashType.SHA224: return sha224(data);
++        case CircuitPassportHashType.SHA256: return sha256(data);
++        case CircuitPassportHashType.SHA384: return sha384(data);
++        case CircuitPassportHashType.SHA512: return sha512(data);
++    }
++}
++// The complete resolver. Given the parsed components, produces a fully-named
++// suite or returns null with a reason if the passport isn't supported.
++//
++// Inputs the caller must extract from the SOD using existing SDK methods:
++//   - slaveCert            : pickSlaveCertificate(passport.getCertificate())
++//   - sodSignatureOid      : passport.getSignatureAlgorithm()
++//   - dgHashOid            : passport.extractDGHashAlgo()
++//   - encapsulatedContent  : passport.extractEncapsulatedContent()
++//   - signedAttributes     : passport.extractSignedAttributes()
++//   - dg1                  : passport.dataGroup1
++//   - dg15                 : passport.dataGroup15 (or undefined)
++//
++// Note on AA: Active-Authentication suite resolution is more involved (DG15
++// pubkey type depends on the AA algorithm). For Phase A.1 we resolve only the
++// non-AA path; passports with DG15 will return null until Phase A.3.
++export function resolveCircuitSuite(args) {
++    // 1) Hash algorithm used for DG hashes (passport hash type)
++    const passportHashType = passportHashTypeFromOID(args.dgHashOid);
++    // 2) Signature algorithm + cert pubkey details
++    const sodSig = fromSodSignatureOID(args.sodSignatureOid);
++    const certPubkey = extractSignatureSuiteFromCert(args.slaveCert);
++    // Reconcile algorithm — sodSig.circuitSignature should match certPubkey.algorithm.
++    if (sodSig.circuitSignature !== certPubkey.algorithm) {
++        return { error: `algorithm mismatch: sod=${sodSig.circuitSignature}, cert=${certPubkey.algorithm}` };
++    }
++    if (certPubkey.keySize === null) {
++        return { error: "cert key size not in supported set" };
++    }
++    // For RSA/ECDSA the hash comes from the SOD signing OID; for RSA-PSS it
++    // comes from the PSS params (which we don't fully parse yet — overlay later).
++    const hashAlgorithm = sodSig.circuitHash;
++    const candidate = {
++        algorithm: certPubkey.algorithm,
++        keySize: certPubkey.keySize,
++        exponent: certPubkey.exponent,
++        salt: certPubkey.salt,
++        curve: certPubkey.curve,
++        hashAlgorithm,
++    };
++    const signatureTypeId = getSupportedSignatureTypeId(candidate);
++    if (signatureTypeId === null) {
++        return { error: `no supported signature type row matches: ${JSON.stringify(candidate)}` };
++    }
++    // 3) Document type — TD1 = 95-byte DG1, TD3 = 93-byte DG1
++    let documentType;
++    if (args.dg1.length === 95)
++        documentType = CircuitDocumentType.TD1;
++    else if (args.dg1.length === 93)
++        documentType = CircuitDocumentType.TD3;
++    else
++        return { error: `unsupported DG1 length: ${args.dg1.length}` };
++    // 4) ec chunk number = SHA-padded chunk count of encapsulatedContent
++    const ecChunkNumber = getChunkNumber(args.encapsulatedContent.length, passportHashChunkSize(passportHashType));
++    // 5) ecDigestPosition = bit offset of the EC hash inside signedAttributes
++    const ecHashByteOffset = findSubarrayIndex(args.signedAttributes, args.ecHash);
++    if (ecHashByteOffset < 0) {
++        return { error: "EC hash not found inside signedAttributes" };
++    }
++    const ecDigestPosition = ecHashByteOffset * 8;
++    // 6) dg1DigestPositionShift = bit offset of DG1 hash inside encapsulatedContent
++    const dg1Hash = hashWith(passportHashType, args.dg1);
++    const dg1HashByteOffset = findSubarrayIndex(args.encapsulatedContent, dg1Hash);
++    if (dg1HashByteOffset < 0) {
++        return { error: "DG1 hash not found inside encapsulatedContent" };
++    }
++    const dg1DigestPositionShift = dg1HashByteOffset * 8;
++    // 7) AA — only if DG15 present. Punted to Phase A.3; for now treat as no AA.
++    const aaType = args.dg15 && args.dg15.length > 0
++        ? null // TODO Phase A.3: parse DG15 SPKI, build AA suite
++        : null;
++    return {
++        suite: {
++            signatureType: { ...candidate, staticId: signatureTypeId },
++            passportHashType,
++            documentType,
++            ecChunkNumber,
++            ecDigestPosition,
++            dg1DigestPositionShift,
++            aaType,
++        },
++        signatureTypeId,
++    };
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts
+new file mode 100644
+index 0000000..4ada5cf
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts
+@@ -0,0 +1,5 @@
++import { CircuitSignatureType, CircuitAAAlgorithm } from "./CircuitSuite";
++export declare const SUPPORTED_SIGNATURE_TYPES: CircuitSignatureType[];
++export declare function getSupportedSignatureTypeId(candidate: Omit<CircuitSignatureType, "staticId">): number | null;
++export declare const SUPPORTED_AA_TYPES: CircuitAAAlgorithm[];
++export declare function getSupportedAATypeId(candidate: Pick<CircuitAAAlgorithm, "algorithm" | "hashAlgorithm" | "curve">): number | null;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js
+new file mode 100644
+index 0000000..d5edc02
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js
+@@ -0,0 +1,77 @@
++// Static lookup tables for the Rarimo registerIdentity circuit family.
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitSignatureType.swift
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitAAType.swift
++//
++// Adding a new row here only matters if Rarimo publishes a new Noir circuit
++// for that signature suite — until then, these IDs aren't valid filename
++// components.
++import { CircuitAlgorithm, CircuitKeySize, CircuitExponent, CircuitSalt, CircuitCurve, CircuitHashAlgorithm, } from "./CircuitSuite";
++// 28 entries: 8 RSA + 6 RSA-PSS + 14 ECDSA. The numbering is owned by Rarimo
++// and shows up in every registerIdentity_<id>_... filename.
++export const SUPPORTED_SIGNATURE_TYPES = [
++    // ── RSA (PKCS#1 v1.5) ──────────────────────────────────────────────────
++    { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 2, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B4096, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 3, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 4, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E37187, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 5, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 6, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E58333, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 7, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E45347, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 8, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E46271, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    // ── RSA-PSS ────────────────────────────────────────────────────────────
++    { staticId: 10, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E3, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 11, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 12, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 13, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S48, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++    { staticId: 14, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 15, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    // ── ECDSA ──────────────────────────────────────────────────────────────
++    { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.SECP256R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B320, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B192, exponent: null, salt: null, curve: CircuitCurve.SECP192R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B224, exponent: null, salt: null, curve: CircuitCurve.SECP224R1, hashAlgorithm: CircuitHashAlgorithm.HA224 },
++    { staticId: 25, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++    { staticId: 26, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B512, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP512R1, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 27, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B521, exponent: null, salt: null, curve: CircuitCurve.SECP521R1, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 28, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.SECP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++// Lookup the staticId for a given (algo, keySize, exponent, salt, curve, hashAlgo)
++// tuple. Returns null if no row matches — that means the passport's signature
++// suite isn't supported by Rarimo's published heavy-register circuits.
++export function getSupportedSignatureTypeId(candidate) {
++    const match = SUPPORTED_SIGNATURE_TYPES.find((row) => row.algorithm === candidate.algorithm &&
++        row.keySize === candidate.keySize &&
++        row.exponent === candidate.exponent &&
++        row.salt === candidate.salt &&
++        row.curve === candidate.curve &&
++        row.hashAlgorithm === candidate.hashAlgorithm);
++    return match ? match.staticId : null;
++}
++// 5 entries (1 RSA + 4 ECDSA) for Active Authentication algorithms. Used only
++// when the passport has a non-empty DG15.
++export const SUPPORTED_AA_TYPES = [
++    // RSA fallback
++    { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B1024, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: null },
++    // ECDSA AA variants
++    { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP192R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++// Match an AA row by (algorithm, hashAlgorithm, curve). Mirrors the iOS
++// SupportRegisterIdentityCircuitAAType.getSupportedSignatureTypeId logic,
++// including its RSA fallback to staticId=1 when no other row matches.
++export function getSupportedAATypeId(candidate) {
++    const match = SUPPORTED_AA_TYPES.find((row) => row.algorithm === candidate.algorithm &&
++        row.hashAlgorithm === candidate.hashAlgorithm &&
++        row.curve === candidate.curve);
++    if (match)
++        return match.staticId;
++    // iOS fallback: any RSA AA without an exact row defaults to staticId=1.
++    if (candidate.algorithm === CircuitAlgorithm.RSA)
++        return 1;
++    return null;
++}
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
 index dea6423..00490d6 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
@@ -471,6 +1331,75 @@ index 02b4873..cfd61da 100644
        ),
        sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
      };
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts b/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
+index 22e2e25..7d10b21 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
+@@ -7,6 +7,16 @@ import { DG1, DG15, SOD } from "@li0ard/tsemrtd";
+ import { CertificateSet } from "@peculiar/asn1-cms";
+ import { ProposalInfo } from "./types";
+ import { MRZ_ZERO_DATE } from "./Freedomtool";
++import {
++  buildCircuitName,
++  RegisterIdentityCircuitType,
++} from "./helpers/CircuitSuite";
++import {
++  pickSlaveCertificate,
++  resolveCircuitSuite,
++  hashWith,
++} from "./helpers/SuiteResolver";
++import { passportHashTypeFromOID } from "./helpers/SODAlgorithm";
+ 
+ export interface MRZData {
+   documentType: string;
+@@ -195,6 +205,47 @@ export class RarimePassport {
+     return certificates;
+   }
+ 
++  // Resolve this passport's SOD into a Rarimo registerIdentity_<suite> name.
++  // Returns the full RegisterIdentityCircuitType plus the composed circuit
++  // name string; throws with a structured reason if the passport's signature
++  // suite isn't covered by SUPPORTED_SIGNATURE_TYPES (i.e. Rarimo hasn't
++  // published a heavy-register circuit for it).
++  //
++  // Used by Rarime.registerIdentityHeavy() to pick which hosted JSON to
++  // download as bytecode.
++  public extractCircuitSuite(): { suite: RegisterIdentityCircuitType; name: string } {
++    const certs = this.getCertificate();
++    const slaveCert = pickSlaveCertificate(certs);
++    if (!slaveCert) throw new Error("SOD has no slave certificate");
++
++    const dgHashOid = this.extractDGHashAlgo();
++    const passportHashType = passportHashTypeFromOID(dgHashOid);
++    const encapsulatedContent = this.extractEncapsulatedContent();
++    const signedAttributes = this.extractSignedAttributes();
++
++    // ecHash = digest of encapsulatedContent using the LDS object's hash algo.
++    // The same value is stored as the messageDigest signed attribute, so this
++    // recompute matches what's in signedAttributes byte-for-byte.
++    const ecHash = hashWith(passportHashType, encapsulatedContent);
++
++    const result = resolveCircuitSuite({
++      slaveCert,
++      sodSignatureOid: this.getSignatureAlgorithm(),
++      dgHashOid,
++      encapsulatedContent,
++      signedAttributes,
++      dg1: this.dataGroup1,
++      dg15: this.dataGroup15,
++      ecHash,
++    });
++
++    if ("error" in result) {
++      throw new Error(`Cannot resolve circuit suite for this passport: ${result.error}`);
++    }
++
++    return { suite: result.suite, name: buildCircuitName(result.suite) };
++  }
++
+   public verifyPassport(proposalInfo: ProposalInfo) {
+     const mrz = this.getMRZData();
+ 
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts b/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
 index a1aae99..6b6b2c9 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
@@ -481,3 +1410,778 @@ index a1aae99..6b6b2c9 100644
  import {default as NoirModule} from './src/NoirModule';
  
  export type NoirZKProof = {
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts
+new file mode 100644
+index 0000000..9066c70
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts
+@@ -0,0 +1,182 @@
++// Type definitions for resolving a passport's SOD signature suite to a
++// Rarimo registerIdentity_<suite> circuit variant.
++//
++// Ported from rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++// (original 482 lines Swift). We mirror the staticId tables exactly so the
++// resulting suite string composes the same filename as the iOS app uses, e.g.
++//   registerIdentity_20_256_3_5_336_248_NA   (ECDSA-P256, SHA256, TD3, no AA)
++//
++// The 30+ pre-compiled variants live at
++//   https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/registerIdentity_<suite>.json
++// and have on-chain UltraPlonk verifier contracts deployed on Q-testnet.
++
++export enum CircuitAlgorithm {
++  RSA = "RSA",
++  RSAPSS = "RSAPSS",
++  ECDSA = "ECDSA",
++}
++
++export enum CircuitKeySize {
++  B160 = "B160",
++  B192 = "B192",
++  B224 = "B224",
++  B256 = "B256",
++  B320 = "B320",
++  B384 = "B384",
++  B512 = "B512",
++  B521 = "B521",
++  B1024 = "B1024",
++  B2048 = "B2048",
++  B3072 = "B3072",
++  B4096 = "B4096",
++}
++
++export enum CircuitExponent {
++  E3 = "E3",
++  E65537 = "E65537",
++  E37187 = "E37187",
++  E58333 = "E58333",
++  E45347 = "E45347",
++  E46271 = "E46271",
++}
++
++export enum CircuitSalt {
++  S32 = "S32",
++  S48 = "S48",
++  S64 = "S64",
++}
++
++export enum CircuitCurve {
++  SECP160R1 = "SECP160R1",
++  SECP192R1 = "SECP192R1",
++  SECP224R1 = "SECP224R1",
++  SECP256R1 = "SECP256R1",
++  SECP384R1 = "SECP384R1",
++  SECP512R1 = "SECP512R1",
++  SECP521R1 = "SECP521R1",
++  BRAINPOOLP160R1 = "BRAINPOOLP160R1",
++  BRAINPOOLP192R1 = "BRAINPOOLP192R1",
++  BRAINPOOLP224R1 = "BRAINPOOLP224R1",
++  BRAINPOOLP256R1 = "BRAINPOOLP256R1",
++  BRAINPOOLP320R1 = "BRAINPOOLP320R1",
++  BRAINPOOLP384R1 = "BRAINPOOLP384R1",
++  BRAINPOOLP512R1 = "BRAINPOOLP512R1",
++}
++
++export enum CircuitHashAlgorithm {
++  HA160 = "HA160",
++  HA192 = "HA192",
++  HA224 = "HA224",
++  HA256 = "HA256",
++  HA384 = "HA384",
++  HA512 = "HA512",
++}
++
++export enum CircuitDocumentType {
++  TD1 = "TD1",
++  TD3 = "TD3",
++}
++
++// Returns the integer encoded into the circuit name. TD1→1, TD3→3.
++export function documentTypeId(t: CircuitDocumentType): number {
++  return t === CircuitDocumentType.TD1 ? 1 : 3;
++}
++
++// Hash byte/bit length used for the encapsulated-content padded chunking.
++export enum CircuitPassportHashType {
++  SHA1 = "sha1",
++  SHA224 = "sha224",
++  SHA256 = "sha256",
++  SHA384 = "sha384",
++  SHA512 = "sha512",
++}
++
++// Bit length encoded into the circuit name (160/224/256/384/512).
++export function passportHashId(h: CircuitPassportHashType): number {
++  switch (h) {
++    case CircuitPassportHashType.SHA1: return 160;
++    case CircuitPassportHashType.SHA224: return 224;
++    case CircuitPassportHashType.SHA256: return 256;
++    case CircuitPassportHashType.SHA384: return 384;
++    case CircuitPassportHashType.SHA512: return 512;
++  }
++}
++
++// SHA block size in bits. Used by smartChunking to compute ec chunk count.
++export function passportHashChunkSize(h: CircuitPassportHashType): number {
++  switch (h) {
++    case CircuitPassportHashType.SHA1:
++    case CircuitPassportHashType.SHA224:
++    case CircuitPassportHashType.SHA256:
++      return 512;
++    case CircuitPassportHashType.SHA384:
++    case CircuitPassportHashType.SHA512:
++      return 1024;
++  }
++}
++
++// Identifies one row of the static signature-suite table. `staticId` is the
++// number that goes into the circuit filename (e.g. 20 for ECDSA-P256-SHA256).
++export interface CircuitSignatureType {
++  staticId: number;
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++  hashAlgorithm: CircuitHashAlgorithm;
++}
++
++// Identifies one row of the static AA (Active Authentication) table.
++export interface CircuitAAAlgorithm {
++  staticId: number;
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize | null;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++  hashAlgorithm: CircuitHashAlgorithm | null;
++}
++
++export interface CircuitAAType {
++  aaAlgorithm: CircuitAAAlgorithm;
++  dg15DigestPositionShift: number; // bit offset
++  dg15ChunkNumber: number;
++  aaKeyPositionShift: number; // bit offset
++}
++
++// The full resolved suite. Compose its name with `buildCircuitName` to get
++// the variant string used as the GCS filename and as the SDK circuit name.
++export interface RegisterIdentityCircuitType {
++  signatureType: CircuitSignatureType;
++  passportHashType: CircuitPassportHashType;
++  documentType: CircuitDocumentType;
++  ecChunkNumber: number;
++  ecDigestPosition: number; // bit offset
++  dg1DigestPositionShift: number; // bit offset
++  aaType: CircuitAAType | null;
++}
++
++// Compose the variant name in the iOS-canonical format. Mirrors
++// RegisterIdentityCircuitType.buildName() in Swift.
++//   registerIdentity_<sigId>_<hashBits>_<docId>_<ecChunks>_<ecDigestPos>_<dg1Shift>_<NA | aaId_dg15Shift_dg15Chunks_aaKeyShift>
++export function buildCircuitName(
++  suite: RegisterIdentityCircuitType,
++): string {
++  let name = "registerIdentity";
++  name += `_${suite.signatureType.staticId}`;
++  name += `_${passportHashId(suite.passportHashType)}`;
++  name += `_${documentTypeId(suite.documentType)}`;
++  name += `_${suite.ecChunkNumber}`;
++  name += `_${suite.ecDigestPosition}`;
++  name += `_${suite.dg1DigestPositionShift}`;
++  if (suite.aaType) {
++    name += `_${suite.aaType.aaAlgorithm.staticId}`;
++    name += `_${suite.aaType.dg15DigestPositionShift}`;
++    name += `_${suite.aaType.dg15ChunkNumber}`;
++    name += `_${suite.aaType.aaKeyPositionShift}`;
++  } else {
++    name += "_NA";
++  }
++  return name;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts
+new file mode 100644
+index 0000000..a463a75
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts
+@@ -0,0 +1,103 @@
++// Maps SOD signature-algorithm OIDs to the (CircuitAlgorithm, CircuitHashAlgorithm)
++// pair used to look up a row in SUPPORTED_SIGNATURE_TYPES.
++//
++// Mirrors rarime-ios-app/Rarime/Code/Models/Circuits/SODAlgorithm.swift, but
++// keyed by OID instead of human-readable algo name (Swift's X.509 lib gives
++// names like "ecdsa-with-SHA256"; @peculiar/asn1 gives raw OIDs).
++
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++
++// SOD signature algorithm OIDs (the OID of `signerInfo.signatureAlgorithm`)
++const SHA1_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.5";
++const SHA224_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.14";
++const SHA256_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.11";
++const SHA384_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.12";
++const SHA512_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.13";
++const RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++const RSASSA_PSS = "1.2.840.113549.1.1.10";
++const ECDSA_WITH_SHA1 = "1.2.840.10045.4.1";
++const ECDSA_WITH_SHA224 = "1.2.840.10045.4.3.1";
++const ECDSA_WITH_SHA256 = "1.2.840.10045.4.3.2";
++const ECDSA_WITH_SHA384 = "1.2.840.10045.4.3.3";
++const ECDSA_WITH_SHA512 = "1.2.840.10045.4.3.4";
++
++// Hash algorithm OIDs (used as the `algorithm` of `ldsObject.algorithm` for DG
++// hashes, or as `digestAlgorithm` of signerInfo for signed-attributes digest)
++const ID_SHA1 = "1.3.14.3.2.26";
++const ID_SHA224 = "2.16.840.1.101.3.4.2.4";
++const ID_SHA256 = "2.16.840.1.101.3.4.2.1";
++const ID_SHA384 = "2.16.840.1.101.3.4.2.2";
++const ID_SHA512 = "2.16.840.1.101.3.4.2.3";
++
++export interface SodAlgorithmInfo {
++  circuitSignature: CircuitAlgorithm;
++  circuitHash: CircuitHashAlgorithm;
++}
++
++// Resolve SOD's signerInfo.signatureAlgorithm OID into a (signature, hash) pair.
++// The hash component is what appears in the `_<hashBits>_` slot of the suite
++// name only when the signature OID encodes its own hash (e.g. ecdsa-with-SHA256);
++// for bare RSA / RSA-PSS the hash comes from the cert's signatureAlgorithm
++// instead and the caller has to overlay it.
++export function fromSodSignatureOID(oid: string): SodAlgorithmInfo {
++  switch (oid) {
++    case RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case SHA1_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA160 };
++    case SHA224_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA224 };
++    case SHA256_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case SHA384_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA384 };
++    case SHA512_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA512 };
++    case RSASSA_PSS:
++      // RSA-PSS hash comes from the PSS parameters; iOS defaults to SHA-256
++      // when not set, but real passports always set it. The caller should
++      // overlay the actual hash from the parsed PSS params.
++      return { circuitSignature: CircuitAlgorithm.RSAPSS, circuitHash: CircuitHashAlgorithm.HA256 };
++    case ECDSA_WITH_SHA1:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA160 };
++    case ECDSA_WITH_SHA224:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA224 };
++    case ECDSA_WITH_SHA256:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case ECDSA_WITH_SHA384:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA384 };
++    case ECDSA_WITH_SHA512:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA512 };
++    default:
++      throw new Error(`Unsupported SOD signature OID: ${oid}`);
++  }
++}
++
++// Resolve a hash-algorithm OID (e.g. ldsObject.algorithm.algorithm) to the
++// CircuitHashAlgorithm enum used by the suite. Throws on unknown OIDs.
++export function fromHashOID(oid: string): CircuitHashAlgorithm {
++  switch (oid) {
++    case ID_SHA1: return CircuitHashAlgorithm.HA160;
++    case ID_SHA224: return CircuitHashAlgorithm.HA224;
++    case ID_SHA256: return CircuitHashAlgorithm.HA256;
++    case ID_SHA384: return CircuitHashAlgorithm.HA384;
++    case ID_SHA512: return CircuitHashAlgorithm.HA512;
++    default:
++      throw new Error(`Unsupported hash algorithm OID: ${oid}`);
++  }
++}
++
++// CircuitPassportHashType raw-string variant of fromHashOID. Pads the
++// passportHashType field of the suite (used for SHA-block-size lookups).
++import { CircuitPassportHashType } from "./CircuitSuite";
++export function passportHashTypeFromOID(oid: string): CircuitPassportHashType {
++  switch (oid) {
++    case ID_SHA1: return CircuitPassportHashType.SHA1;
++    case ID_SHA224: return CircuitPassportHashType.SHA224;
++    case ID_SHA256: return CircuitPassportHashType.SHA256;
++    case ID_SHA384: return CircuitPassportHashType.SHA384;
++    case ID_SHA512: return CircuitPassportHashType.SHA512;
++    default:
++      throw new Error(`Unsupported passport hash OID: ${oid}`);
++  }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
+new file mode 100644
+index 0000000..03a9217
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
+@@ -0,0 +1,364 @@
++// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
++// composes into one of the published `registerIdentity_<suite>.json` filenames
++// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
++//
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++//     (the Passport.getRegisterIdentityCircuitType() extension at lines 162-273)
++//
++// The resolver returns null when the passport's signature suite isn't in
++// SUPPORTED_SIGNATURE_TYPES — that's the bail-out signal that Rarimo doesn't
++// have a published heavy-register circuit for this document.
++
++import { Buffer } from "buffer";
++import { sha1 } from "@noble/hashes/sha1";
++import { sha224, sha256 } from "@noble/hashes/sha256";
++import { sha384, sha512 } from "@noble/hashes/sha512";
++import { AsnConvert } from "@peculiar/asn1-schema";
++import { Certificate } from "@peculiar/asn1-x509";
++import { RSAPublicKey, RsaSaPssParams } from "@peculiar/asn1-rsa";
++import { ECParameters } from "@peculiar/asn1-ecc";
++import { id_ecPublicKey } from "@peculiar/asn1-ecc";
++import { CertificateSet } from "@peculiar/asn1-cms";
++
++import {
++  CircuitAlgorithm,
++  CircuitAAType,
++  CircuitDocumentType,
++  CircuitExponent,
++  CircuitHashAlgorithm,
++  CircuitKeySize,
++  CircuitPassportHashType,
++  CircuitSalt,
++  CircuitCurve,
++  CircuitSignatureType,
++  RegisterIdentityCircuitType,
++  passportHashChunkSize,
++} from "./CircuitSuite";
++import {
++  getSupportedSignatureTypeId,
++  getSupportedAATypeId,
++} from "./SupportedCircuits";
++import {
++  fromSodSignatureOID,
++  passportHashTypeFromOID,
++} from "./SODAlgorithm";
++
++// OIDs we discriminate on for the slave-cert publicKey algorithm.
++const ID_RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++
++// Map ECDSA named-curve OIDs to CircuitCurve. Source: RFC 5480 + Brainpool RFC 5639.
++// Mirrors iOS RegisterIdentityCircuitType.getPublicKeyCurve()'s switch table.
++const CURVE_OID_MAP: Record<string, CircuitCurve> = {
++  "1.3.132.0.7": CircuitCurve.SECP160R1,    // secp160r1
++  "1.2.840.10045.3.1.1": CircuitCurve.SECP192R1, // prime192v1 / P-192
++  "1.3.132.0.33": CircuitCurve.SECP224R1,   // secp224r1 / P-224
++  "1.2.840.10045.3.1.7": CircuitCurve.SECP256R1, // prime256v1 / P-256
++  "1.3.132.0.34": CircuitCurve.SECP384R1,   // secp384r1 / P-384
++  "1.3.132.0.35": CircuitCurve.SECP521R1,   // secp521r1 / P-521
++  "1.3.36.3.3.2.8.1.1.1":  CircuitCurve.BRAINPOOLP160R1,
++  "1.3.36.3.3.2.8.1.1.3":  CircuitCurve.BRAINPOOLP192R1,
++  "1.3.36.3.3.2.8.1.1.5":  CircuitCurve.BRAINPOOLP224R1,
++  "1.3.36.3.3.2.8.1.1.7":  CircuitCurve.BRAINPOOLP256R1,
++  "1.3.36.3.3.2.8.1.1.9":  CircuitCurve.BRAINPOOLP320R1,
++  "1.3.36.3.3.2.8.1.1.11": CircuitCurve.BRAINPOOLP384R1,
++  "1.3.36.3.3.2.8.1.1.13": CircuitCurve.BRAINPOOLP512R1,
++};
++
++// Round modulus bit length to the nearest CircuitKeySize bucket. iOS only
++// supports a fixed set; off-spec sizes return null and bubble up as "no row".
++function bitsToCircuitKeySize(bits: number): CircuitKeySize | null {
++  switch (bits) {
++    case 160: return CircuitKeySize.B160;
++    case 192: return CircuitKeySize.B192;
++    case 224: return CircuitKeySize.B224;
++    case 256: return CircuitKeySize.B256;
++    case 320: return CircuitKeySize.B320;
++    case 384: return CircuitKeySize.B384;
++    case 512: return CircuitKeySize.B512;
++    case 521: return CircuitKeySize.B521;
++    case 1024: return CircuitKeySize.B1024;
++    case 2048: return CircuitKeySize.B2048;
++    case 3072: return CircuitKeySize.B3072;
++    case 4096: return CircuitKeySize.B4096;
++    default: return null;
++  }
++}
++
++// Map raw RSA public exponent integer to the closed CircuitExponent set.
++function bigintToCircuitExponent(e: bigint): CircuitExponent | null {
++  switch (e) {
++    case 3n: return CircuitExponent.E3;
++    case 65537n: return CircuitExponent.E65537;
++    case 37187n: return CircuitExponent.E37187;
++    case 58333n: return CircuitExponent.E58333;
++    case 45347n: return CircuitExponent.E45347;
++    case 46271n: return CircuitExponent.E46271;
++    default: return null;
++  }
++}
++
++function saltLengthToCircuitSalt(salt: number): CircuitSalt | null {
++  switch (salt) {
++    case 32: return CircuitSalt.S32;
++    case 48: return CircuitSalt.S48;
++    case 64: return CircuitSalt.S64;
++    default: return null;
++  }
++}
++
++// Pick the document signer cert out of the CMS CertificateSet. SOD usually
++// has exactly one cert (the DSC); we take the first one with a `.certificate`
++// field. Returns null if none.
++export function pickSlaveCertificate(certificates: CertificateSet): Certificate | null {
++  for (const choice of certificates) {
++    if (choice.certificate) return choice.certificate;
++  }
++  return null;
++}
++
++// Extract (algorithm, keySize, exponent, salt, curve) from the slave cert's
++// public key + signature algorithm. The hash component is overlaid by the
++// caller (it comes from the SOD's signing OID, not the cert's pubkey info).
++export function extractSignatureSuiteFromCert(cert: Certificate): {
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize | null;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++} {
++  const spkAlgoOid = cert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm;
++  const sigAlgoOid = cert.signatureAlgorithm.algorithm;
++
++  // RSA family — the cert's signatureAlgorithm OID encodes RSA vs RSA-PSS.
++  // Note: iOS treats all of {rsaEncryption, sha*WithRSAEncryption} as RSA;
++  // RSA-PSS is only when sigAlgoOid === "1.2.840.113549.1.1.10".
++  if (spkAlgoOid === ID_RSA_ENCRYPTION) {
++    const rsaPub = AsnConvert.parse(
++      cert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey,
++      RSAPublicKey,
++    );
++    const modulusBytes = new Uint8Array(rsaPub.modulus);
++    // Strip leading zero (ASN.1 INTEGER sign byte) before measuring bit length.
++    const stripped = modulusBytes[0] === 0x00 ? modulusBytes.subarray(1) : modulusBytes;
++    const bitLen = stripped.length * 8;
++    const exponent = BigInt("0x" + Buffer.from(rsaPub.publicExponent).toString("hex"));
++
++    let algorithm = CircuitAlgorithm.RSA;
++    let salt: CircuitSalt | null = null;
++
++    if (sigAlgoOid === "1.2.840.113549.1.1.10") {
++      algorithm = CircuitAlgorithm.RSAPSS;
++      // Salt length lives in the cert's signatureAlgorithm.parameters.
++      if (cert.signatureAlgorithm.parameters) {
++        try {
++          const pssParams = AsnConvert.parse(
++            cert.signatureAlgorithm.parameters,
++            RsaSaPssParams,
++          );
++          salt = saltLengthToCircuitSalt(pssParams.saltLength);
++        } catch (_) {
++          // Defaults: PKCS#1 v2.1 says missing salt = 20, but no published
++          // variant uses 20-byte salt; treat as unknown.
++          salt = null;
++        }
++      }
++    }
++
++    return {
++      algorithm,
++      keySize: bitsToCircuitKeySize(bitLen),
++      exponent: bigintToCircuitExponent(exponent),
++      salt,
++      curve: null,
++    };
++  }
++
++  // ECDSA — public key algorithm is id-ecPublicKey; named curve in parameters.
++  if (spkAlgoOid === id_ecPublicKey) {
++    if (!cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
++      throw new Error("ECDSA public key has no parameters");
++    }
++    const ecParams = AsnConvert.parse(
++      cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
++      ECParameters,
++    );
++    const curveOid = ecParams.namedCurve ?? null;
++    const curve = curveOid ? CURVE_OID_MAP[curveOid] ?? null : null;
++
++    // Key size in bits derived from the named curve's field size.
++    let keySize: CircuitKeySize | null = null;
++    switch (curve) {
++      case CircuitCurve.SECP160R1:
++      case CircuitCurve.BRAINPOOLP160R1:
++        keySize = CircuitKeySize.B160; break;
++      case CircuitCurve.SECP192R1:
++      case CircuitCurve.BRAINPOOLP192R1:
++        keySize = CircuitKeySize.B192; break;
++      case CircuitCurve.SECP224R1:
++      case CircuitCurve.BRAINPOOLP224R1:
++        keySize = CircuitKeySize.B224; break;
++      case CircuitCurve.SECP256R1:
++      case CircuitCurve.BRAINPOOLP256R1:
++        keySize = CircuitKeySize.B256; break;
++      case CircuitCurve.BRAINPOOLP320R1:
++        keySize = CircuitKeySize.B320; break;
++      case CircuitCurve.SECP384R1:
++      case CircuitCurve.BRAINPOOLP384R1:
++        keySize = CircuitKeySize.B384; break;
++      case CircuitCurve.BRAINPOOLP512R1:
++        keySize = CircuitKeySize.B512; break;
++      case CircuitCurve.SECP521R1:
++        keySize = CircuitKeySize.B521; break;
++    }
++
++    return {
++      algorithm: CircuitAlgorithm.ECDSA,
++      keySize,
++      exponent: null,
++      salt: null,
++      curve,
++    };
++  }
++
++  throw new Error(`Unsupported public key OID: ${spkAlgoOid}`);
++}
++
++// Find a contiguous Uint8Array within another. Returns -1 if not found.
++// Used to locate DG1 hash inside encapsulatedContent and EC hash inside
++// signedAttributes — those byte offsets become the dg1DigestPositionShift
++// and ecDigestPosition fields of the suite (× 8 for bit-units).
++export function findSubarrayIndex(haystack: Uint8Array, needle: Uint8Array): number {
++  if (needle.length === 0) return 0;
++  outer: for (let i = 0; i <= haystack.length - needle.length; i++) {
++    for (let j = 0; j < needle.length; j++) {
++      if (haystack[i + j] !== needle[j]) continue outer;
++    }
++    return i;
++  }
++  return -1;
++}
++
++// Number of SHA chunks needed to hash `len` bytes (including the SHA padding
++// byte 0x80 + 64-bit length suffix). Mirrors iOS getChunkNumber():
++//   length = byteLen*8 + 1 + 64
++//   chunks = ceil(length / chunkSize)
++export function getChunkNumber(byteLen: number, chunkSizeBits: number): number {
++  const lengthBits = byteLen * 8 + 1 + 64;
++  return Math.ceil(lengthBits / chunkSizeBits);
++}
++
++// Compute hash bytes for a CircuitPassportHashType. Used to find DG1 / DG15
++// hashes inside the encapsulated content.
++export function hashWith(algo: CircuitPassportHashType, data: Uint8Array): Uint8Array {
++  switch (algo) {
++    case CircuitPassportHashType.SHA1: return sha1(data);
++    case CircuitPassportHashType.SHA224: return sha224(data);
++    case CircuitPassportHashType.SHA256: return sha256(data);
++    case CircuitPassportHashType.SHA384: return sha384(data);
++    case CircuitPassportHashType.SHA512: return sha512(data);
++  }
++}
++
++// The complete resolver. Given the parsed components, produces a fully-named
++// suite or returns null with a reason if the passport isn't supported.
++//
++// Inputs the caller must extract from the SOD using existing SDK methods:
++//   - slaveCert            : pickSlaveCertificate(passport.getCertificate())
++//   - sodSignatureOid      : passport.getSignatureAlgorithm()
++//   - dgHashOid            : passport.extractDGHashAlgo()
++//   - encapsulatedContent  : passport.extractEncapsulatedContent()
++//   - signedAttributes     : passport.extractSignedAttributes()
++//   - dg1                  : passport.dataGroup1
++//   - dg15                 : passport.dataGroup15 (or undefined)
++//
++// Note on AA: Active-Authentication suite resolution is more involved (DG15
++// pubkey type depends on the AA algorithm). For Phase A.1 we resolve only the
++// non-AA path; passports with DG15 will return null until Phase A.3.
++export function resolveCircuitSuite(args: {
++  slaveCert: Certificate;
++  sodSignatureOid: string;
++  dgHashOid: string;
++  encapsulatedContent: Uint8Array;
++  signedAttributes: Uint8Array;
++  dg1: Uint8Array;
++  dg15?: Uint8Array;
++  ecHash: Uint8Array; // already-computed digest of signedAttributes' MessageDigest signed attr
++}): { suite: RegisterIdentityCircuitType; signatureTypeId: number } | { error: string } {
++  // 1) Hash algorithm used for DG hashes (passport hash type)
++  const passportHashType = passportHashTypeFromOID(args.dgHashOid);
++
++  // 2) Signature algorithm + cert pubkey details
++  const sodSig = fromSodSignatureOID(args.sodSignatureOid);
++  const certPubkey = extractSignatureSuiteFromCert(args.slaveCert);
++
++  // Reconcile algorithm — sodSig.circuitSignature should match certPubkey.algorithm.
++  if (sodSig.circuitSignature !== certPubkey.algorithm) {
++    return { error: `algorithm mismatch: sod=${sodSig.circuitSignature}, cert=${certPubkey.algorithm}` };
++  }
++  if (certPubkey.keySize === null) {
++    return { error: "cert key size not in supported set" };
++  }
++
++  // For RSA/ECDSA the hash comes from the SOD signing OID; for RSA-PSS it
++  // comes from the PSS params (which we don't fully parse yet — overlay later).
++  const hashAlgorithm = sodSig.circuitHash;
++
++  const candidate: Omit<CircuitSignatureType, "staticId"> = {
++    algorithm: certPubkey.algorithm,
++    keySize: certPubkey.keySize,
++    exponent: certPubkey.exponent,
++    salt: certPubkey.salt,
++    curve: certPubkey.curve,
++    hashAlgorithm,
++  };
++  const signatureTypeId = getSupportedSignatureTypeId(candidate);
++  if (signatureTypeId === null) {
++    return { error: `no supported signature type row matches: ${JSON.stringify(candidate)}` };
++  }
++
++  // 3) Document type — TD1 = 95-byte DG1, TD3 = 93-byte DG1
++  let documentType: CircuitDocumentType;
++  if (args.dg1.length === 95) documentType = CircuitDocumentType.TD1;
++  else if (args.dg1.length === 93) documentType = CircuitDocumentType.TD3;
++  else return { error: `unsupported DG1 length: ${args.dg1.length}` };
++
++  // 4) ec chunk number = SHA-padded chunk count of encapsulatedContent
++  const ecChunkNumber = getChunkNumber(
++    args.encapsulatedContent.length,
++    passportHashChunkSize(passportHashType),
++  );
++
++  // 5) ecDigestPosition = bit offset of the EC hash inside signedAttributes
++  const ecHashByteOffset = findSubarrayIndex(args.signedAttributes, args.ecHash);
++  if (ecHashByteOffset < 0) {
++    return { error: "EC hash not found inside signedAttributes" };
++  }
++  const ecDigestPosition = ecHashByteOffset * 8;
++
++  // 6) dg1DigestPositionShift = bit offset of DG1 hash inside encapsulatedContent
++  const dg1Hash = hashWith(passportHashType, args.dg1);
++  const dg1HashByteOffset = findSubarrayIndex(args.encapsulatedContent, dg1Hash);
++  if (dg1HashByteOffset < 0) {
++    return { error: "DG1 hash not found inside encapsulatedContent" };
++  }
++  const dg1DigestPositionShift = dg1HashByteOffset * 8;
++
++  // 7) AA — only if DG15 present. Punted to Phase A.3; for now treat as no AA.
++  const aaType: CircuitAAType | null = args.dg15 && args.dg15.length > 0
++    ? null  // TODO Phase A.3: parse DG15 SPKI, build AA suite
++    : null;
++
++  return {
++    suite: {
++      signatureType: { ...candidate, staticId: signatureTypeId },
++      passportHashType,
++      documentType,
++      ecChunkNumber,
++      ecDigestPosition,
++      dg1DigestPositionShift,
++      aaType,
++    },
++    signatureTypeId,
++  };
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts
+new file mode 100644
+index 0000000..e488cc5
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts
+@@ -0,0 +1,102 @@
++// Static lookup tables for the Rarimo registerIdentity circuit family.
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitSignatureType.swift
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitAAType.swift
++//
++// Adding a new row here only matters if Rarimo publishes a new Noir circuit
++// for that signature suite — until then, these IDs aren't valid filename
++// components.
++
++import {
++  CircuitAlgorithm,
++  CircuitKeySize,
++  CircuitExponent,
++  CircuitSalt,
++  CircuitCurve,
++  CircuitHashAlgorithm,
++  CircuitSignatureType,
++  CircuitAAAlgorithm,
++} from "./CircuitSuite";
++
++// 28 entries: 8 RSA + 6 RSA-PSS + 14 ECDSA. The numbering is owned by Rarimo
++// and shows up in every registerIdentity_<id>_... filename.
++export const SUPPORTED_SIGNATURE_TYPES: CircuitSignatureType[] = [
++  // ── RSA (PKCS#1 v1.5) ──────────────────────────────────────────────────
++  { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 2, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B4096, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 3, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 4, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E37187, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 5, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 6, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E58333, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 7, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E45347, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 8, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E46271, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++
++  // ── RSA-PSS ────────────────────────────────────────────────────────────
++  { staticId: 10, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E3,     salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 11, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 12, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 13, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S48, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++  { staticId: 14, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 15, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++
++  // ── ECDSA ──────────────────────────────────────────────────────────────
++  { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.SECP256R1,        hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1,  hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B320, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1,  hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B192, exponent: null, salt: null, curve: CircuitCurve.SECP192R1,        hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B224, exponent: null, salt: null, curve: CircuitCurve.SECP224R1,        hashAlgorithm: CircuitHashAlgorithm.HA224 },
++  { staticId: 25, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP384R1,  hashAlgorithm: CircuitHashAlgorithm.HA384 },
++  { staticId: 26, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B512, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP512R1,  hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 27, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B521, exponent: null, salt: null, curve: CircuitCurve.SECP521R1,        hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 28, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.SECP384R1,        hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++
++// Lookup the staticId for a given (algo, keySize, exponent, salt, curve, hashAlgo)
++// tuple. Returns null if no row matches — that means the passport's signature
++// suite isn't supported by Rarimo's published heavy-register circuits.
++export function getSupportedSignatureTypeId(
++  candidate: Omit<CircuitSignatureType, "staticId">,
++): number | null {
++  const match = SUPPORTED_SIGNATURE_TYPES.find(
++    (row) =>
++      row.algorithm === candidate.algorithm &&
++      row.keySize === candidate.keySize &&
++      row.exponent === candidate.exponent &&
++      row.salt === candidate.salt &&
++      row.curve === candidate.curve &&
++      row.hashAlgorithm === candidate.hashAlgorithm,
++  );
++  return match ? match.staticId : null;
++}
++
++// 5 entries (1 RSA + 4 ECDSA) for Active Authentication algorithms. Used only
++// when the passport has a non-empty DG15.
++export const SUPPORTED_AA_TYPES: CircuitAAAlgorithm[] = [
++  // RSA fallback
++  { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B1024, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: null },
++
++  // ECDSA AA variants
++  { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP256R1,       hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP192R1,       hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP384R1,       hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++
++// Match an AA row by (algorithm, hashAlgorithm, curve). Mirrors the iOS
++// SupportRegisterIdentityCircuitAAType.getSupportedSignatureTypeId logic,
++// including its RSA fallback to staticId=1 when no other row matches.
++export function getSupportedAATypeId(
++  candidate: Pick<CircuitAAAlgorithm, "algorithm" | "hashAlgorithm" | "curve">,
++): number | null {
++  const match = SUPPORTED_AA_TYPES.find(
++    (row) =>
++      row.algorithm === candidate.algorithm &&
++      row.hashAlgorithm === candidate.hashAlgorithm &&
++      row.curve === candidate.curve,
++  );
++  if (match) return match.staticId;
++  // iOS fallback: any RSA AA without an exact row defaults to staticId=1.
++  if (candidate.algorithm === CircuitAlgorithm.RSA) return 1;
++  return null;
++}
