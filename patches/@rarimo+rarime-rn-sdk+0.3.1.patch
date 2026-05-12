@@ -61,7 +61,7 @@ index 9655e7b..6940a23 100644
      getPassportInfo(passport: RarimePassport): Promise<[
          StateKeeper.PassportInfoStructOutput,
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
-index fd0ba76..2dea7f0 100644
+index fd0ba76..e7df514 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 @@ -11,8 +11,19 @@ import { toPaddedHex32, wrapPem } from "./utils";
@@ -218,13 +218,50 @@ index fd0ba76..2dea7f0 100644
              sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
          };
          return circuit.prove(JSON.stringify(inputs), byteCode);
-@@ -219,7 +216,9 @@ export class Rarime {
+@@ -187,7 +184,11 @@ export class Rarime {
+         const verifySodRequest = {
+             data: {
+                 id: "",
+-                type_field: "register",
++                // JSON:API standard field name is "type". The SDK originally shipped
++                // "type_field" which /registerid accepts leniently but /register
++                // (foreign passport) rejects with a generic 400. Matches the
++                // official rarime-android-app schema (LightRegistration.kt).
++                type: "register",
+                 attributes: {
+                     document_sod: {
+                         hash_algorithm: HashAlgorithm.fromOID(passport.extractDGHashAlgo()).toString(),
+@@ -210,8 +211,21 @@ export class Rarime {
+                 },
+             },
+         };
+-        const verifySodResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl +
+-            "/integrations/incognito-light-registrator/v1/registerid", {
++        // TD1 ID-card → /registerid; TD3 passport → /register. Same body shape,
++        // dispatched to different on-chain verifiers (DG1=95 vs DG1=93 VK).
++        const isTD3 = passport.dataGroup1.length === 93;
++        const verifySodPath = isTD3
++            ? "/integrations/incognito-light-registrator/v1/register"
++            : "/integrations/incognito-light-registrator/v1/registerid";
++        // [DEBUG] Emit a ready-to-run curl for Lasha to replay the failing
++        // request server-side. Remove once /register accepts our body shape.
++        const _replayUrl = this.config.apiConfiguration.rarimeApiUrl + verifySodPath;
++        const _replayBody = JSON.stringify(verifySodRequest);
++        console.log('[SDK][DBG] === REPLAY COMMAND (copy block below to Lasha) ===');
++        console.log('[SDK][DBG] pubSignals:', JSON.stringify(proof.pub_signals));
++        console.log("[SDK][DBG] curl -X POST '" + _replayUrl + "' -H 'Content-Type: application/json' -d '" + _replayBody + "'");
++        console.log('[SDK][DBG] === END ===');
++        const verifySodResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl + verifySodPath, {
+             method: "POST",
+             headers: {
+                 "Content-Type": "application/json",
+@@ -219,7 +233,9 @@ export class Rarime {
              body: JSON.stringify(verifySodRequest),
          });
          if (!verifySodResponse.ok) {
 -            throw new Error(`HTTP error ${verifySodResponse.status}`);
 +            const errBody = await verifySodResponse.text().catch(() => "(unreadable)");
-+            console.error(`[SDK] verifySodRequest failed: ${verifySodResponse.status} ${verifySodResponse.statusText}\nURL: ${this.config.apiConfiguration.rarimeApiUrl}/integrations/incognito-light-registrator/v1/registerid\nDocument SOD: hash=${verifySodRequest.data.attributes.document_sod.hash_algorithm} sig=${verifySodRequest.data.attributes.document_sod.signature_algorithm} dg15Len=${verifySodRequest.data.attributes.document_sod.dg15.length} sodLen=${verifySodRequest.data.attributes.document_sod.sod.length}\nResponse: ${errBody}`);
++            console.error(`[SDK] verifySodRequest failed: ${verifySodResponse.status} ${verifySodResponse.statusText}\nURL: ${this.config.apiConfiguration.rarimeApiUrl}${verifySodPath}\nDocument SOD: hash=${verifySodRequest.data.attributes.document_sod.hash_algorithm} sig=${verifySodRequest.data.attributes.document_sod.signature_algorithm} dg15Len=${verifySodRequest.data.attributes.document_sod.dg15.length} sodLen=${verifySodRequest.data.attributes.document_sod.sod.length}\nResponse: ${errBody}`);
 +            throw new Error(`HTTP error ${verifySodResponse.status}: ${errBody}`);
          }
          return verifySodResponse;
