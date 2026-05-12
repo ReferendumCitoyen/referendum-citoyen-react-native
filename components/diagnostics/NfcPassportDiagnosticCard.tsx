@@ -329,7 +329,7 @@ type Strategy = {
 
 const PRODUCTION_STRATEGY: Strategy = {
   id: 'mrz_bac',
-  label: 'BAC + MRZ (flux production)',
+  label: 'Scanner le passeport',
   desc: 'skipPACE=true + MRZ — identique à nfc-scan-modal et passport-test',
   type: 'P',
   needs: ['mrz'],
@@ -397,6 +397,7 @@ export function NfcPassportDiagnosticCard() {
   // Per-strategy toggle for the technical-details (CircuitSuiteProbe) panel.
   // Defaults closed; users opt in when they want to see SOD/cert/circuit details.
   const [showProbe, setShowProbe] = React.useState<Record<string, boolean>>({});
+  const [showDetails, setShowDetails] = React.useState<Record<string, boolean>>({});
 
   // Fullscreen photo viewer
   const [fullscreenPhoto, setFullscreenPhoto] = React.useState<string | null>(null);
@@ -641,7 +642,6 @@ export function NfcPassportDiagnosticCard() {
             <Text style={styles.strategyButtonText}>{s.label}</Text>
           )}
         </TouchableOpacity>
-        <Text style={styles.strategyDesc}>{s.desc}</Text>
         {res != null && !res.success && (
           <View style={[styles.strategyResult, { borderLeftColor: '#EF4444' }]}>
             <Text style={[styles.strategyResultText, { color: '#EF4444' }]}>
@@ -651,7 +651,7 @@ export function NfcPassportDiagnosticCard() {
         )}
         {res != null && res.success && (
           <View style={styles.richResult}>
-            {/* Photo + identity side by side */}
+            {/* Primary: photo + DG1 confirmation */}
             <View style={styles.richRow}>
               {res.photoB64 ? (
                 <TouchableOpacity
@@ -665,9 +665,26 @@ export function NfcPassportDiagnosticCard() {
                   <Text style={styles.photoHint}>tap to enlarge</Text>
                 </TouchableOpacity>
               ) : null}
-              <View style={styles.richFields}>
+              {res.dg1Size > 0 && (
+                <View style={styles.dg1Badge}>
+                  <Text style={styles.dg1BadgeText}>✓ Passeport lu</Text>
+                </View>
+              )}
+            </View>
+            {/* Details — shown by default, user can collapse */}
+            <TouchableOpacity
+              style={styles.probeToggle}
+              onPress={() => setShowDetails(d => ({ ...d, [s.id]: d[s.id] !== false ? false : true }))}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.probeToggleText}>
+                {showDetails[s.id] !== false ? '▼ Masquer les détails' : '▶ Voir les détails'}
+              </Text>
+            </TouchableOpacity>
+            {showDetails[s.id] !== false && (
+              <>
                 {res.mrz ? (
-                  <>
+                  <View style={styles.richFields}>
                     <Text style={styles.richName}>
                       {[res.mrz.firstName, res.mrz.lastName].filter(Boolean).join(' ') || res.name}
                     </Text>
@@ -677,41 +694,21 @@ export function NfcPassportDiagnosticCard() {
                     <Text style={styles.richField}>⏳ Expires {fmtMRZDate(res.mrz.expiry)}</Text>
                     <Text style={styles.richField}>⚥ {fmtGender(res.mrz.gender)}</Text>
                     <Text style={styles.richField}>🏛 Issued by {countryName(res.mrz.issuingCountry)}</Text>
-                  </>
+                  </View>
                 ) : (
                   <Text style={styles.richName}>{res.name}</Text>
                 )}
-              </View>
-            </View>
-            {/* Extra identity fields */}
-            {(res.placeOfBirth || res.personalNumber || res.issuingAuthority || res.dateOfIssue) && (
-              <View style={styles.chipInfo}>
-                <Text style={styles.chipInfoTitle}>Document details</Text>
-                {res.placeOfBirth ? <Text style={styles.chipInfoRow}>🏙 Born in: {res.placeOfBirth}</Text> : null}
-                {res.personalNumber ? <Text style={styles.chipInfoRow}>🔢 Personal №: {res.personalNumber}</Text> : null}
-                {res.issuingAuthority ? <Text style={styles.chipInfoRow}>🏛 Issued by: {res.issuingAuthority}</Text> : null}
-                {res.dateOfIssue ? <Text style={styles.chipInfoRow}>📅 Date of issue: {fmtISODate(res.dateOfIssue)}</Text> : null}
-              </View>
+                {(res.placeOfBirth || res.personalNumber || res.issuingAuthority || res.dateOfIssue) && (
+                  <View style={styles.chipInfo}>
+                    <Text style={styles.chipInfoTitle}>Document details</Text>
+                    {res.placeOfBirth ? <Text style={styles.chipInfoRow}>🏙 Born in: {res.placeOfBirth}</Text> : null}
+                    {res.personalNumber ? <Text style={styles.chipInfoRow}>🔢 Personal №: {res.personalNumber}</Text> : null}
+                    {res.issuingAuthority ? <Text style={styles.chipInfoRow}>🏛 Issued by: {res.issuingAuthority}</Text> : null}
+                    {res.dateOfIssue ? <Text style={styles.chipInfoRow}>📅 Date of issue: {fmtISODate(res.dateOfIssue)}</Text> : null}
+                  </View>
+                )}
+              </>
             )}
-            {/* Chip info */}
-            <View style={styles.chipInfo}>
-              <Text style={styles.chipInfoTitle}>Chip data</Text>
-              {res.dgHashList.length > 0 && (
-                <Text style={styles.chipInfoRow}>
-                  📦 DGs on chip: {res.dgHashList.map(n => `DG${n}`).join(' · ')}
-                </Text>
-              )}
-              {res.dscSigAlgo && <Text style={styles.chipInfoRow}>🔏 DSC signed with: {res.dscSigAlgo}</Text>}
-              <Text style={styles.chipInfoRow}>DG1 (MRZ) · {res.dg1Size} bytes</Text>
-              <Text style={styles.chipInfoRow}>SOD · {res.sodSize} bytes</Text>
-              {res.dg11Size > 0 && <Text style={styles.chipInfoRow}>DG11 (supplementary) · {res.dg11Size} bytes</Text>}
-              {res.dg12Size > 0 && <Text style={styles.chipInfoRow}>DG12 (doc details) · {res.dg12Size} bytes</Text>}
-              {res.dg14Size > 0 && <Text style={styles.chipInfoRow}>DG14 (chip auth) · {res.dg14Size} bytes</Text>}
-              {res.dg15Size > 0 && <Text style={styles.chipInfoRow}>DG15 (AA key) · {res.dg15Size} bytes</Text>}
-              <Text style={[styles.chipInfoRow, { color: res.aaPresent ? '#10B981' : colors.textSecondary }]}>
-                {res.aaPresent ? '✓ Active Authentication (clone-proof)' : '— No Active Authentication'}
-              </Text>
-            </View>
             {/* Circuit-suite probe (read-only inspection of SOD + DG15 + DSC).
                 Default-collapsed so the normal diagnostic UX stays clean. */}
             <TouchableOpacity
@@ -766,10 +763,10 @@ export function NfcPassportDiagnosticCard() {
       </Modal>
 
       {/* ── Detection ── */}
-      <Text style={styles.cardTitle}>Détection NFC Passeport</Text>
+      <Text style={styles.cardTitle}>Détecter votre passeport</Text>
       <Text style={styles.helpText}>
-        Polling iso14443 sans PACE pour les passeports (Type B). Bougez
-        lentement — jusqu'à 30 secondes.
+        Vérifiez que votre téléphone détecte bien la puce NFC de votre passeport.
+        Déplacez-le lentement — jusqu'à 30 secondes.
       </Text>
       <View style={styles.positionHint}>
         <Text style={styles.positionHintText}>
@@ -802,57 +799,18 @@ export function NfcPassportDiagnosticCard() {
       {detection && (
         <View style={styles.results}>
           <View style={styles.resultRow}>
-            <Text style={styles.resultLabel}>Tag detecte:</Text>
+            <Text style={styles.resultLabel}>Puce détectée :</Text>
             <Text style={[styles.resultValue, { color: detection.tagDetected ? '#10B981' : '#EF4444' }]}>
-              {detection.tagDetected ? 'OUI' : 'NON'}
+              {detection.tagDetected ? 'OUI ✓' : 'NON ✗'}
             </Text>
           </View>
-          {detection.tags?.map((tag: any, idx: number) => (
-            <View key={idx}>
-              {tag.identifier && (
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>UID:</Text>
-                  <Text style={styles.resultValue}>{tag.identifier}</Text>
-                </View>
-              )}
-              {tag.historicalBytes && (
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>Hist. bytes:</Text>
-                  <Text style={styles.resultValue}>{tag.historicalBytes}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-          {detection.aidProbeResults?.length > 0 && (
-            <>
-              <Text style={styles.sectionSubtitle}>SELECT AID:</Text>
-              {detection.aidProbeResults.map((probe: any, idx: number) => (
-                <View style={styles.resultRow} key={idx}>
-                  <Text style={styles.resultLabel}>{probe.name.split('(')[0].trim()}:</Text>
-                  <Text style={[styles.resultValue, { color: probe.success ? '#10B981' : '#EF4444' }]}>
-                    {probe.success ? 'OK' : 'FAIL'} (SW={probe.sw})
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
         </View>
       )}
 
-      {/* ── Scan limitation banner ── */}
-      <View style={styles.warningBanner}>
-        <Text style={styles.warningText}>
-          Les boutons de scan ne détectent pas encore les passeports (Type B) —
-          le lecteur NFC utilise le polling PACE qui bloque les passeports.
-          Un nouveau build est nécessaire pour corriger cela.
-          La détection ci-dessus fonctionne.
-        </Text>
-      </View>
-
-      {/* ── Inputs (no CAN — passports don't use it) ── */}
-      <Text style={styles.sectionTitle}>Scan PassportReader</Text>
+      {/* ── Inputs ── */}
+      <Text style={styles.sectionTitle}>Scanner votre passeport</Text>
       <Text style={styles.helpText}>
-        N° passeport + dates depuis la zone MRZ (page 2 du passeport). Pas de CAN.
+        Scannez d'abord le MRZ (les deux lignes en bas de la page photo), puis approchez la puce.
       </Text>
 
       {/* MRZ camera scanner */}
@@ -899,7 +857,7 @@ export function NfcPassportDiagnosticCard() {
 
       <View style={styles.inputRow}>
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>N° passeport (MRZ, 9 chars)</Text>
+          <Text style={styles.inputLabel}>Numéro du passeport</Text>
           <TextInput
             style={styles.textInput}
             value={docNumber}
@@ -940,11 +898,6 @@ export function NfcPassportDiagnosticCard() {
         </View>
       </View>
 
-      {/* ── Production ── */}
-      <View style={styles.groupHeader}>
-        <Text style={styles.groupHeaderText}>Flux production</Text>
-        <Text style={styles.groupHeaderHint}>N° passeport + naissance + expiration</Text>
-      </View>
       {renderStrategy(PRODUCTION_STRATEGY)}
 
     </View>
@@ -1264,6 +1217,16 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.textSecondary,
       textAlign: 'center',
       marginTop: 2,
+    },
+    dg1Badge: {
+      flex: 1,
+      justifyContent: 'center',
+      paddingLeft: 12,
+    },
+    dg1BadgeText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 18,
+      color: '#10B981',
     },
     photoModalBg: {
       flex: 1,
