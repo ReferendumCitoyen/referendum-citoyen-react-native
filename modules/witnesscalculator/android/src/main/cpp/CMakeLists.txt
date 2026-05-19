@@ -18,6 +18,14 @@ project(witnesscalc_queryIdentity_jni)
 
 set(CMAKE_CXX_STANDARD 14)
 
+# 16 KB page size support for Android 15+ devices (Pixel 8+, GrapheneOS).
+# Without this flag NDK r27's linker emits ELFs with 4 KB LOAD-segment
+# alignment (0x1000), which 16 KB-paged kernels refuse to load — the app
+# crashes at System.loadLibrary time. NDK r28 will make 16 KB the default;
+# until then we set it explicitly.
+# See: https://developer.android.com/guide/practices/page-sizes
+add_link_options("-Wl,-z,max-page-size=16384")
+
 # ANDROID_ABI is set by the Android Gradle Plugin per-architecture
 # (arm64-v8a, armeabi-v7a, x86_64, x86). The jniLibs/ directory layout that
 # bundles the prebuilt .so already matches this — we just point at it.
