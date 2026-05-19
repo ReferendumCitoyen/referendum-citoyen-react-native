@@ -1,0 +1,51 @@
+name: PR Validate
+
+# Required status check on PRs targeting `develop`. Runs the same checks
+# CONTRIBUTING.md asks contributors to run locally before opening a PR,
+# so drift gets caught at PR time rather than in a maintainer's review.
+#
+# Note: `tsc --noEmit` is intentionally NOT gated here. The repo currently
+# has pre-existing type errors in QA/diagnostic screens and exported
+# reference folders that block a clean tsc run. Add a separate workflow
+# (or extend this one) once those are cleaned up.
+
+on:
+  pull_request:
+    branches: [develop]
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install JS dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install JS dependencies
+        run: npm ci
+      - name: Jest
+        run: npm test -- --ci
