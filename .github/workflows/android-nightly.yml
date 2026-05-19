@@ -83,6 +83,11 @@ jobs:
           EXPO_NO_CAPABILITY_SYNC: '1'
         run: npx expo prebuild --platform android --clean --no-install
 
+      - name: Bump Gradle JVM heap for D8 dex-merge
+        # D8 OOMs on this repo's combined Noir + Groth16 + RN/Hermes class
+        # graph with the Expo default. Patches `android/gradle.properties`.
+        run: node scripts/ci/inject-android-gradle-tuning.mjs
+
       - name: Grant gradlew execute perms
         run: chmod +x android/gradlew
 
