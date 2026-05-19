@@ -1,25 +1,25 @@
 /**
- * Expo config plugin: inject flatDir entries into android/build.gradle for the
- * three native modules that ship local AARs but aren't on Maven.
+ * Expo config plugin: inject a flatDir entry into android/build.gradle for
+ * the witnesscalculator module's local AAR (RmoCalcs.aar), which isn't
+ * published to Maven.
  *
  * The Rarime SDK already publishes its own withAndroidFlatDir plugin for
- * @rarimo/rarime-rn-sdk's libs/. This plugin does the same for our ported
- * Groth16 stack — without it, Gradle can't resolve `:RmoCalcs:` or
- * `:rapidsnark:` AAR references and the build fails with
- * "Could not find :RmoCalcs:".
+ * @rarimo/rarime-rn-sdk's libs/. This plugin does the same for the cpp
+ * witnesscalc binaries we ship locally — without it, Gradle can't resolve
+ * `:RmoCalcs:` and the build fails with "Could not find :RmoCalcs:".
  *
- * Why three modules:
- *   - modules/rapidsnark-wrp  — Groth16 prover bindings (libs/rapidsnark.aar)
- *   - modules/witnesscalculator — cpp witnesscalc binaries (libs/RmoCalcs.aar)
+ * Used by the Mainnet vote flow (Groth16 query proof). Registration uses
+ * the Rarime SDK's own Noir module which has its own plugin.
  *
- * Used by the Mainnet vote flow (Groth16 query proof). Registration uses the
- * Rarime SDK's own Noir module which has its own plugin.
+ * Note: rapidsnark-wrp previously also needed a flatDir here, but its
+ * module build.gradle now pulls `io.iden3:rapidsnark` from Maven Central —
+ * the old `modules/rapidsnark-wrp/android/libs/` entry was dropped to
+ * silence a flatDir warning.
  */
 
 const { withProjectBuildGradle } = require('@expo/config-plugins');
 
 const DIRS = [
-  'modules/rapidsnark-wrp/android/libs',
   'modules/witnesscalculator/android/libs',
 ];
 
