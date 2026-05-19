@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["RapidsnarkWrpModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.rapidsnarkwrp.RapidsnarkWrpModule"]
+  }
+}

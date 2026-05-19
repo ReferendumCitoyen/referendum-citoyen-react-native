@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking, Alert } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { LEGAL_URLS } from '@/constants/urls';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
@@ -28,6 +29,25 @@ export default function ParametresScreen() {
   const styles = createStyles(colors);
   const darkModeEnabled = theme === 'dark';
   const { devMode, setDevMode, handleVersionTap } = useDevMode();
+  const { network, setNetwork } = useNetwork();
+
+  // Switching to Mainnet writes real on-chain state via the registration
+  // relayer. Confirm before flipping. Switching *back* to testnet is free —
+  // no confirmation needed.
+  const handleNetworkToggle = (toMainnet: boolean) => {
+    if (!toMainnet) {
+      setNetwork('testnet');
+      return;
+    }
+    Alert.alert(
+      'Activer le réseau Mainnet ?',
+      "Mainnet enregistre votre identité et votre vote de manière permanente sur Rarimo Mainnet (chain 7368). À n'utiliser qu'en connaissance de cause.",
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Continuer', style: 'destructive', onPress: () => setNetwork('mainnet') },
+      ],
+    );
+  };
 
   return (
     <View style={styles.screenContainer}>
@@ -97,6 +117,35 @@ export default function ParametresScreen() {
                 <Text style={[styles.settingValue, { color: colors.secondary }]}>Hide Dev Tools</Text>
               </TouchableOpacity>
 
+              {/* Network selector (Mainnet / Testnet)
+                  Visible only in dev mode. Mainnet writes real on-chain
+                  state — see NetworkContext.tsx and the Alert in
+                  handleNetworkToggle. Switching here propagates to the
+                  voting flow on its next mount; existing in-memory Rarime
+                  instances are not hot-swapped, the voting flow re-creates
+                  them on entry. */}
+              <View style={styles.settingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingLabel}>Réseau</Text>
+                  <Text style={{
+                    fontFamily: Typography.fontFamily.medium,
+                    fontSize: Typography.fontSize.small,
+                    color: colors.text,
+                    opacity: 0.6,
+                    marginTop: 2,
+                  }}>
+                    {network === 'mainnet' ? 'Mainnet — chain 7368' : 'Testnet — chain 7369'}
+                  </Text>
+                </View>
+                <Switch
+                  value={network === 'mainnet'}
+                  onValueChange={handleNetworkToggle}
+                  trackColor={{ false: colors.switchGray, true: colors.secondary }}
+                  thumbColor={colors.buttonText}
+                  ios_backgroundColor={colors.switchGray}
+                />
+              </View>
+
               {/* Diagnostic NFC (CNIe) */}
               <TouchableOpacity
                 style={styles.settingRow}
@@ -104,6 +153,18 @@ export default function ParametresScreen() {
                 onPress={() => router.push('/diagnostics')}
               >
                 <Text style={styles.settingLabel}>Diagnostic NFC (CNIe)</Text>
+                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+              </TouchableOpacity>
+
+              {/* Key management — backup / restore the BJJ private key.
+                  Lives behind devMode because exposing a private key is a
+                  loaded action; ordinary users should never reach this. */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                activeOpacity={0.7}
+                onPress={() => router.push('/key-management' as any)}
+              >
+                <Text style={styles.settingLabel}>Sauvegarde / Restauration de clé</Text>
                 <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
               </TouchableOpacity>
 

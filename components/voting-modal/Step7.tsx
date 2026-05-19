@@ -3,9 +3,15 @@ import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity, Activ
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
-import { withRetry, formatRpcError } from '@/constants/rarime-config';
+import { withRetry, formatRpcError, type Network } from '@/constants/rarime-config';
 import type { Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
+import {
+  registerIdentityViaNoir,
+  generateHeavyNoirProof,
+  type HeavyNoirProof,
+} from '@/utils/register-via-noir';
+import { EPassport } from '@/utils/e-document/e-document';
 
 interface NFCPersonDetails {
   firstName?: string;
@@ -51,6 +57,12 @@ interface Step7Props {
   rarime?: Rarime;
   passport?: RarimePassport;
   freedomTool?: FreedomTool;
+  /** Selected network from the global NetworkContext. Routes the registration
+   * flow: 'mainnet' uses registerViaNoir + heavy circuit + registration-relayer
+   * (the proven path from the user's own rarime-app tx at block 2330);
+   * 'testnet' falls back to the SDK's light register path (Q-testnet, still
+   * broken for TD3 but kept around as a smoke test for the rest of the flow). */
+  network?: Network;
 }
 
 const Step7: React.FC<Step7Props> = ({
@@ -65,6 +77,7 @@ const Step7: React.FC<Step7Props> = ({
   rarime,
   passport,
   freedomTool,
+  network = 'testnet',
 }) => {
   const { t } = useTranslation();
   const colors = useColors();
@@ -127,6 +140,15 @@ const Step7: React.FC<Step7Props> = ({
         // Step 1: Check document registration status
         const mrzInfo = passport.getMRZData();
         console.log(`[Step7] Passport MRZ — nationality: ${mrzInfo.issuingCountry}, docNo: ${mrzInfo.documentNumber}, birthDate: ${mrzInfo.birthDate}`);
+        console.log(`[Step7] DG1 length: ${passport.dataGroup1.length} (95=TD1 ID card, 93=TD3 passport)`);
+        console.log(`[Step7] SOD length: ${passport.sod.length} bytes; DG15 present: ${passport.dataGroup15 ? `yes (${passport.dataGroup15.length}B)` : 'no'}`);
+        try {
+          const sodHashOid = passport.extractDGHashAlgo();
+          const sodSigOid = passport.getSignatureAlgorithm();
+          console.log(`[Step7] SOD DG hash OID: ${sodHashOid}, signature OID: ${sodSigOid}`);
+        } catch (e: any) {
+          console.error('[Step7] SOD algo extraction failed:', e?.message ?? e);
+        }
         setStatusText(t('voting.step7CheckingStatus'));
         const status = await withRetry(
           () => rarime.getDocumentStatus(passport),
@@ -152,40 +174,198 @@ const Step7: React.FC<Step7Props> = ({
           }
         }
 
-        // Step 2: (Re)register identity whenever the on-chain activeIdentity
-        // doesn't match the current local private key's profileKey. That
-        // covers both never-registered passports and passports registered
-        // under an older private key (e.g. SecureStore wiped between
-        // installs) — without this, Step 11's proof generation fails with
-        // "profile key mismatch".
+        // ----------------------------------------------------------------
+        // Step 2: register identity. Two paths, picked by `network`:
+        //
+        //   mainnet  → heavy Noir circuit (`registerIdentity_<suite>`)
+        //              proves the slave-cert chain in-zk, we ABI-encode
+        //              `Registration2.registerViaNoir(...)` and POST the
+        //              calldata to the registration-relayer. Independently
+        //              verified against the user's own successful tx at
+        //              Mainnet block 2330 — the 2144-byte proof shape and
+        //              both keccak constants (P_NO_AA, Z_NOIR_PASSPORT_*)
+        //              match byte-for-byte. See utils/register-via-noir.ts.
+        //
+        //   testnet  → SDK's `rarime.registerIdentity()` light flow. Still
+        //              broken for TD3 passports (light-registrator returns
+        //              400) but kept around to smoke-test the rest of the
+        //              flow when the user wants to.
+        //
+        // Either path is a no-op when the passport is already
+        // RegisteredWithThisPk — the SDK's getDocumentStatus comparison is
+        // against the on-chain `activeIdentity` for the current BJJ key.
+        // ----------------------------------------------------------------
         const { DocumentStatus } = await import('@rarimo/rarime-rn-sdk');
-        if (
-          status === DocumentStatus.NotRegistered ||
-          status === DocumentStatus.RegisteredWithOtherPk
-        ) {
-          const kind = status === DocumentStatus.NotRegistered ? 'registering' : 're-registering';
-          console.log(`[Step7] ${kind} identity (status=${status})`);
+
+        // Hard stop: passport is on-chain but bound to a DIFFERENT BJJ key.
+        // Re-binding would need a revocation proof signed by the original
+        // private key (which we don't have on this device). The relayer
+        // returns HTTP 500 if we try to register-via-noir over it — so
+        // bail out early with a clear French message instead of burning
+        // 40 s on a proof gen that will fail.
+        //
+        // Common cause: this passport was previously scanned in
+        // inid-passport-debug, the rarime-app, or here BEFORE the
+        // per-passport-key DB landed (when one legacy key covered all
+        // passports). Step11's error handler recognizes the
+        // [VOTE_INELIGIBLE] prefix and surfaces this message verbatim.
+        if (status === DocumentStatus.RegisteredWithOtherPk) {
+          throw new Error(
+            "[VOTE_INELIGIBLE] Ce passeport est déjà enregistré sur Mainnet avec " +
+            "une autre clé privée. Pour voter avec ce passeport, restaurez la " +
+            "clé d'origine via Paramètres → Gestion des clés → Restaurer une clé.",
+          );
+        }
+
+        const needsRegistration = status === DocumentStatus.NotRegistered;
+
+        if (needsRegistration) {
+          console.log(`[Step7] registering identity (status=${status}, network=${network})`);
           setStatusText(t('voting.step7Registering'));
-          try {
+
+          if (!nfcData?.dg1Bytes || !nfcData?.sodBytes) {
+            throw new Error('Step7: nfcData missing dg1/sod bytes');
+          }
+
+          if (network === 'mainnet') {
+            // ----- HEAVY NOIR PATH (production registration) ----------
+            // Confirmed 2026-05-18 (probe logs): light-registrator is
+            // broken for TD3 on both networks (HTTP 400 identical), so
+            // the heavy circuit is the only viable path on Mainnet.
+            // The rarime-app's own successful tx at block 2330 used
+            // this exact flow.
+            //
+            // Pipeline (all in utils/register-via-noir.ts):
+            //   1. generateHeavyNoirProof — SMT lookup on Mainnet's
+            //      CertificatesSMT (0xA8b350d6…) + Noir prove() against
+            //      the bundled registerIdentity_1_256_3_5_576_248_NA
+            //      bytecode (3 MB asset, registered at boot). ~20 s on
+            //      the Volla Phone X23.
+            //   2. registerIdentityViaNoir — ABI-encode registerViaNoir
+            //      against Registration2 (0x11BB4B14AA…) + POST to the
+            //      registration-relayer at api.app.rarime.com.
+            //
+            // The relayer submits the tx and returns the hash; we log
+            // it for the user to verify on scan.rarimo.com.
+            //
+            // The skIdentity (BJJ private key) comes from SecureStore
+            // via getOrCreatePrivateKey() — same source the SDK uses for
+            // its light path, so the on-chain `identityKey` is bound to
+            // the user's stable identity across registration + voting.
+            const { getOrCreatePrivateKey } = await import('@/utils/identity');
+            const skIdentityHex = '0x' + (await getOrCreatePrivateKey());
+
+            // Build an EPassport from the NFC scan bytes — needed by the
+            // input builder because RarimePassport doesn't expose the
+            // ASN.1-parsed slave certificate (e-document does).
+            const eDoc = new EPassport({
+              docCode: 'P',
+              personDetails: nfcData?.personDetails ?? ({} as any),
+              dg1Bytes: new Uint8Array(nfcData!.dg1Bytes as Uint8Array),
+              sodBytes: new Uint8Array(nfcData!.sodBytes as Uint8Array),
+              dg15Bytes: nfcData?.dg15Bytes
+                ? new Uint8Array(nfcData.dg15Bytes as Uint8Array)
+                : undefined,
+              aaSignature: nfcData?.aaSignature
+                ? new Uint8Array(nfcData.aaSignature as Uint8Array)
+                : undefined,
+            });
+
+            // Generate the heavy register proof. If the slave-cert SMT
+            // lookup inside fails (existence=false) it means the CSCA
+            // isn't on chain yet — catch that specific error, bootstrap
+            // the CSCA via `Registration2.registerCertificate(...)`,
+            // wait for the tx to confirm, then re-try the proof gen.
+            // This is what `inid-passport-debug` does in
+            // `passport-debug/index.tsx::register` (`registerCertificate
+            // -> registerByDocument`) — same relayer endpoint, same
+            // master tree, same dispatcher hashes. See
+            // utils/csca-bootstrap.ts for the full pipeline.
+            let heavyProof;
+            try {
+              heavyProof = await generateHeavyNoirProof(eDoc, skIdentityHex);
+            } catch (e: any) {
+              const msg = e?.message ?? '';
+              const isMissingCsca = msg.includes("n'est pas encore enregistré sur Mainnet");
+              if (!isMissingCsca) throw e;
+
+              console.log('[Step7][mainnet] CSCA missing — bootstrapping via registerCertificate');
+              setStatusText(t('voting.step7Registering'));
+              const { registerCscaForSlave } = await import('@/utils/csca-bootstrap');
+              const { txHash: cscaTxHash, dispatcherName } =
+                await registerCscaForSlave(eDoc.sod.slaveCertificate);
+              console.log(`[Step7][mainnet] CSCA registration tx: ${cscaTxHash} (${dispatcherName})`);
+
+              // Wait for the slave-cert SMT to reflect the new CSCA.
+              // We don't track the tx state directly (the relayer didn't
+              // return a JSON-RPC tx, just a hash). Poll the SMT until
+              // existence is true OR we hit a sane timeout. ~12 attempts
+              // × 2.5 s ≈ 30 s — generous given L2 block times.
+              const { JsonRpcProvider, Contract } = await import('ethers');
+              const provider = new JsonRpcProvider(
+                'https://l2.rarimo.com',
+              );
+              const { slaveCertSmtLeafKey } = await import('@/utils/heavy-noir-inputs');
+              const leafKey = slaveCertSmtLeafKey(eDoc);
+              const smtAbi = ['function getProof(bytes32) view returns (tuple(bytes32 root, bytes32[] siblings, bool existence, bytes32 key, bytes32 value, bool auxExistence, bytes32 auxKey, bytes32 auxValue))'];
+              const smtAddr = '0xA8b350d699632569D5351B20ffC1b31202AcEDD8';
+              const smt = new Contract(smtAddr, smtAbi, provider);
+              let landed = false;
+              for (let i = 0; i < 12; i++) {
+                await new Promise((r) => setTimeout(r, 2500));
+                try {
+                  const probe = await smt.getProof(leafKey);
+                  // We're really waiting for the CSCA → CertificatesSMT
+                  // root to update; existence here flips when the slave
+                  // can be inserted under the new CSCA. If the bootstrap
+                  // tx hasn't landed yet, the master tree root is still
+                  // stale and the proof step below will re-fail.
+                  if (probe.existence === false) {
+                    // Still false → bootstrap tx not yet mined. The
+                    // `siblings.length` can also change (root rotated)
+                    // before existence flips, so we don't break early on
+                    // that. Just keep polling.
+                  }
+                  if (probe.existence === true) { landed = true; break; }
+                } catch (probeErr: any) {
+                  console.log('[Step7][mainnet] SMT probe err:', probeErr?.message ?? probeErr);
+                }
+              }
+              if (!landed) {
+                console.warn('[Step7][mainnet] bootstrap tx not visible after 30 s — proceeding anyway');
+              }
+
+              // Retry proof generation. If the tx landed, the slave-cert
+              // SMT lookup inside generateHeavyNoirProof now succeeds (we
+              // can register the slave under the freshly-added CSCA).
+              heavyProof = await generateHeavyNoirProof(eDoc, skIdentityHex);
+            }
+
+            const { txHash } = await registerIdentityViaNoir({
+              network: 'mainnet',
+              noirProof: heavyProof,
+              circuitName: 'registerIdentity_1_256_3_5_576_248_NA',
+              // No Active Authentication on French passports — pass
+              // empty bytes so buildRegisterViaNoirCalldata picks the
+              // P_NO_AA dispatcher (keccak("P_NO_AA")) and emits empty
+              // signature/publicKey fields in the Passport struct.
+              aaPubKeyPem: new Uint8Array(),
+              aaSignature: new Uint8Array(),
+              ecSizeInBits: eDoc.sod.encapsulatedContent.length * 8,
+            });
+            console.log(`[Step7][mainnet] registerViaNoir tx submitted: ${txHash}`);
+          } else {
+            // ----- TESTNET LIGHT PATH ---------------------------------
+            // Direct call to the SDK. Known to return HTTP 400 today for
+            // TD3 passports on the light-registrator endpoint — see
+            // td3-spike-blocker memory + HANDOFF-FRENCH-PASSPORT.md.
+            // Kept here so the rest of the flow (SOD parsing, NFC,
+            // proposal-cache hydration, vote step) stays exercised.
             await withRetry(
               () => rarime.registerIdentity(passport),
-              { label: 'registerIdentity' }
+              { label: 'registerIdentity (testnet light)' },
             );
-            console.log('[Step7] Identity registered');
-          } catch (regErr: any) {
-            // Idempotency: if a prior run already submitted the registration
-            // (and the chain just hadn't propagated yet when we read the
-            // status), the relayer rejects the duplicate with "signature
-            // used", and the SDK's own pre-check throws "registered with
-            // this Private Key" once the chain catches up. Both mean the
-            // identity is in fact registered under our profileKey — the
-            // exact post-condition we want — so swallow them.
-            const m: string = regErr?.message ?? '';
-            const alreadyRegistered =
-              m.includes('signature used') ||
-              m.includes('registered with this Private Key');
-            if (!alreadyRegistered) throw regErr;
-            console.log('[Step7] Identity already registered (idempotent) — proceeding');
+            console.log('[Step7][testnet] light register submitted');
           }
         }
 
@@ -193,10 +373,17 @@ const Step7: React.FC<Step7Props> = ({
         console.log('[Step7] Verification complete — calling onSuccess');
         setStatusText(t('voting.step7Verified'));
         onSuccess?.();
-      } catch (err) {
+      } catch (err: any) {
         console.error('[Step7] Verification error:', err);
         hasCalledCallback.current = true;
-        setErrorMessage(formatRpcError(err));
+        const msg: string = err?.message ?? '';
+        // [VOTE_INELIGIBLE] errors carry a French user-facing message that
+        // we want to surface verbatim — formatRpcError would replace it
+        // with a generic "an error occurred" string.
+        const text = msg.startsWith('[VOTE_INELIGIBLE]')
+          ? msg.replace('[VOTE_INELIGIBLE]', '').trim()
+          : formatRpcError(err);
+        setErrorMessage(text);
         onError?.();
       }
     })();

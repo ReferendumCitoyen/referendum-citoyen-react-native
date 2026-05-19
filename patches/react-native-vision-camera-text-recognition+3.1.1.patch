@@ -1,3 +1,40 @@
+diff --git a/node_modules/react-native-vision-camera-text-recognition/android/build.gradle b/node_modules/react-native-vision-camera-text-recognition/android/build.gradle
+index c92292a..a8ffcda 100644
+--- a/node_modules/react-native-vision-camera-text-recognition/android/build.gradle
++++ b/node_modules/react-native-vision-camera-text-recognition/android/build.gradle
+@@ -90,20 +90,20 @@ dependencies {
+   //noinspection GradleDynamicVersion
+   implementation "com.facebook.react:react-native:+"
+   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1'
++  // Bundled ML Kit text recognition — works on degoogled devices (LineageOS,
++  // GrapheneOS, e/OS). The unbundled 'com.google.android.gms:play-services-mlkit-*'
++  // variants need Google Play Services to download the model at runtime and
++  // fail on phones without GMS — see rarime-android-app gradle/libs.versions.toml
++  // which uses the same bundled variant for the exact same MRZ-OCR purpose.
++  // The Java API surface (com.google.mlkit.vision.text.*) is identical
++  // between the two variants, so the wrapper Kotlin needs no changes.
++  implementation 'com.google.mlkit:text-recognition:16.0.1'
++  implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
++  implementation 'com.google.mlkit:text-recognition-devanagari:16.0.1'
++  implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
++  implementation 'com.google.mlkit:text-recognition-korean:16.0.1'
+   implementation 'com.google.mlkit:translate:17.0.3'
+   implementation project(':react-native-vision-camera')
+   implementation "androidx.camera:camera-core:1.3.4"
+-
+-  // For using the models in Google Play Services
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition:19.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-japanese:16.0.1'
+-  implementation 'com.google.android.gms:play-services-mlkit-text-recognition-korean:16.0.1'
+ }
+ 
 diff --git a/node_modules/react-native-vision-camera-text-recognition/android/src/main/java/com/visioncameratextrecognition/VisionCameraTextRecognitionPlugin.kt b/node_modules/react-native-vision-camera-text-recognition/android/src/main/java/com/visioncameratextrecognition/VisionCameraTextRecognitionPlugin.kt
 index f48c947..bdd8506 100644
 --- a/node_modules/react-native-vision-camera-text-recognition/android/src/main/java/com/visioncameratextrecognition/VisionCameraTextRecognitionPlugin.kt

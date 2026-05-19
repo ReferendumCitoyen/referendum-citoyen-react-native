@@ -1,0 +1,5 @@
+framework module RmoCalcs {
+    umbrella header "RmoCalcs.h"
+    export *
+    module * { export * }
+}

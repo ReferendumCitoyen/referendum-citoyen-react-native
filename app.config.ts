@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.3',
+    version: '1.4',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
@@ -81,6 +81,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-video',
       '@rarimo/rarime-rn-sdk',
+      // Injects flatDir entries for the Groth16 stack's local AARs
+      // (modules/rapidsnark-wrp + modules/witnesscalculator). Needed by the
+      // Mainnet vote flow's witnesscalc + rapidsnark prove pipeline.
+      './plugins/withCircomFlatDirs.js',
       [
         './plugins/withNfc.plugin/build/index.js',
         {
@@ -124,6 +128,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 commit: '92018762f6103bf13a12b0bede9539f066de18a9',
               },
             ],
+          },
+          android: {
+            // RmoCalcs.aar (modules/witnesscalculator) declares minSdkVersion
+            // 27. Bumping our floor to match. Needed for the Groth16 vote flow.
+            minSdkVersion: 27,
           },
         },
       ],

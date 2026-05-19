@@ -3,18 +3,20 @@ import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityI
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { FREEDOM_TOOL_CONFIG } from '@/constants/rarime-config';
+import { getFreedomToolConfig } from '@/constants/rarime-config';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import SettingsButton from '@/components/SettingsButton';
 import { preloadCircuits, subscribeCircuitPreload, type PreloadProgress } from '@/utils/circuit-preload';
 import {
   readCachedProposals,
   writeCachedProposals,
+  migrateLegacyCache,
   bigintReplacer,
 } from '@/utils/proposal-cache';
-import { computeVoteResults, isFrenchCompatible } from '@/utils/voteResults';
+import { computeVoteResults, isFrenchCompatible, isPassportVotingTarget } from '@/utils/voteResults';
 
 const VOTE_COUNT_THRESHOLD = 5;
 
@@ -218,6 +220,13 @@ export default function AccueilScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const router = useRouter();
+  const { network } = useNetwork();
+  // Lock down the config for THIS render — capture once so all useCallbacks
+  // inside this render share the same network reference. When `network`
+  // flips, the whole component re-renders, ftRef is wiped, and the cache is
+  // re-read for the new network (see effect below).
+  const ftConfig = useMemo(() => getFreedomToolConfig(network), [network]);
+
   const [proposals, setProposals] = useState<ProposalInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -230,13 +239,32 @@ export default function AccueilScreen() {
 
   const PAGE_SIZE = 10;
 
+  // One-time legacy-cache wipe — see utils/proposal-cache.ts. Older builds
+  // wrote to an unnamespaced key; clean it up so AsyncStorage doesn't keep
+  // a stale list around.
+  useEffect(() => { migrateLegacyCache(); }, []);
+
+  // Wipe the in-memory FreedomTool ref + visible proposals when the network
+  // flips. Without this, the user would see the previous network's proposals
+  // until the next refresh — and worse, voting-flow would pick a stale id
+  // from cache and submit it to the wrong contract.
+  useEffect(() => {
+    ftRef.current = null;
+    setProposals([]);
+    setIsLoading(true);
+  }, [network]);
+
   const getFreedomTool = useCallback(async () => {
-    if (!ftRef.current) {
-      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
-      ftRef.current = new FreedomTool(FREEDOM_TOOL_CONFIG);
-    }
-    return ftRef.current;
-  }, []);
+    // Always build with the CURRENT ftConfig — caching via ftRef.current
+    // raced with the network-flip effect at mount time and left a stale
+    // testnet FreedomTool servicing mainnet proposal-id requests, returning
+    // testnet's #47 bytes for mainnet's #47 lookup. The instantiation is
+    // cheap so we accept the per-call rebuild.
+    const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
+    const ft = new FreedomTool(ftConfig);
+    ftRef.current = ft;
+    return ft;
+  }, [ftConfig]);
 
   const fetchBatch = useCallback(async (startId: number, count: number) => {
     const ft = await getFreedomTool();
@@ -253,7 +281,7 @@ export default function AccueilScreen() {
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
       if (!refresh) {
-        const parsed = await readCachedProposals();
+        const parsed = await readCachedProposals(network);
         if (parsed) {
           setProposals(parsed);
           setIsLoading(false);
@@ -264,24 +292,26 @@ export default function AccueilScreen() {
       setLoadError(null);
 
       const { JsonRpcProvider, Contract } = await import('ethers');
-      const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
+      const provider = new JsonRpcProvider(ftConfig.api.votingRpcUrl);
       const contract = new Contract(
-        FREEDOM_TOOL_CONFIG.contracts.proposalStateAddress,
+        ftConfig.contracts.proposalStateAddress,
         ['function lastProposalId() view returns (uint256)'],
         provider
       );
       const lastId = Number(await contract.lastProposalId());
-      console.log(`[Accueil] lastProposalId: ${lastId}`);
+      console.log(`[Accueil][${network}] lastProposalId: ${lastId}`);
 
       const loaded = await fetchBatch(lastId, PAGE_SIZE);
       const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
 
-      console.log(`[Accueil] Fetched ${sorted.length} proposals from network`);
+      console.log(`[Accueil][${network}] Fetched ${sorted.length} proposals from network`);
       setProposals(sorted);
       oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
       setHasMore(oldestIdRef.current > 1);
 
-      await writeCachedProposals(sorted);
+      await writeCachedProposals(network, sorted);
+      // The deps below close over both `network` and `ftConfig`; recreation
+      // when network flips is required so the cache/RPC switch.
     } catch (err) {
       console.error('[Accueil] Failed to load proposals:', err);
       const msg = (err as Error).message?.toLowerCase() || '';
@@ -294,7 +324,7 @@ export default function AccueilScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [fetchBatch]);
+  }, [fetchBatch, network, ftConfig]);
 
   const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;
@@ -333,6 +363,34 @@ export default function AccueilScreen() {
     });
   }, []);
 
+  // Dump the BJJ keypair at app launch so the user can save it before any
+  // test run — the private key only lives in SecureStore, so wiping the app
+  // (or uninstalling) loses on-chain identity. Capture via `adb logcat | grep
+  // KEYPAIR`. Duplicates the dump in app/voting-flow.tsx, but fires earlier
+  // so it survives an NFC failure that never reaches Step 7.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getOrCreatePrivateKey } = await import('@/utils/identity');
+        const storedKey = await getOrCreatePrivateKey();
+        const { babyJub } = await import('@iden3/js-crypto');
+        const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
+        const pubPoint = babyJub.mulPointEScalar(babyJub.Base8, BigInt('0x' + storedKey));
+        const pubX = pubPoint[0].toString(16).padStart(64, '0');
+        const pubY = pubPoint[1].toString(16).padStart(64, '0');
+        const profileKey = RarimeUtils.getProfileKey(storedKey);
+        console.log('[FreedomTool][KEYPAIR] ===== BJJ KEYPAIR (save before testing) =====');
+        console.log('[FreedomTool][KEYPAIR] privateKey: 0x' + storedKey);
+        console.log('[FreedomTool][KEYPAIR] pubPoint.x: 0x' + pubX);
+        console.log('[FreedomTool][KEYPAIR] pubPoint.y: 0x' + pubY);
+        console.log('[FreedomTool][KEYPAIR] profileKey: 0x' + profileKey);
+        console.log('[FreedomTool][KEYPAIR] ===== END KEYPAIR =====');
+      } catch (e: any) {
+        console.error('[FreedomTool][KEYPAIR] launch dump failed:', e?.message ?? e);
+      }
+    })();
+  }, []);
+
   // Auto-refresh when screen regains focus (e.g. after voting)
   const isFirstMount = useRef(true);
   useFocusEffect(
@@ -357,13 +415,40 @@ export default function AccueilScreen() {
 
   // Hide proposals whose citizenshipWhitelist excludes FRA (per 2026-04-23
   // recap: only show votes a French ID card can actually be used on).
+  // On Mainnet, also hide proposals targeting a non-passport voting contract
+  // (the IDCardVoting deployment at 0x7d73513d64… is for TD1 national-ID
+  // cards — a French passport can't produce a proof the IDCard verifier
+  // accepts). Testnet has different deployments so we don't apply this.
   // Dev mode bypasses the filter so we can see every proposal during testing.
   const eligibleProposals = useMemo(
-    () => (devMode ? proposals : proposals.filter(isFrenchCompatible)),
-    [proposals, devMode]
+    () => {
+      if (devMode) return proposals;
+      let out = proposals.filter(isFrenchCompatible);
+      if (network === 'mainnet') {
+        out = out.filter(isPassportVotingTarget);
+      }
+      return out;
+    },
+    [proposals, devMode, network]
   );
   const activeProposals = useMemo(() => eligibleProposals.filter(isActive), [eligibleProposals]);
   const pastProposals = useMemo(() => eligibleProposals.filter(p => !isActive(p)), [eligibleProposals]);
+  // [DBG] one-line dump per proposal so we can correlate the "I only see
+  // closed polls" UX with the actual filter math. Remove once the
+  // home-screen rendering issue is settled.
+  useEffect(() => {
+    if (eligibleProposals.length === 0) return;
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    for (const p of eligibleProposals) {
+      const startTs = (p as any).startTimestamp;
+      const dur = (p as any).duration;
+      const startType = typeof startTs;
+      const durType = typeof dur;
+      const endTs = startType === 'bigint' && durType === 'bigint' ? (startTs + dur) : 'NaN';
+      console.log(`[Accueil][DBG] #${p.id} startTs=${startTs}(${startType}) dur=${dur}(${durType}) endTs=${endTs} now=${now} active=${isActive(p)} title="${String(p.title).slice(0,30)}"`);
+    }
+    console.log(`[Accueil][DBG] active.length=${activeProposals.length} past.length=${pastProposals.length}`);
+  }, [eligibleProposals, activeProposals.length, pastProposals.length]);
   const allProposals = useMemo(() => [...activeProposals, ...pastProposals], [activeProposals, pastProposals]);
 
   // Tapping a compact row in the "Ongoing Votes" header scrolls down to that

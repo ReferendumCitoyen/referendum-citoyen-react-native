@@ -42,7 +42,10 @@
     "contact": "Nous contacter",
     "nfcTest": "Test NFC",
     "diagnostics": "Diagnostics",
-    "version": "Version {{version}} ({{build}})"
+    "version": "Version {{version}} ({{build}})",
+    "network": "Réseau",
+    "networkMainnet": "Mainnet — chain 7368",
+    "networkTestnet": "Testnet — chain 7369"
   },
   "home": {
     "yes": "Oui",

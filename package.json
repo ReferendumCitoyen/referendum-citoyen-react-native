@@ -29,7 +29,7 @@
     "@gorhom/bottom-sheet": "^5.2.6",
     "@iden3/js-crypto": "^1.3.2",
     "@li0ard/tsemrtd": "^0.3.0",
-    "@noble/curves": "^2.0.1",
+    "@noble/curves": "^1.9.7",
     "@peculiar/asn1-cms": "^2.5.0",
     "@peculiar/asn1-ecc": "^2.5.0",
     "@peculiar/asn1-rsa": "^2.5.0",
