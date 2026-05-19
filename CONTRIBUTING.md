@@ -56,6 +56,25 @@ npm run lint
 
 ## Git Workflow
 
+### Branching model
+
+We use a two-branch GitFlow-lite:
+
+- **`develop`** — integration branch. All feature work, bug fixes, refactors,
+  and docs go here. The nightly Android build (debug-signed APK) runs off
+  this branch.
+- **`master`** — release branch. Updated only by maintainers, who merge
+  `develop` into `master` when a cut is ready. Signed-release APKs are
+  built from tags on `master`.
+
+```
+   feature/foo ──┐
+                 ├──► develop ──(maintainer merge)──► master ──(tag v1.4)──► signed APK
+   fix/bar ─────┘                  │                              │
+                                   ▼                              ▼
+                          nightly debug APK             GitHub Release w/ SHA-256
+```
+
 ### Branch Naming
 
 - `feature/` - New features (e.g., `feature/add-biometric-auth`)
@@ -83,12 +102,42 @@ Examples:
 
 ### Pull Requests
 
-1. Fork the repository
-2. Create a feature branch from `main`
+1. Fork the repository (or branch directly if you have write access)
+2. Create a feature branch off **`develop`**: `git checkout develop && git pull && git checkout -b feature/<short-name>`
 3. Make your changes
-4. Run `npm run lint` and `npm run format`
+4. Run `npm run lint`, `npm run format`, `npm test`, and `npx tsc --noEmit`
 5. Test on both iOS and Android if possible
-6. Submit a PR with a clear description
+6. Open a PR **against `develop`**, not `master`. PRs targeting `master`
+   will be redirected — only maintainers merge into `master`.
+
+### Cutting a release (maintainers only)
+
+Releases are gated to `master` so the signed-APK workflow can't be tricked
+into shipping unreviewed code from a feature branch. The workflow
+verifies that the tag's commit is an ancestor of `origin/master` and
+refuses to run otherwise.
+
+1. Merge `develop` into `master`:
+   ```
+   git checkout master && git pull
+   git merge --no-ff develop
+   git push origin master
+   ```
+2. Tag the release commit on `master`:
+   ```
+   git tag -a v1.4 -m "Référendum Citoyen v1.4"
+   git push origin v1.4
+   ```
+   Tag names must match `v[0-9]*` (e.g. `v1.4`, `v1.4.1`, `v2.0-beta1`).
+3. The `Android Release (signed APK)` workflow runs automatically. When it
+   finishes, the signed APK + SHA-256 + `apksigner verify` output are
+   attached to a GitHub Release named after the tag.
+4. Bump `app.config.ts` `version` on `develop` to the next planned version
+   so subsequent nightlies don't collide with the just-released tag.
+
+The one-time signing-keystore setup (`keytool` recipe + required GitHub
+secrets) is documented in the header of
+`.github/workflows/android-release.yml`.
 
 ## Testing
 
