@@ -7,8 +7,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import io.iden3.rapidsnark.DEFAULT_ERROR_BUFFER_SIZE
 import io.iden3.rapidsnark.DEFAULT_PROOF_BUFFER_SIZE
 import io.iden3.rapidsnark.groth16Prove
-import io.iden3.rapidsnark.groth16ProveWithZKeyFilePath
-import io.iden3.rapidsnark.groth16PublicSizeForZkeyFile
+import io.iden3.rapidsnark.groth16PublicBufferSize
 import java.io.File
 
 data class Proof(
@@ -45,6 +44,10 @@ class RapidsnarkWrpModule : Module() {
     // The module will be accessible from `requireNativeModule('RapidsnarkWrp')` in JavaScript.
     Name("RapidsnarkWrp")
 
+    // io.iden3:rapidsnark beta.5 unified the two prove entry points into a
+    // single `groth16Prove(zkeyPath, wtns, …)`. We keep the legacy JS name
+    // `groth16ProveWithZKeyFilePath` for backwards compatibility with
+    // existing TS callers (utils/groth16-vote.ts).
     AsyncFunction("groth16ProveWithZKeyFilePath") { wtns: ByteArray, zkeyFilePath: String, proofBufferSize: Int?, publicBufferSize: Int?, errorBufferSize: Int? ->
       val fileUrl = zkeyFilePath.replace("file://", "")
       val file = File(fileUrl)
@@ -54,11 +57,10 @@ class RapidsnarkWrpModule : Module() {
       }
 
       val currentProofBufferSize = proofBufferSize ?: DEFAULT_PROOF_BUFFER_SIZE
-      val currentPublicBufferSize = publicBufferSize ?: groth16PublicSizeForZkeyFile(file.path)
+      val currentPublicBufferSize = publicBufferSize ?: groth16PublicBufferSize(file.path)
       val currentErrorBufferSize = errorBufferSize ?: DEFAULT_ERROR_BUFFER_SIZE
 
-
-      val (proof, publicSignals) = groth16ProveWithZKeyFilePath(
+      val (proof, publicSignals) = groth16Prove(
         file.path,
         wtns,
         currentProofBufferSize,
@@ -76,20 +78,10 @@ class RapidsnarkWrpModule : Module() {
       return@AsyncFunction zkProofJson
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("groth16Prove") { wtns: ByteArray, zkey: ByteArray ->
-      val (proof, publicSignals) = groth16Prove(zkey, wtns)
-
-      val zkProof = createZkProof(
-        proof = proof,
-        pubSignals = publicSignals
-      )
-
-      val zkProofJson = Gson().toJson(zkProof)
-
-      return@AsyncFunction zkProofJson
-    }
+    // Note: the byte-array zkey variant of groth16Prove was removed in
+    // beta.5. The only callsite in this repo (utils/groth16-vote.ts) uses
+    // the file-path variant above, so the binding is just deleted rather
+    // than re-implemented via a temp-file shim.
   }
 }
 

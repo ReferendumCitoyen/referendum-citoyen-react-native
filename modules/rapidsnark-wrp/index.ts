@@ -3,10 +3,9 @@
 
 import RapidsnarkWrpModule from './src/RapidsnarkWrpModule'
 
-export const groth16Prove = async (wtns: Uint8Array, zkey: Uint8Array): Promise<Uint8Array> => {
-  return await RapidsnarkWrpModule.groth16Prove(new Uint8Array(wtns), new Uint8Array(zkey))
-}
-
+// io.iden3:rapidsnark beta.5 dropped the byte-array-zkey variant of
+// groth16Prove; only the file-path form survives. The previously-exported
+// `groth16Prove(wtns, zkey)` had no remaining JS callers and was removed.
 export const groth16ProveWithZKeyFilePath = async (
   wtns: Uint8Array,
   zkeyFilePath: string,
