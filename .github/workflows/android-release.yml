@@ -285,9 +285,20 @@ jobs:
           ls -la "$RUNNER_TEMP/$name"
 
       - name: Verify APK signature
+        # apksigner ships under $ANDROID_HOME/build-tools/<ver>/ but
+        # android-actions/setup-android@v4 doesn't put it on PATH by
+        # default. Find the actual binary (matches what
+        # scripts/ci/build-signed-apk-local.sh does locally).
         run: |
           set -euo pipefail
-          apksigner verify --verbose --print-certs "${{ steps.apk.outputs.path }}" \
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -executable 2>/dev/null | sort | tail -n 1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found under $ANDROID_HOME/build-tools"
+            ls -la "$ANDROID_HOME/build-tools" 2>&1 || true
+            exit 1
+          fi
+          echo "Using $APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "${{ steps.apk.outputs.path }}" \
             | tee "$RUNNER_TEMP/apksigner-verify.txt"
 
       - name: Compute SHA-256
