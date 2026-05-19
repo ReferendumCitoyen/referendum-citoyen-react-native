@@ -49,6 +49,12 @@ repositories {
 
 dependencies {
   implementation("com.google.code.gson:gson:2.10.1")
-//   implementation files('libs/rapidsnark.aar')
-  implementation("io.iden3:rapidsnark:0.0.1-alpha.1")
+  // Bumped 0.0.1-alpha.1 → 0.0.1-beta.5 for 16 KB page-size support on
+  // Android 15+ devices (Pixel 8+, GrapheneOS). alpha.1's bundled
+  // librapidsnark.so was 4 KB-aligned and crashed on 16 KB kernels.
+  // The API changed (see RapidsnarkWrpModule.kt) — `groth16Prove` and
+  // `groth16ProveWithZKeyFilePath` were unified into a single
+  // `groth16Prove(path, wtns, …)`, and the byte-array zkey variant was
+  // dropped.
+  implementation("io.iden3:rapidsnark:0.0.1-beta.5")
 }
