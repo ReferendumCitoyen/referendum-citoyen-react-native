@@ -18,6 +18,7 @@ import {
   checkBirthDate,
   checkExpiryDate,
 } from '@/utils/mrzDate';
+import { useDevMode } from '@/contexts/DevModeContext';
 
 interface ManualMRZInputProps {
   isVisible: boolean;
@@ -28,6 +29,9 @@ interface ManualMRZInputProps {
 const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onSubmit }) => {
   const { t } = useTranslation();
   const colors = useColors();
+  // Dev mode lets QA submit underage / expired documents — mirrors the
+  // Step5 camera path bypass.
+  const { devMode } = useDevMode();
   const [documentNumber, setDocumentNumber] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -50,14 +54,17 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
   const birthToken = birthDate.length === 6 ? checkBirthDate(parseFrenchDate(birthDate)) : null;
   const expiryToken = expiryDate.length === 6 ? checkExpiryDate(parseFrenchDate(expiryDate)) : null;
 
+  // In dev mode, only the structural 'invalid' parse failure blocks
+  // submission — 'underage' / 'expired' are downgraded to non-errors so
+  // QA can carry the document into the NFC + registration flow.
   const birthError =
     birthToken === 'invalid' ? t('mrzManual.birthInvalid') :
-    birthToken === 'underage' ? t('mrzManual.birthUnderage') :
+    (birthToken === 'underage' && !devMode) ? t('mrzManual.birthUnderage') :
     null;
 
   const expiryError =
     expiryToken === 'invalid' ? t('mrzManual.expiryInvalid') :
-    expiryToken === 'expired' ? t('mrzManual.expiryExpired') :
+    (expiryToken === 'expired' && !devMode) ? t('mrzManual.expiryExpired') :
     null;
 
   const handleSubmit = () => {

@@ -1,6 +1,12 @@
 import { time } from '@distributedlab/tools'
 import { Hex } from '@iden3/js-crypto'
-import { findMasterCertificate } from '@lukachi/rn-csca'
+// `findMasterCertificate` used to live in @lukachi/rn-csca. The Rust crate's
+// uniffi JNI binding crashes on RN 0.81 (NoSuchFieldError mHybridData →
+// SIGABRT) the first time the JS module is required, so we cannot import
+// from it. The only consumer was getSlaveMaster() below, which has been
+// removed because the heavy-register flow doesn't actually need it
+// (slaveCertificateIndex is computed from the slave cert's own modulus
+// via hashPacked — no master-list traversal involved).
 import { ECDSASigValue, ECParameters } from '@peculiar/asn1-ecc'
 import { id_pkcs_1, RSAPublicKey } from '@peculiar/asn1-rsa'
 import { AsnConvert } from '@peculiar/asn1-schema'
@@ -134,15 +140,6 @@ export class ExtendedCertificate {
     throw new TypeError(
       `Unsupported public key algorithm: ${this.certificate.signatureAlgorithm.algorithm}`,
     )
-  }
-
-  /** Works */
-  async getSlaveMaster(CSCAs: ArrayBuffer[]) {
-    const master = findMasterCertificate(AsnConvert.serialize(this.certificate), CSCAs)
-
-    if (!master) throw new TypeError('Master certificate not found for slave certificate')
-
-    return AsnConvert.parse(new Uint8Array(master), Certificate)
   }
 
   /** Works */

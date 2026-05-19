@@ -15,6 +15,7 @@ import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { DevModeProvider } from '@/contexts/DevModeContext';
+import { NetworkProvider } from '@/contexts/NetworkContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -87,7 +88,9 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <CustomThemeProvider>
           <DevModeProvider>
-            <RootLayoutNav />
+            <NetworkProvider>
+              <RootLayoutNav />
+            </NetworkProvider>
           </DevModeProvider>
         </CustomThemeProvider>
       </GestureHandlerRootView>
@@ -176,6 +179,13 @@ function RootLayoutNav() {
             name="can-scan"
             options={{
               title: 'Scan CAN',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="key-management"
+            options={{
+              title: 'Sauvegarde / Restauration de clé',
               headerBackTitle: t('navigation.back'),
             }}
           />

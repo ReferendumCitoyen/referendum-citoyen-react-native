@@ -42,7 +42,10 @@
     "smartContract": "Smart contract",
     "nfcTest": "NFC test",
     "diagnostics": "Diagnostics",
-    "version": "Version {{version}} ({{build}})"
+    "version": "Version {{version}} ({{build}})",
+    "network": "Network",
+    "networkMainnet": "Mainnet — chain 7368",
+    "networkTestnet": "Testnet — chain 7369"
   },
   "home": {
     "yes": "Yes",

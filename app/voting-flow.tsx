@@ -6,12 +6,14 @@ import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import {
-  RARIME_TESTNET_CONFIG,
-  FREEDOM_TOOL_CONFIG,
-  DEFAULT_PROPOSAL_ID,
+  getRarimeConfig,
+  getFreedomToolConfig,
+  getDefaultProposalId,
   withRetry,
   formatRpcError,
 } from '@/constants/rarime-config';
+import { useNetwork } from '@/contexts/NetworkContext';
+import { assertOnChainConstants } from '@/utils/register-via-noir';
 import { getOrCreatePrivateKey } from '@/utils/identity';
 import { findCachedProposal } from '@/utils/proposal-cache';
 import { useTranslation } from 'react-i18next';
@@ -42,6 +44,7 @@ export default function VotingFlowScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
+  const { network } = useNetwork();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
 
@@ -50,6 +53,13 @@ export default function VotingFlowScreen() {
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const [mrzData, setMRZData] = useState<{ documentNumber: string; birthDate: string; expiryDate: string } | null>(null);
   const [nfcData, setNFCData] = useState<PassportData | null>(null);
+  // Flips true ONLY after `handleNFCSuccess`'s async block has resolved the
+  // per-passport BJJ key and synced it into the legacy SecureStore slot.
+  // The Rarime init `useEffect` below gates on this so it never reads a
+  // stale legacy key while `getOrCreateKeyForPassport` is mid-flight —
+  // without this gate, `getDocumentStatus` racing the per-passport key
+  // write returns the wrong profileKey and reports `REGISTERED_WITH_OTHER_PK`.
+  const [passportKeyReady, setPassportKeyReady] = useState(false);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
   const [selectedVote, setSelectedVote] = useState<number>(0);
@@ -69,36 +79,113 @@ export default function VotingFlowScreen() {
   const { players, handleStepChange, pauseAll } = useModalVideoPlayers();
   const { player1, player2, player3, player4, player5 } = players;
 
+  // If the user switches network from Settings while the voting-flow screen
+  // is still mounted (rare — would require backing out to Settings and back),
+  // wipe the SDK refs so the next entry into Step 7 re-creates them against
+  // the new addresses. Without this we'd keep talking to testnet contracts
+  // even though the user flipped to Mainnet.
+  useEffect(() => {
+    rarimeRef.current = null;
+    freedomToolRef.current = null;
+    setProposalInfo(null);
+    // Force re-gating on the next NFC scan — without this, flipping
+    // networks mid-flow would let the init useEffect run immediately
+    // with stale `passportKeyReady=true`.
+    setPassportKeyReady(false);
+  }, [network]);
+
   // Init Rarime + FreedomTool + load proposal. Deferred until after the NFC
   // scan (Step 6) so that Rarime's native Rust/ZK warmup doesn't contend with
   // IsoDep during PACE. Step 7 reads rarimeRef.current defensively and will
   // wait for init to complete.
   useEffect(() => {
     if (currentStep < 7) return;
+    // Wait for handleNFCSuccess's async block to finish writing the
+    // per-passport BJJ key into the legacy SecureStore slot. Without this
+    // gate, the line below that calls `getOrCreatePrivateKey()` can read
+    // the *previous* scan's key (or the migration-era legacy key on a
+    // clean install), construct Rarime against the wrong identity, and
+    // the on-chain `activeIdentity` check then reports REGISTERED_WITH_OTHER_PK.
+    if (!passportKeyReady) return;
     if (rarimeRef.current) return; // already initialised
     (async () => {
       try {
-        const { Rarime: RarimeClass, FreedomTool: FT } =
+        // Catch regressions in the keccak dispatch strings used by the
+        // registerViaNoir path. Cheap (~µs) and fails loud, before any
+        // network calls happen. See utils/register-via-noir.ts.
+        try { assertOnChainConstants(); } catch (e) { console.error('[voting-flow]', e); }
+
+        const { Rarime: RarimeClass, FreedomTool: FT, RarimeUtils } =
           await import('@rarimo/rarime-rn-sdk');
+
+        // Register self-compiled TD3 (passport) circuits. Rarimo only publishes
+        // TD1 Noir circuits on its GCS bucket; without these, the SDK falls
+        // back to TD1 circuits and rejects 93-byte DG1 with
+        // "Array length mismatch for input 'dg1'. Expected: 95, Actual: 93".
+        RarimeClass.registerBundledCircuit('query_identity_td3', require('@/assets/circuits/query_identity_td3.json'));
+        RarimeClass.registerBundledCircuit('register_light_td3_160', require('@/assets/circuits/register_light_td3_160.json'));
+        RarimeClass.registerBundledCircuit('register_light_td3_224', require('@/assets/circuits/register_light_td3_224.json'));
+        RarimeClass.registerBundledCircuit('register_light_td3_256', require('@/assets/circuits/register_light_td3_256.json'));
+        RarimeClass.registerBundledCircuit('register_light_td3_384', require('@/assets/circuits/register_light_td3_384.json'));
+        RarimeClass.registerBundledCircuit('register_light_td3_512', require('@/assets/circuits/register_light_td3_512.json'));
+        // Heavy register circuit — used by the Mainnet registerViaNoir path
+        // (utils/register-via-noir.ts). 3 MB of Noir bytecode bundled in-app
+        // so registration works offline. See task #16 / HANDOFF-FRENCH-PASSPORT.md.
+        RarimeClass.registerBundledCircuit('registerIdentity_1_256_3_5_576_248_NA', require('@/assets/circuits/registerIdentity_1_256_3_5_576_248_NA.json'));
+        console.log('[FreedomTool] TD3 bundled circuits registered (query + register_light 160/224/256/384/512 + registerIdentity_1_256_3_5_576_248_NA heavy)');
 
         const storedKey = await getOrCreatePrivateKey();
         setPrivateKey(storedKey);
 
+        // Dump the BJJ keypair so the user can preserve it if registration
+        // eventually succeeds (private key lives only in SecureStore — wiping
+        // the app loses on-chain identity).
+        //
+        // SECURITY: gated behind __DEV__ so release builds never log the
+        // user's BJJ private key. The per-passport DB + key-management UI
+        // (app/key-management.tsx) is the supported backup path for users
+        // — the logcat dump is purely a developer convenience for QA.
+        if (__DEV__) {
+          try {
+            const { babyJub } = await import('@iden3/js-crypto');
+            const pubPoint = babyJub.mulPointEScalar(babyJub.Base8, BigInt('0x' + storedKey));
+            const pubX = pubPoint[0].toString(16).padStart(64, '0');
+            const pubY = pubPoint[1].toString(16).padStart(64, '0');
+            const profileKey = RarimeUtils.getProfileKey(storedKey);
+            console.log('[FreedomTool][KEYPAIR] ===== BJJ KEYPAIR (save if reg succeeds) =====');
+            console.log('[FreedomTool][KEYPAIR] privateKey: 0x' + storedKey);
+            console.log('[FreedomTool][KEYPAIR] pubPoint.x: 0x' + pubX);
+            console.log('[FreedomTool][KEYPAIR] pubPoint.y: 0x' + pubY);
+            console.log('[FreedomTool][KEYPAIR] profileKey: 0x' + profileKey);
+            console.log('[FreedomTool][KEYPAIR] ===== END KEYPAIR =====');
+          } catch (e: any) {
+            console.error('[FreedomTool][KEYPAIR] dump failed:', e?.message ?? e);
+          }
+        }
+
+        // Pick the right contract / RPC bundle for the currently-active
+        // network. The whole Rarime + FreedomTool pair has to share a network
+        // (mixing them would point getDocumentStatus and getProposalInfo at
+        // different chains and silently break vote-eligibility checks).
+        console.log(`[FreedomTool] Initialising for network=${network}`);
+        const rarimeCfg = getRarimeConfig(network);
+        const ftCfg = getFreedomToolConfig(network);
+
         const rarime = new RarimeClass({
-          ...RARIME_TESTNET_CONFIG,
+          ...rarimeCfg,
           userConfiguration: { userPrivateKey: storedKey },
         });
         rarimeRef.current = rarime;
 
-        const ft = new FT(FREEDOM_TOOL_CONFIG);
+        const ft = new FT(ftCfg);
         freedomToolRef.current = ft;
 
-        const targetProposalId = proposalIdParam || DEFAULT_PROPOSAL_ID;
+        const targetProposalId = proposalIdParam || getDefaultProposalId(network);
 
         // Cache-first: the home screen already fetched & cached this
         // proposal. Using it here cuts ~2–3 s off the post-NFC wait (that's
         // the getProposalInfo() roundtrip blocking Step 7 verification).
-        const cached = await findCachedProposal(targetProposalId);
+        const cached = await findCachedProposal(network, targetProposalId);
         if (cached) {
           console.log('[FreedomTool] Proposal loaded from cache:', cached.title);
           setProposalInfo(cached);
@@ -122,7 +209,7 @@ export default function VotingFlowScreen() {
         console.error('[FreedomTool] Init error:', err);
       }
     })();
-  }, [currentStep, proposalIdParam]);
+  }, [currentStep, proposalIdParam, network, passportKeyReady]);
 
   // Reset state when screen comes into focus
   useFocusEffect(
@@ -138,6 +225,9 @@ export default function VotingFlowScreen() {
       // `true` and keep Step 5's camera disabled on re-entry (Step 5's
       // isActive is gated on `!isManualInputVisible`).
       setIsManualInputVisible(false);
+      // Re-arm the per-passport key gate so the init useEffect waits for
+      // the next NFC scan + DB lookup before constructing Rarime.
+      setPassportKeyReady(false);
 
       // Reset animations
       slideAnim.setValue(0);
@@ -202,6 +292,76 @@ export default function VotingFlowScreen() {
         const sod = new Uint8Array(data.sodBytes);
         passportRef.current = new RP({ dataGroup1: dg1, sod });
         console.log('[FreedomTool] RarimePassport created, dg1.length:', dg1.length);
+
+        // Resolve (and lazily generate) the BJJ key bound to THIS passport.
+        // Multiple passports on the same phone each get their own identity;
+        // the same passport rescanned recovers its existing key. We also
+        // mirror the result into the legacy single-key SecureStore slot so
+        // every downstream call site (Rarime init, Step11 mainnet flow,
+        // diagnostic screens) keeps reading from `getOrCreatePrivateKey()`
+        // unchanged. See utils/passport-key-db.ts for the DB shape and
+        // utils/identity.ts::getOrCreateKeyForPassport for the migration.
+        try {
+          const { getOrCreateKeyForPassport } = await import('@/utils/identity');
+          const mrzDoc = (() => {
+            try { return passportRef.current!.getMRZData().documentNumber; }
+            catch { return undefined; }
+          })();
+          const resolved = await getOrCreateKeyForPassport({ dg1, sod, label: mrzDoc });
+          console.log(
+            `[FreedomTool][passport-key] hash=${resolved.passportHash.slice(0, 12)}… ` +
+            `key=${resolved.privateKey.slice(0, 8)}… isNew=${resolved.isNew} ` +
+            `migratedFromLegacy=${resolved.migratedFromLegacy}`,
+          );
+
+          // Pre-warm the CSCA bootstrap cache. Reading + treap-building
+          // master_000316.pem (1.8 MB, 857 certs) takes ~1.5 s on the Volla
+          // Phone X23 — kicking it off right after the NFC scan finishes
+          // means by the time Step 7 might call registerCscaForSlave (10 s
+          // later, after status check + suite resolution), the cache is
+          // hot. Fire-and-forget: errors are logged but don't block the
+          // NFC flow.
+          import('@/utils/csca-bootstrap')
+            .then((m) => m.ensureMastersCache())
+            .then(() => console.log('[csca-bootstrap] cache pre-warmed'))
+            .catch((e) => console.warn('[csca-bootstrap] pre-warm failed:', e?.message ?? e));
+
+          // Force the SDK refs to be re-created against the (possibly new)
+          // private key on the next Rarime init pass — same trick we use
+          // when the user flips testnet/mainnet in Settings.
+          rarimeRef.current = null;
+          freedomToolRef.current = null;
+          // ONLY now signal the Rarime init useEffect that it can read
+          // `getOrCreatePrivateKey()` safely — the legacy slot has been
+          // synced to this passport's key above.
+          setPassportKeyReady(true);
+        } catch (e: any) {
+          console.warn('[FreedomTool][passport-key] lookup/create failed:', e?.message ?? e);
+          // Fall through with whatever the legacy slot holds so the user
+          // isn't stuck on Step 7 forever — the on-chain status check
+          // will surface the wrong-key case explicitly with the
+          // REGISTERED_WITH_OTHER_PK branch in Step 7.
+          setPassportKeyReady(true);
+        }
+
+        // One-shot capture for inid-passport-debug's PassportDebug screen,
+        // which accepts {dg1, sod, dg15?, aaSignature?} as hex strings.
+        // Pull off-device with `adb pull
+        // /storage/emulated/0/Android/data/com.referendumcitoyen.app/files/passport.json`
+        // (or the documentDirectory from logs below).
+        const toHex = (u: Uint8Array) =>
+          Array.from(u).map(b => b.toString(16).padStart(2, '0')).join('');
+        const FS = await import('expo-file-system/legacy');
+        const payload: Record<string, string> = {
+          dg1: toHex(new Uint8Array(data.dg1Bytes)),
+          sod: toHex(new Uint8Array(data.sodBytes)),
+        };
+        if (data.dg15Bytes && data.dg15Bytes.length) payload.dg15 = toHex(new Uint8Array(data.dg15Bytes));
+        if (data.aaSignature && data.aaSignature.length) payload.aaSignature = toHex(new Uint8Array(data.aaSignature));
+        const path = (FS.documentDirectory ?? '') + 'passport.json';
+        await FS.writeAsStringAsync(path, JSON.stringify(payload));
+        console.log('[passport.json] written to', path);
+        console.log('[passport.json] bytes: dg1=' + payload.dg1.length / 2 + ' sod=' + payload.sod.length / 2 + ' dg15=' + ((payload.dg15?.length ?? 0) / 2) + ' aaSig=' + ((payload.aaSignature?.length ?? 0) / 2));
       } catch (err) {
         console.error('[FreedomTool] PASSPORT_CREATE_FAILED', err);
       }
@@ -297,6 +457,10 @@ export default function VotingFlowScreen() {
   }, [selectedVote, slideAnim, containerWidth, handleStepChange]);
 
   const handleClose = useCallback(() => {
+    // Stack trace so we can see WHICH caller closed the screen (the user
+    // reports the success page sometimes auto-dismisses; we want to find
+    // the path that isn't a manual button press).
+    console.log('[voting-flow] handleClose called. stack:\n' + new Error().stack);
     pauseAll();
     router.back();
   }, [router, pauseAll]);
@@ -410,6 +574,7 @@ export default function VotingFlowScreen() {
                     rarime={rarimeRef.current ?? undefined}
                     passport={passportRef.current ?? undefined}
                     freedomTool={freedomToolRef.current ?? undefined}
+                    network={network}
                   />
                 ) : spacer('s7'),
                 show(7) ? (
@@ -454,6 +619,7 @@ export default function VotingFlowScreen() {
                     passport={passportRef.current ?? undefined}
                     proposalInfo={proposalInfo ?? undefined}
                     answerIndex={selectedVote}
+                    network={network}
                   />
                 ) : spacer('s11'),
                 show(11) ? (

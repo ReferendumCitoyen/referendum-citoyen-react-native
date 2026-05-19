@@ -46,3 +46,18 @@ export const isFrenchCompatible = (p: ProposalInfo): boolean => {
   if (!whitelist || whitelist.length === 0) return true;
   return whitelist.some((c: bigint) => c === FRA_BIGINT);
 };
+
+/** BioPassportVoting deployed on Rarimo Mainnet — TD3 passport flow.
+ * Proposals whose `sendVoteContractAddress` is something else (typically
+ * IDCardVoting at 0x7d73513d64… for TD1 national-ID cards) cannot be voted
+ * on with a passport: the on-chain verifier rejects the wrong proof shape
+ * and our calldata builder is hardcoded for BioPassportVoting's signature. */
+const BIO_PASSPORT_VOTING_ADDRESS =
+  '0x8Dea8065888A14F66ba9Fb944353d898663863cf'.toLowerCase();
+
+/** Whether the proposal can be voted on with a TD3 passport — i.e. its
+ * voting contract is BioPassportVoting. */
+export const isPassportVotingTarget = (p: ProposalInfo): boolean => {
+  const target = p.sendVoteContractAddress?.toLowerCase();
+  return target === BIO_PASSPORT_VOTING_ADDRESS;
+};

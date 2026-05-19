@@ -15,16 +15,26 @@ config.resolver.extraNodeModules = {
   buffer: require.resolve('buffer'),
 };
 
-// Force resolution of packages that don't have React Native exports
+// Groth16 vote flow needs to load:
+//   - .dat (cpp witnesscalc binary descriptor, assets/circuits/query_identity.dat)
+//   - .zkey (Groth16 zkey — too big to bundle, downloaded at runtime)
+// CSCA bootstrap (utils/icao-master-tree.ts) needs:
+//   - .pem (ICAO master list bundle, assets/certificates/master_000316.pem)
+// None are in Metro's default assetExts, so require() of these files would
+// throw "Unable to resolve module" without this.
+config.resolver.assetExts = [...config.resolver.assetExts, 'zkey', 'dat', 'pem'];
+
+// Force resolution of packages that don't have React Native exports.
+// @iden3/js-crypto only ships browser ESM — point Metro at that bundle so the
+// SDK (which imports it transitively from RarimePassport / Rarime.ts) works
+// without an "Unable to resolve module" error at app start.
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Use browser export for @iden3/js-crypto on iOS/Android
   if (moduleName === '@iden3/js-crypto') {
     return {
       filePath: path.resolve(__dirname, 'node_modules/@iden3/js-crypto/dist/browser/esm/index.js'),
       type: 'sourceFile',
     };
   }
-  // Let Metro handle everything else
   return context.resolveRequest(context, moduleName, platform);
 };
 

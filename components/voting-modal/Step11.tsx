@@ -3,11 +3,13 @@ import { View, Text, LayoutChangeEvent } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
-import { formatRpcError } from '@/constants/rarime-config';
+import { formatRpcError, type Network } from '@/constants/rarime-config';
 import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { Buffer } from 'buffer';
 import { ensureCircuitsReady } from '@/utils/circuit-preload';
+import { castMainnetVote } from '@/utils/mainnet-vote-flow';
+import { getOrCreatePrivateKey } from '@/utils/identity';
 
 interface Step11Props {
   containerWidth: number;
@@ -20,6 +22,11 @@ interface Step11Props {
   passport?: RarimePassport;
   proposalInfo?: ProposalInfo;
   answerIndex?: number;
+  /** Active network from NetworkContext. Mainnet routes through the
+   * Groth16 vote pipeline (utils/mainnet-vote-flow.ts) — the SDK's Noir
+   * vote path doesn't match the deployed Mainnet BioPassportVoting ABI.
+   * Testnet keeps the existing freedomTool.submitProposal flow. */
+  network?: Network;
 }
 
 const Step11: React.FC<Step11Props> = ({
@@ -33,6 +40,7 @@ const Step11: React.FC<Step11Props> = ({
   passport,
   proposalInfo,
   answerIndex,
+  network = 'testnet',
 }) => {
   const { t } = useTranslation();
   const colors = useColors();
@@ -42,7 +50,12 @@ const Step11: React.FC<Step11Props> = ({
   const isSubmitting = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
 
-  const canSubmitReal = freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
+  // Mainnet path doesn't need freedomTool (it bypasses the SDK entirely),
+  // so the readiness gate is different per network.
+  const canSubmitReal =
+    network === 'mainnet'
+      ? rarime && passport && proposalInfo && answerIndex !== undefined
+      : freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
 
   useEffect(() => {
     if (isActive && !hasStarted) {
@@ -83,9 +96,77 @@ const Step11: React.FC<Step11Props> = ({
     isSubmitting.current = true;
     (async () => {
       try {
+        // ----------------------------------------------------------------
+        // Mainnet branch: deployed BioPassportVoting takes Groth16, not
+        // Noir. Skip the entire SDK Noir flow (freedomTool.isAlreadyVoted /
+        // .verify / .submitProposal — all assume the Noir contract surface
+        // and revert against Mainnet's actual Groth16 verifier). Run
+        // utils/mainnet-vote-flow.ts which mirrors rarime-android-app's
+        // VotingManager.vote() call-for-call.
+        //
+        // Testnet keeps the SDK path because that's still Noir on Q-testnet
+        // and the SDK shape matches there.
+        // ----------------------------------------------------------------
+        if (network === 'mainnet') {
+          // `canSubmitReal` already validated these are defined on Mainnet
+          // (rarime + passport + proposalInfo + answerIndex). Non-null
+          // assertions here are safe.
+          const p = passport!;
+          const proposal = proposalInfo!;
+          const ai = answerIndex!;
+
+          setStatusText(t('voting.step11Preparing'));
+          const mrzData = p.getMRZData();
+          const sk = await getOrCreatePrivateKey();
+          const passportHashBig = p.getPassportHash();
+          // RarimeUtils.getProfileKey returns the 64-char hex profile key
+          // (Poseidon of the BJJ pubpoint). We import it lazily to avoid
+          // pulling the SDK into the module evaluation cost on testnet.
+          const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
+          const profileKeyHex = RarimeUtils.getProfileKey(sk);
+
+          console.log(`[Step11][mainnet] casting vote on proposal #${proposal.id}, answerIndex=${ai}`);
+          setStatusText(t('voting.step11GeneratingProof'));
+
+          const { txId } = await castMainnetVote({
+            dg1: new Uint8Array(p.dataGroup1),
+            bjjPrivateKeyHex: sk,
+            passportHash: passportHashBig,
+            profileKey: '0x' + profileKeyHex,
+            proposalId: Number(proposal.id),
+            citizenship: mrzData.issuingCountry,
+            voteIndices: [ai],
+            // On first vote ever, the 757 MB zkey download dominates. Surface
+            // progress through the status line so the user isn't staring at
+            // a silent spinner for many minutes.
+            onZkeyProgress: (p) => {
+              if (p.totalBytesExpectedToWrite > 0) {
+                const pct = Math.round(
+                  (p.totalBytesWritten / p.totalBytesExpectedToWrite) * 100,
+                );
+                setStatusText(t('voting.step11DownloadingData', { percent: pct }));
+              }
+            },
+          });
+          console.log('[Step11][mainnet] vote tx id:', txId);
+          hasCalledCallback.current = true;
+          setStatusText(t('voting.step11VoteSubmitted'));
+          onSuccess?.(txId);
+          return;
+        }
+
+        // ----------------------------------------------------------------
+        // Testnet (legacy SDK Noir flow). Unchanged from before today's work.
+        // canSubmitReal on testnet already guarantees these are defined.
+        // ----------------------------------------------------------------
+        const ft = freedomTool!;
+        const r = rarime!;
+        const p = passport!;
+        const proposal = proposalInfo!;
+        const ai = answerIndex!;
         // Pre-check: already voted?
         setStatusText(t('voting.step11Preparing'));
-        const alreadyVoted = await freedomTool.isAlreadyVoted(proposalInfo, rarime);
+        const alreadyVoted = await ft.isAlreadyVoted(proposal, r);
         if (alreadyVoted) {
           console.log('[FreedomTool] Step11: Already voted on this proposal');
           hasCalledCallback.current = true;
@@ -117,14 +198,14 @@ const Step11: React.FC<Step11Props> = ({
         }
 
         setStatusText(t('voting.step11GeneratingProof'));
-        const mrzData = passport.getMRZData();
+        const mrzData = p.getMRZData();
         const citizenshipHex = BigInt("0x" + Buffer.from(mrzData.issuingCountry).toString("hex")).toString();
         console.log(`[FreedomTool] Step11: Submitting vote...`);
-        console.log(`[FreedomTool] Step11: proposal=#${proposalInfo.id} "${proposalInfo.title}"`);
-        console.log(`[FreedomTool] Step11: answerIndex=${answerIndex}, variant="${proposalInfo.questions[0]?.variants?.[answerIndex]}"`);
+        console.log(`[FreedomTool] Step11: proposal=#${proposal.id} "${proposal.title}"`);
+        console.log(`[FreedomTool] Step11: answerIndex=${ai}, variant="${proposal.questions[0]?.variants?.[ai]}"`);
         console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
-        console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposalInfo.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
-        console.log(`[FreedomTool] Step11: selector=${proposalInfo.criteria.selector}, sendVoteContract=${proposalInfo.sendVoteContractAddress}`);
+        console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposal.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
+        console.log(`[FreedomTool] Step11: selector=${proposal.criteria.selector}, sendVoteContract=${proposal.sendVoteContractAddress}`);
 
         // Pre-flight eligibility via the SDK's own check. This looks at voting
         // period and already-voted — it does NOT compare passport.issueTimestamp
@@ -132,7 +213,7 @@ const Step11: React.FC<Step11Props> = ({
         // deliberately bypasses that bound (UINT64_MAX-1) for recently re-registered
         // identities so they can still vote on open proposals.
         try {
-          await freedomTool.verify(proposalInfo, passport, rarime);
+          await ft.verify(proposal, p, r);
         } catch (vErr: any) {
           console.warn('[Step11] SDK verify() rejected:', vErr?.message);
           throw vErr;
@@ -144,11 +225,11 @@ const Step11: React.FC<Step11Props> = ({
         // showing JsonRpcProvider "failed to detect network" after repeated
         // FileSystemLegacyModule aborts). Surface the error; let the user
         // retry from a clean slate.
-        const txHash = await freedomTool.submitProposal({
-          answers: [answerIndex],
-          proposalInfo,
-          rarime,
-          passport,
+        const txHash = await ft.submitProposal({
+          answers: [ai],
+          proposalInfo: proposal,
+          rarime: r,
+          passport: p,
         });
 
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
@@ -164,6 +245,12 @@ const Step11: React.FC<Step11Props> = ({
         // Messages thrown by freedomTool.verify()
         if (msg.includes('already voted') || msg.includes('User has already voted')) {
           errorMsg = t('voting.step9ErrorDescription');
+        } else if (msg.startsWith('[VOTE_INELIGIBLE]')) {
+          // mainnet-vote-flow.ts uses this prefix when it can identify which
+          // circuit constraint failed (e.g., passport expired vs the proposal's
+          // expirationDateLowerbound). The message after the prefix is already
+          // user-facing French — strip the marker and display verbatim.
+          errorMsg = msg.replace('[VOTE_INELIGIBLE]', '').trim();
         } else if (msg.includes('Voting has not started')) {
           errorMsg = t('voting.step11VotingNotStarted');
         } else if (msg.includes('Voting has ended')) {

@@ -3,12 +3,13 @@ import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform } from 'react
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from 'react-native-vision-camera';
 import { useTextRecognition } from 'react-native-vision-camera-text-recognition';
 import { Worklets } from 'react-native-worklets-core';
-import { parse } from 'mrz';
 import { Svg, Path } from 'react-native-svg';
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
 import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
+import { useDevMode } from '@/contexts/DevModeContext';
+import { extractMrz } from '@/utils/mrz-rarimo';
 
 interface Step5Props {
   containerWidth: number;
@@ -23,6 +24,11 @@ interface Step5Props {
 }
 
 const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout }) => {
+  // Dev-mode toggle: bypasses the MRZ-level underage / expired guards so
+  // QA can scan otherwise-ineligible documents and test the downstream
+  // NFC + registration + voting paths. Turn it on with 7 taps on the
+  // version row in Settings.
+  const { devMode } = useDevMode();
   const { t } = useTranslation();
   const colors = useColors();
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -32,7 +38,6 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const [hasScanned, setHasScanned] = useState(false);
   const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected' | 'underage' | 'expired'>('idle');
   const passportDetectCount = useRef(0);
-  const mrzHistoryRef = useRef<string[][]>([]);
   const ocrProducedResultsRef = useRef(false);
   // On degoogled devices (VollaOS, /e/OS, GrapheneOS without GServices) ML Kit's
   // text-recognition model can't load; the frame processor runs but scanText()
@@ -45,7 +50,6 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     if (isActive) {
       setHasScanned(false);
       setScanProgress('idle');
-      mrzHistoryRef.current = [];
       passportDetectCount.current = 0;
       ocrProducedResultsRef.current = false;
       setOcrUnavailable(false);
@@ -62,21 +66,6 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     }, 8000);
     return () => clearTimeout(timer);
   }, [isActive, hasScanned]);
-
-  // MRZ Parser — TD3 (passport: 2 lines × 44 chars)
-  const parseMRZ = useCallback((lines: string[]) => {
-    if (lines.length < 2) return null;
-    try {
-      const td3Lines = lines.slice(-2);
-      const sanitized = td3Lines.map(el => {
-        const cleaned = el.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-        return cleaned.length > 44 ? cleaned.substring(0, 44) : cleaned.padEnd(44, '<');
-      });
-      const result = parse(sanitized, { autocorrect: true });
-      if (result?.valid && result.format === 'TD3') return result;
-    } catch {}
-    return null;
-  }, []);
 
   // Convert YYMMDD to YYYY-MM-DD
   const convertMRZDate = (yymmdd: string): string => {
@@ -112,131 +101,98 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return `${yy}${mm}${dd}`;
   };
 
-  const sanitizeMRZLine = (line: string): string => {
-    const cleaned = line.replaceAll('«', '<').replaceAll(' ', '').toUpperCase();
-    return cleaned.length > 30 ? cleaned.substring(0, 30) : cleaned.padEnd(30, '<');
-  };
+  // OCR-output handler. Replaces the previous lines-based parser +
+  // consensus buffer with rarime-android-app's single-frame algorithm
+  // (utils/mrz-rarimo.ts): one regex match against the whole OCR text,
+  // three ICAO mod-10 checksums gate the result. No history needed —
+  // either a frame contains a complete, checksum-valid MRZ line 2 or
+  // it doesn't.
+  const onMRZDetected = Worklets.createRunOnJS((rawText: string) => {
+    if (hasScanned) return;
 
-  const buildConsensus = useCallback((history: string[][]): string[] => {
-    const lineCount = history[0]?.length ?? 2;
-    const lineLen = lineCount === 2 ? 44 : 30; // TD3=2×44, TD1=3×30
-    return Array.from({ length: lineCount }, (_, lineIdx) => {
-      let result = '';
-      for (let pos = 0; pos < lineLen; pos++) {
-        const chars: Record<string, number> = {};
-        for (const read of history) {
-          const ch = read[lineIdx]?.[pos] || '<';
-          chars[ch] = (chars[ch] || 0) + 1;
-        }
-        result += Object.entries(chars).sort((a, b) => b[1] - a[1])[0][0];
+    // Any OCR output at all means ML Kit is running — suppress the
+    // "OCR unavailable" banner.
+    if (rawText.length > 0) {
+      ocrProducedResultsRef.current = true;
+    }
+
+    // TD1 ID card detection: passport scanner is in this step but the
+    // user might be holding a national ID. ID cards start with "I<" or
+    // "ID" at the top of line 1. Three consecutive frames seeing this
+    // pattern → flip to the "wrong document" state. Done as a quick
+    // pre-filter before the regex so we don't burn cycles on doomed
+    // matches.
+    const normalised = rawText.replace(/«/g, '<<').replace(/\s+/g, '').toUpperCase();
+    if (/^I[D<]/.test(normalised) || normalised.startsWith('AC')) {
+      passportDetectCount.current++;
+      if (passportDetectCount.current >= 3) {
+        setScanProgress('passport_detected');
       }
-      return result;
-    });
-  }, []);
-
-  const isMRZLike = (line: string): boolean => {
-    const cleaned = line.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-    return (cleaned.includes('<<') || cleaned.startsWith('ID') || cleaned.startsWith('P<') || cleaned.startsWith('P<')) && cleaned.length >= 20;
-  };
-
-  const handleMRZSuccess = useCallback((result: ReturnType<typeof parse>) => {
-    console.log("✅ MRZ Detected:", JSON.stringify(result.fields, null, 2));
-
-    // Pre-NFC eligibility gate: same age + expiry policy as the manual entry
-    // sheet (utils/mrzDate). Don't advance to Step 6 if the card is underage
-    // or expired — the user can present a different card or use Saisie
-    // manuelle. Stays in scan state so OCR keeps running.
-    const birth = parseMRZDate(result.fields.birthDate || '');
-    const expiry = parseMRZDate(result.fields.expirationDate || '');
-    if (checkBirthDate(birth) === 'underage') {
-      console.log('[Step5] Card holder is under 18 — blocking');
-      setScanProgress('underage');
       return;
     }
-    if (checkExpiryDate(expiry) === 'expired') {
-      console.log('[Step5] Card is expired — blocking');
-      setScanProgress('expired');
+
+    const mrz = extractMrz(rawText);
+    if (!mrz) {
+      // No checksum-valid line 2 in this frame yet. Surface "scanning"
+      // unless we've already seen partial signal (an MRZ-shaped run
+      // anywhere in the OCR output — the regex shape without checksums).
+      if (/[0-9A-Z<]{10}[A-Z]{3}/.test(normalised)) {
+        setScanProgress('partial');
+      } else {
+        setScanProgress('scanning');
+      }
       return;
+    }
+
+    console.log('✅ MRZ detected (rarime algo):', JSON.stringify(mrz));
+
+    // Pre-NFC eligibility gate: same age + expiry policy as the manual
+    // entry sheet (utils/mrzDate). Stays in scan state so OCR keeps
+    // running — user can re-present a different document.
+    //
+    // Dev-mode bypass: when the user has dev mode enabled (Settings →
+    // 7 taps on version), we let underage / expired documents through so
+    // QA can test the rest of the flow (registration relayer accepts
+    // expired passports; the circuit-level expiration check fires later
+    // in Step 11 with a clearer error message). We still log the reason
+    // so it's obvious in logcat which check was waived.
+    const birth = parseMRZDate(mrz.dateOfBirth);
+    const expiry = parseMRZDate(mrz.dateOfExpiry);
+    if (checkBirthDate(birth) === 'underage') {
+      if (devMode) {
+        console.log('[Step5][devMode] bypassing underage check');
+      } else {
+        console.log('[Step5] Card holder is under 18 — blocking');
+        setScanProgress('underage');
+        return;
+      }
+    }
+    if (checkExpiryDate(expiry) === 'expired') {
+      if (devMode) {
+        console.log('[Step5][devMode] bypassing expired check');
+      } else {
+        console.log('[Step5] Card is expired — blocking');
+        setScanProgress('expired');
+        return;
+      }
     }
 
     setScanProgress('success');
     setHasScanned(true);
 
     if (onMRZScanned) {
+      // The next step (Step 6 NFC reader) wants YYMMDD for BAC derivation,
+      // which is the format extractMrz already returns. Round-tripping
+      // through convertMRZDate/convertToMRZFormat is preserved so any
+      // future change to that step's expected format only needs to touch
+      // these two helpers.
       const mrzOut = {
-        documentNumber: result.fields.documentNumber || "",
-        birthDate: convertToMRZFormat(convertMRZDate(result.fields.birthDate || "")),
-        expiryDate: convertToMRZFormat(convertMRZDate(result.fields.expirationDate || "")),
+        documentNumber: mrz.documentNumber,
+        birthDate: convertToMRZFormat(convertMRZDate(mrz.dateOfBirth)),
+        expiryDate: convertToMRZFormat(convertMRZDate(mrz.dateOfExpiry)),
       };
-      console.log("[Step5] Sending MRZ to next step:", mrzOut);
+      console.log('[Step5] Sending MRZ to next step:', mrzOut);
       onMRZScanned(mrzOut);
-    }
-  }, [onMRZScanned]);
-
-  const onMRZDetected = Worklets.createRunOnJS((lines: string[]) => {
-    if (hasScanned) return;
-
-    // Any OCR output at all — even garbage that isn't MRZ — means ML Kit is
-    // actually running, so we won't surface the "OCR unavailable" banner.
-    if (lines.length > 0) {
-      ocrProducedResultsRef.current = true;
-    }
-
-    try {
-      const mrzLikeLines = lines.filter(isMRZLike);
-      const mrzLikeCount = mrzLikeLines.length;
-      console.log(`[Step5 OCR] ${lines.length} lines, ${mrzLikeCount} MRZ-like:`);
-      mrzLikeLines.forEach((l, i) => console.log(`  MRZ[${i}]: "${l}"`));
-
-      // Detect TD1 ID card (3 lines of 30 chars) — warn user to use passport instead
-      if (mrzLikeCount >= 3) {
-        const firstLine = mrzLikeLines[0].replaceAll(' ', '').toUpperCase();
-        if (firstLine.startsWith('ID') || firstLine.startsWith('I<') || firstLine.startsWith('AC')) {
-          passportDetectCount.current++;
-          if (passportDetectCount.current >= 3) {
-            setScanProgress('passport_detected'); // reused state: "wrong document"
-          }
-          return;
-        }
-      }
-
-      if (mrzLikeCount > 0 && mrzLikeCount < 2) {
-        setScanProgress('partial');
-      } else if (mrzLikeCount === 0) {
-        setScanProgress('scanning');
-      }
-
-      // Try parsing the raw single frame as TD3 directly
-      const result = parseMRZ(lines);
-      if (result?.valid) {
-        handleMRZSuccess(result);
-        return;
-      }
-
-      // Accumulate for consensus if we have 2 MRZ-like lines (TD3 passport)
-      if (mrzLikeCount >= 2) {
-        const sanitized = mrzLikeLines.slice(-2).map(l => {
-          const c = l.replaceAll('«', '<<').replaceAll(' ', '').toUpperCase();
-          return c.length > 44 ? c.substring(0, 44) : c.padEnd(44, '<');
-        });
-        mrzHistoryRef.current.push(sanitized);
-        if (mrzHistoryRef.current.length > 15) {
-          mrzHistoryRef.current = mrzHistoryRef.current.slice(-15);
-        }
-
-        if (mrzHistoryRef.current.length >= 3) {
-          const consensus = buildConsensus(mrzHistoryRef.current);
-          console.log(`[Step5 Consensus] (${mrzHistoryRef.current.length} reads):`, consensus);
-          try {
-            const consensusResult = parse(consensus, { autocorrect: true });
-            if (consensusResult?.valid && consensusResult.format === 'TD3') {
-              handleMRZSuccess(consensusResult);
-            }
-          } catch {}
-        }
-      }
-    } catch (err) {
-      console.log("MRZ detection error:", err);
     }
   });
 
@@ -260,8 +216,11 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             resultText = (data as any).resultText as string;
           }
 
+          // Pass the raw OCR text through — the rarime-algorithm extractor
+          // in utils/mrz-rarimo.ts does its own whitespace strip and regex
+          // match, and is happy with multi-line input.
           if (resultText) {
-            onMRZDetected(resultText.split('\n'));
+            onMRZDetected(resultText);
           }
         }
       } catch (err) {

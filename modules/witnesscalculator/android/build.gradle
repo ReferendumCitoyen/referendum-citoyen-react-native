@@ -1,0 +1,77 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.witnesscalculator'
+version = '0.6.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+// If you want to use the managed Android SDK versions from expo-modules-core, set this to true.
+// The Android SDK versions will be bumped from time to time in SDK releases and may introduce breaking changes in your module code.
+// Most of the time, you may like to manage the Android SDK versions yourself.
+def useManagedAndroidSdkVersions = false
+if (useManagedAndroidSdkVersions) {
+  useDefaultAndroidSdkVersions()
+} else {
+  buildscript {
+    // Simple helper that allows the root project to override versions declared by this library.
+    ext.safeExtGet = { prop, fallback ->
+      rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+    }
+  }
+  project.android {
+    compileSdkVersion safeExtGet("compileSdkVersion", 34)
+    defaultConfig {
+      minSdkVersion safeExtGet("minSdkVersion", 21)
+      targetSdkVersion safeExtGet("targetSdkVersion", 34)
+    }
+  }
+}
+
+android {
+  namespace "expo.modules.witnesscalculator"
+  defaultConfig {
+    versionCode 1
+    versionName "0.6.0"
+    // Tell the NDK to filter to arm64-v8a only. The prebuilt
+    // libwitnesscalc_queryIdentity.so we ship is arm64-only (matches the
+    // Volla Phone X23 target). Other ABIs would need their own binaries.
+    ndk {
+      abiFilters 'arm64-v8a'
+    }
+    // Compile our queryIdentity JNI shim — see src/main/cpp/CMakeLists.txt.
+    // The prebuilt witnesscalc lib it links against lives in jniLibs/<ABI>/.
+    externalNativeBuild {
+      cmake {
+        cppFlags '-std=c++14'
+      }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path 'src/main/cpp/CMakeLists.txt'
+      // Pinned to the version preinstalled by the Android Studio Command Line
+      // Tools — 3.18.1 isn't shipped by recent NDK bundles. 3.22.1 has the
+      // same feature surface our CMakeLists.txt uses.
+      version '3.22.1'
+    }
+  }
+  // Make sure jniLibs/ is also packaged (the prebuilt .so the shim links
+  // against). Android picks this up by default for src/main/jniLibs/ABI/ —
+  // we declare it explicitly for clarity.
+  sourceSets {
+    main {
+      jniLibs.srcDirs = ['src/main/jniLibs']
+    }
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation(name: 'RmoCalcs', ext: 'aar')
+}
