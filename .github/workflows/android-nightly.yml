@@ -1,6 +1,9 @@
 name: Android Nightly Build
 
-# - Runs every night at 03:00 UTC against `main`.
+# - Runs every night at 03:00 UTC against `develop` (the integration branch
+#   contributors push into). Pre-release dogfooding builds — debug-signed
+#   and NOT a real release. See `.github/workflows/android-release.yml` +
+#   CONTRIBUTING.md for the signed-release flow off `master`.
 # - Manual trigger via "Run workflow" (Actions tab).
 # - Builds a debug APK via `expo prebuild` + `./gradlew assembleDebug`.
 #   Debug APK is auto-signed with the default Android debug keystore and is
@@ -31,10 +34,10 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout main
+      - name: Checkout develop
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: develop
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
