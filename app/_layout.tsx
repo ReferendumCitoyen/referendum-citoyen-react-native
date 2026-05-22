@@ -16,6 +16,7 @@ import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/Theme
 import { DevModeProvider } from '@/contexts/DevModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
 import { TermsProvider, useTerms } from '@/contexts/TermsContext';
+import { ExtraProposalsProvider } from '@/contexts/ExtraProposalsContext';
 import { TERMS_VERSION } from '@/constants/terms';
 import TermsGate from './terms-gate';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -92,7 +93,9 @@ export default function RootLayout() {
           <DevModeProvider>
             <NetworkProvider>
               <TermsProvider>
-                <RootLayoutNav />
+                <ExtraProposalsProvider>
+                  <RootLayoutNav />
+                </ExtraProposalsProvider>
               </TermsProvider>
             </NetworkProvider>
           </DevModeProvider>
