@@ -63,6 +63,11 @@ const Step11: React.FC<Step11Props> = ({
   // other path needs freedomTool. Default isTd3=false until passport loads
   // so we don't drop the freedomTool requirement prematurely.
   const isTd3Doc = !!passport && passport.dataGroup1.length === 93;
+  // Used to suffix doc-type-aware translation keys (step11MissingData,
+  // step9ErrorDescription). When `passport` hasn't loaded yet, fall back to
+  // the ID-card variant — the strings only show up after the user has
+  // entered Step 11 so passport is virtually always populated by then.
+  const docSfx = isTd3Doc ? 'passport' : 'idCard';
   const usesGroth16MainnetPath = network === 'mainnet' && isTd3Doc;
   const canSubmitReal = usesGroth16MainnetPath
     ? rarime && passport && proposalInfo && answerIndex !== undefined
@@ -90,7 +95,7 @@ const Step11: React.FC<Step11Props> = ({
     const timer = setTimeout(() => {
       if (hasCalledCallback.current || canSubmitReal) return;
       hasCalledCallback.current = true;
-      setStatusText(t('voting.step11MissingData'));
+      setStatusText(t(`voting.step11MissingData_${docSfx}`));
       onError?.();
     }, 15000);
     return () => clearTimeout(timer);
@@ -185,8 +190,8 @@ const Step11: React.FC<Step11Props> = ({
         if (alreadyVoted) {
           console.log('[FreedomTool] Step11: Already voted on this proposal');
           hasCalledCallback.current = true;
-          setStatusText(t('voting.step9ErrorDescription'));
-          onError?.(t('voting.step9ErrorDescription'));
+          setStatusText(t(`voting.step9ErrorDescription_${docSfx}`));
+          onError?.(t(`voting.step9ErrorDescription_${docSfx}`));
           return;
         }
 
@@ -259,7 +264,7 @@ const Step11: React.FC<Step11Props> = ({
         let errorMsg: string;
         // Messages thrown by freedomTool.verify()
         if (msg.includes('already voted') || msg.includes('User has already voted')) {
-          errorMsg = t('voting.step9ErrorDescription');
+          errorMsg = t(`voting.step9ErrorDescription_${docSfx}`);
         } else if (msg.startsWith('[VOTE_INELIGIBLE]')) {
           // mainnet-vote-flow.ts uses this prefix when it can identify which
           // circuit constraint failed (e.g., passport expired vs the proposal's

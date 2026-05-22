@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking, Alert, TextInput } from 'react-native';
 import * as Application from 'expo-application';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
@@ -7,7 +7,8 @@ import { Svg, Path } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { LEGAL_URLS } from '@/constants/urls';
+import { useExtraProposals } from '@/contexts/ExtraProposalsContext';
+import { LEGAL_URLS, CONTACT_EMAIL } from '@/constants/urls';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -30,6 +31,35 @@ export default function ParametresScreen() {
   const darkModeEnabled = theme === 'dark';
   const { devMode, setDevMode, handleVersionTap } = useDevMode();
   const { network, setNetwork } = useNetwork();
+  const { extraEnabled, setExtraEnabled, extraIds, setExtraIds } = useExtraProposals();
+
+  // Local mirror of the comma-separated input — lets the user type freely
+  // (with intermediate invalid states like a trailing comma) and only
+  // commits sanitised values to the context on blur. Re-syncs from the
+  // context if the value changes externally (e.g. AsyncStorage hydrate).
+  const [extraIdsInput, setExtraIdsInput] = useState<string>(extraIds.join(', '));
+  const [extraIdsError, setExtraIdsError] = useState<string | null>(null);
+  useEffect(() => {
+    setExtraIdsInput(extraIds.join(', '));
+  }, [extraIds]);
+
+  const commitExtraIds = () => {
+    // Split on any run of whitespace, commas, or semicolons; filter to
+    // non-empty numeric tokens; dedupe (preserving first occurrence).
+    const raw = extraIdsInput
+      .split(/[\s,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const invalid = raw.filter((s) => !/^[1-9]\d*$/.test(s));
+    if (invalid.length > 0) {
+      setExtraIdsError(`Entrées invalides : ${invalid.join(', ')}`);
+      return;
+    }
+    const deduped: string[] = [];
+    for (const id of raw) if (!deduped.includes(id)) deduped.push(id);
+    setExtraIdsError(null);
+    setExtraIds(deduped);
+  };
 
   // Switching to Mainnet writes real on-chain state via the registration
   // relayer. Confirm before flipping. Switching *back* to testnet is free —
@@ -91,7 +121,7 @@ export default function ParametresScreen() {
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL('mailto:contact@referendum-citoyen.fr')}
+            onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}
           >
             <Text style={styles.settingLabel}>{t('settings.contact')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
@@ -137,15 +167,77 @@ export default function ParametresScreen() {
                 />
               </View>
 
-              {/* Diagnostic NFC (CNIe) */}
-              <TouchableOpacity
-                style={styles.settingRow}
-                activeOpacity={0.7}
-                onPress={() => router.push('/diagnostics')}
-              >
-                <Text style={styles.settingLabel}>Diagnostic NFC (CNIe)</Text>
-                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-              </TouchableOpacity>
+              {/* Extra proposals — toggle + editable list. Adds the IDs
+                  in `extraIds` (see ExtraProposalsContext) to the home
+                  screen alongside the production allowlist. Used to keep
+                  older verified scrutins reachable for QA without
+                  exposing them to regular users. Default off, default
+                  IDs ['48', '47']. */}
+              <View style={styles.settingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingLabel}>Scrutins supplémentaires (dev)</Text>
+                  <Text style={{
+                    fontFamily: Typography.fontFamily.medium,
+                    fontSize: Typography.fontSize.small,
+                    color: colors.text,
+                    opacity: 0.6,
+                    marginTop: 2,
+                  }}>
+                    {extraEnabled
+                      ? (extraIds.length > 0 ? `Affichés : #${extraIds.join(', #')}` : 'Activé (liste vide)')
+                      : 'Désactivé'}
+                  </Text>
+                </View>
+                <Switch
+                  value={extraEnabled}
+                  onValueChange={setExtraEnabled}
+                  trackColor={{ false: colors.switchGray, true: colors.secondary }}
+                  thumbColor={colors.buttonText}
+                  ios_backgroundColor={colors.switchGray}
+                />
+              </View>
+
+              {/* Editable list of extra proposal IDs. Visible whether the
+                  toggle is on or off so the user can prep the list before
+                  enabling it. Commits on blur (or on "Done" / submit). */}
+              <View style={[styles.settingRow, { flexDirection: 'column', alignItems: 'stretch', gap: 8 }]}>
+                <Text style={[styles.settingLabel, { fontSize: Typography.fontSize.small, opacity: 0.7 }]}>
+                  IDs supplémentaires (séparés par virgules)
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: extraIdsError ? colors.errorText : colors.border,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    fontFamily: Typography.fontFamily.regular,
+                    fontSize: Typography.fontSize.body,
+                    color: colors.text,
+                    backgroundColor: colors.background,
+                  }}
+                  value={extraIdsInput}
+                  onChangeText={(v) => { setExtraIdsInput(v); if (extraIdsError) setExtraIdsError(null); }}
+                  onBlur={commitExtraIds}
+                  onSubmitEditing={commitExtraIds}
+                  placeholder="48, 47"
+                  placeholderTextColor={colors.text + '60'}
+                  keyboardType="numbers-and-punctuation"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  returnKeyType="done"
+                />
+                {extraIdsError && (
+                  <Text style={{
+                    fontFamily: Typography.fontFamily.medium,
+                    fontSize: Typography.fontSize.small,
+                    color: colors.errorText,
+                  }}>
+                    {extraIdsError}
+                  </Text>
+                )}
+              </View>
 
               {/* Key management — backup / restore the BJJ private key.
                   Lives behind devMode because exposing a private key is a
@@ -172,18 +264,6 @@ export default function ParametresScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* ID Test Row */}
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test ID (générique)</Text>
-                <TouchableOpacity
-                  style={styles.settingValueContainer}
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/id-test')}
-                >
-                  <Text style={styles.settingValue}>{t('common.open')}</Text>
-                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-                </TouchableOpacity>
-              </View>
 
               {/* Passport Test Row */}
               <View style={styles.settingRow}>

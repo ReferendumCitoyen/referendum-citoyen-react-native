@@ -16,6 +16,7 @@ import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/Theme
 import { DevModeProvider } from '@/contexts/DevModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
 import { TermsProvider, useTerms } from '@/contexts/TermsContext';
+import { ExtraProposalsProvider } from '@/contexts/ExtraProposalsContext';
 import { TERMS_VERSION } from '@/constants/terms';
 import TermsGate from './terms-gate';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -92,7 +93,9 @@ export default function RootLayout() {
           <DevModeProvider>
             <NetworkProvider>
               <TermsProvider>
-                <RootLayoutNav />
+                <ExtraProposalsProvider>
+                  <RootLayoutNav />
+                </ExtraProposalsProvider>
               </TermsProvider>
             </NetworkProvider>
           </DevModeProvider>
@@ -141,20 +144,6 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
-            name="diagnostics"
-            options={{
-              title: 'Diagnostic NFC (CNIe)',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
-            name="diagnostics-passport"
-            options={{
-              title: 'Diagnostic Passeport',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
             name="voting-flow"
             options={{
               headerShown: false,
@@ -172,13 +161,6 @@ function RootLayoutNav() {
             name="french-id-test"
             options={{
               title: 'Test French ID',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
-            name="id-test"
-            options={{
-              title: 'Test ID',
               headerBackTitle: t('navigation.back'),
             }}
           />
