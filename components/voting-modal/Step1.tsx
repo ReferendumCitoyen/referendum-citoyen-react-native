@@ -9,9 +9,12 @@ interface Step1Props {
   player: any;
   containerWidth: number;
   onLayout?: (event: LayoutChangeEvent) => void;
+  /** True for TD3 passport flow; selects passport-themed poster art.
+   * Placeholder asset for now — see poster-passport.png. */
+  isPassportFlow?: boolean;
 }
 
-const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout }) => {
+const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout, isPassportFlow = false }) => {
   const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -22,7 +25,13 @@ const Step1: React.FC<Step1Props> = ({ player, containerWidth, onLayout }) => {
       <View style={modalStyles.mediaContainer}>
         {Platform.OS === 'android' ? (
           <Image
-            source={require('@/assets/images/poster-card.png')}
+            // poster-passport.png is currently a placeholder copy of
+            // poster-card.png — replace with passport-themed art before
+            // production. The conditional require lives directly inside
+            // the JSX so Metro statically resolves both paths.
+            source={isPassportFlow
+              ? require('@/assets/images/poster-passport.png')
+              : require('@/assets/images/poster-card.png')}
             style={stepSpecificStyles.cardVideo}
             resizeMode="cover"
           />
