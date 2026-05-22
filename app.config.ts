@@ -106,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             extraPods: [
               {
                 name: 'NFCPassportReader',
-                git: 'https://github.com/eklchan/NFCPassportReader.git',
+                git: 'https://github.com/referendumcitoyenfr/NFCPassportReader.git',
                 // 9201876: conditional .pace polling based on skipPACE.
                 // Built on 69368850 (retains can: param for CAN-PACE).
                 // skipPACE=false (CNIe) → .pace + .iso14443 (Type A detected).

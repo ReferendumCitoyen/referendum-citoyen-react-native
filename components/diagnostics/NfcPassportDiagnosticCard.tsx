@@ -325,7 +325,7 @@ type Strategy = {
 // NOTE: scan buttons currently require a new build to detect Type B passports.
 // The NFCPassportReader library adds .pace to the NFC session regardless of
 // skipPACE, which blocks Type B passport detection. Fix: make .pace conditional
-// on !skipPACE in the eklchan fork. Until then, only the detection button works.
+// on !skipPACE in the referendumcitoyenfr fork. Until then, only the detection button works.
 
 const PRODUCTION_STRATEGY: Strategy = {
   id: 'mrz_bac',
