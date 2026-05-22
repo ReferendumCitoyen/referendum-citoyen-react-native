@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# local scratch files
+_local/
+
 # dependencies
 node_modules/
 
