@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { extractMrz, extractMrzTd1 } from '@/utils/mrz-rarimo';
+import { isCitizenshipAllowed } from '@/utils/voteResults';
 
 interface Step5Props {
   containerWidth: number;
@@ -27,9 +28,15 @@ interface Step5Props {
    * extractMrzTd1). Driven by the selected proposal's voting contract
    * upstream in voting-flow.tsx. */
   isPassportFlow?: boolean;
+  /** Proposal's `criteria.citizenshipWhitelist` — passed through from
+   * voting-flow.tsx so Step 5 can reject documents whose nationality
+   * isn't allowed for the active proposal *before* the user wastes time
+   * on the NFC scan. Undefined / empty array → no restriction (any
+   * nationality is OK). */
+  allowedCitizenships?: readonly bigint[];
 }
 
-const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout, isPassportFlow = false }) => {
+const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout, isPassportFlow = false, allowedCitizenships }) => {
   // Dev-mode toggle: bypasses the MRZ-level underage / expired guards so
   // QA can scan otherwise-ineligible documents and test the downstream
   // NFC + registration + voting paths. Turn it on with 7 taps on the
@@ -42,7 +49,11 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   const { hasPermission, requestPermission } = useCameraPermission();
   const { scanText } = useTextRecognition({ language: 'latin' });
   const [hasScanned, setHasScanned] = useState(false);
-  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected' | 'underage' | 'expired'>('idle');
+  const [scanProgress, setScanProgress] = useState<'idle' | 'scanning' | 'partial' | 'success' | 'passport_detected' | 'underage' | 'expired' | 'wrong_country'>('idle');
+  // The nationality from the rejected MRZ — used to interpolate the
+  // user-facing error message (e.g. "DEU n'est pas autorisé"). null until
+  // a citizenship check actually fails.
+  const [rejectedCountry, setRejectedCountry] = useState<string | null>(null);
   const passportDetectCount = useRef(0);
   const ocrProducedResultsRef = useRef(false);
   // On degoogled devices (VollaOS, /e/OS, GrapheneOS without GServices) ML Kit's
@@ -56,6 +67,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     if (isActive) {
       setHasScanned(false);
       setScanProgress('idle');
+      setRejectedCountry(null);
       passportDetectCount.current = 0;
       ocrProducedResultsRef.current = false;
       setOcrUnavailable(false);
@@ -196,6 +208,22 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       } else {
         console.log('[Step5] Card is expired — blocking');
         setScanProgress('expired');
+        return;
+      }
+    }
+    // Citizenship gate: when the active proposal restricts voting to a
+    // specific list of countries, reject the document here rather than
+    // letting the user burn ~60 s on NFC + registration only to fail in
+    // Step 11 with an opaque on-chain revert. The whitelist is empty for
+    // proposals open to any country, in which case isCitizenshipAllowed
+    // short-circuits to true.
+    if (!isCitizenshipAllowed(mrz.nationality, allowedCitizenships)) {
+      if (devMode) {
+        console.log(`[Step5][devMode] bypassing wrong-country check (mrz=${mrz.nationality})`);
+      } else {
+        console.log(`[Step5] Wrong country — blocking (mrz=${mrz.nationality})`);
+        setRejectedCountry(mrz.nationality);
+        setScanProgress('wrong_country');
         return;
       }
     }
@@ -368,7 +396,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               const isError =
                 scanProgress === 'passport_detected' ||
                 scanProgress === 'underage' ||
-                scanProgress === 'expired';
+                scanProgress === 'expired' ||
+                scanProgress === 'wrong_country';
               return (
             <View style={{
               width: '88%',
@@ -437,6 +466,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               {scanProgress === 'passport_detected' && t(`voting.step5PassportDetected_${isPassportFlow ? 'passport' : 'idCard'}`)}
               {scanProgress === 'underage' && t('voting.step5Underage')}
               {scanProgress === 'expired' && t(`voting.step5Expired_${isPassportFlow ? 'passport' : 'idCard'}`)}
+              {scanProgress === 'wrong_country' && t('voting.step5WrongCountry', { country: rejectedCountry ?? '???' })}
             </Text>
           </View>
         </View>
