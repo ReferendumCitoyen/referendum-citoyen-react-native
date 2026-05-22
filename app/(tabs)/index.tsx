@@ -8,6 +8,7 @@ import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useExtraProposals } from '@/contexts/ExtraProposalsContext';
 import SettingsButton from '@/components/SettingsButton';
 import { preloadCircuits, subscribeCircuitPreload, type PreloadProgress } from '@/utils/circuit-preload';
 import {
@@ -221,6 +222,7 @@ export default function AccueilScreen() {
   const styles = createStyles(colors);
   const router = useRouter();
   const { network } = useNetwork();
+  const { extraEnabled, extraIds } = useExtraProposals();
   // Lock down the config for THIS render — capture once so all useCallbacks
   // inside this render share the same network reference. When `network`
   // flips, the whole component re-renders, ftRef is wiped, and the cache is
@@ -278,13 +280,15 @@ export default function AccueilScreen() {
       .map(r => r.value);
   }, [getFreedomTool]);
 
-  // Hardcoded allowlist of proposal IDs to display on the home screen.
-  // Set on 2026-05-22 to ship a controlled subset to users:
-  //   #47 — passport vote (BioPassportVoting, TD3)
-  //   #48 — ID card vote (IDCardVoting, TD1)
-  // Both verified end-to-end on Mainnet in this build. Reverting to the
-  // full-scan behavior is a one-line change: empty the array.
-  const HARDCODED_PROPOSAL_IDS = ['47', '48'];
+  // Main allowlist of proposal IDs to display on the home screen.
+  //   #49 — the production scrutin for this release.
+  // Extras (the editable list in ExtraProposalsContext) are concatenated
+  // when the dev toggle is on — used to keep older verified scrutins
+  // reachable for QA without exposing them to regular users.
+  const HARDCODED_PROPOSAL_IDS = ['49'];
+  const effectiveIds = extraEnabled
+    ? [...HARDCODED_PROPOSAL_IDS, ...extraIds]
+    : HARDCODED_PROPOSAL_IDS;
 
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
@@ -294,7 +298,7 @@ export default function AccueilScreen() {
           // Filter the cache to the same allowlist so we don't briefly
           // show old proposals (e.g. #48) while the network call is in
           // flight.
-          const filtered = parsed.filter(p => HARDCODED_PROPOSAL_IDS.includes(String(p.id)));
+          const filtered = parsed.filter(p => effectiveIds.includes(String(p.id)));
           setProposals(filtered);
           setIsLoading(false);
         }
@@ -305,14 +309,14 @@ export default function AccueilScreen() {
 
       const ft = await getFreedomTool();
       const results = await Promise.allSettled(
-        HARDCODED_PROPOSAL_IDS.map(id => ft.getProposalInfo(id))
+        effectiveIds.map(id => ft.getProposalInfo(id))
       );
       const loaded = results
         .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
         .map(r => r.value);
       const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
 
-      console.log(`[Accueil][${network}] Loaded ${sorted.length}/${HARDCODED_PROPOSAL_IDS.length} hardcoded proposals: [${HARDCODED_PROPOSAL_IDS.join(', ')}]`);
+      console.log(`[Accueil][${network}] Loaded ${sorted.length}/${effectiveIds.length} proposals (extras=${extraEnabled}): [${effectiveIds.join(', ')}]`);
       setProposals(sorted);
       oldestIdRef.current = 0;
       setHasMore(false);
@@ -357,7 +361,9 @@ export default function AccueilScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [getFreedomTool, network, ftConfig]);
+    // Re-fetch when the effective ID list changes (toggle flips, or the
+    // user edits the extras list in Settings).
+  }, [getFreedomTool, network, ftConfig, extraEnabled, extraIds]);
 
   const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;
