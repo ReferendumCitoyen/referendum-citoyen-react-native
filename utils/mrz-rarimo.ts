@@ -53,6 +53,9 @@
  * All dates are kept in the raw MRZ YYMMDD form. Conversion to display /
  * BAC formats happens at the caller (see Step5.tsx::convertMRZDate).
  */
+
+import { parse as parseMrzLibrary } from 'mrz';
+
 export interface MrzExtraction {
   /** 9 characters, alphanumeric. The trailing check digit is stripped. */
   documentNumber: string;
@@ -179,4 +182,85 @@ export function extractMrz(rawText: string): MrzExtraction | null {
     dateOfBirth: line2.substring(13, 19),
     dateOfExpiry: line2.substring(21, 27),
   };
+}
+
+// ---------------------------------------------------------------------------
+// TD1 (national ID card) extraction
+// ---------------------------------------------------------------------------
+//
+// TD1 layout is 3 lines × 30 characters, with the fields we need split across
+// line 1 (document number) and line 2 (DOB, expiry, nationality). Unlike the
+// TD3 case we can't lock onto a single line — we need both lines 1 and 2 to
+// extract a BAC key.
+//
+// Instead of duplicating ICAO checksum verification for the TD1 layout we
+// defer to the `mrz` npm package's `parse` function with `autocorrect: true`,
+// which already implements the full TD1 grammar + per-field checksums. This
+// matches what the pre-3ab5a9c voting flow used (via a multi-frame consensus
+// buffer); single-frame here keeps the same fast-lock UX as `extractMrz`.
+
+/**
+ * TD1 line shape (per line): 30 chars of `[0-9A-Z<]`.
+ */
+const TD1_LINE_REGEX = /[0-9A-Z<]{30}/g;
+
+/**
+ * Extract a TD1 (national ID card) MRZ from arbitrary OCR text.
+ *
+ * Returns null on any miss. Failure modes:
+ *  - Fewer than three 30-character MRZ-shaped runs found.
+ *  - The `mrz` parser reports `valid: false` (any per-field checksum mismatch).
+ *  - The detected format isn't TD1 (e.g. the OCR'd a passport).
+ *
+ * `nationality` is read from line 2 positions 15-17; `documentNumber` from
+ * line 1 (with the trailing check digit stripped). Dates are YYMMDD.
+ *
+ * Line boundaries are preserved (split before the per-line MRZ-char filter)
+ * because ML Kit's OCR returns the printed text above the MRZ — name,
+ * address, height, "RÉPUBLIQUE FRANÇAISE" — alongside the MRZ block. A
+ * naive global whitespace strip would fuse those lines into one long
+ * alphanumeric run, and the 30-char `[0-9A-Z<]` regex would then match
+ * runs straddling the boundary between printed text and the MRZ,
+ * producing false-positive triplets that the parser rejects.
+ */
+export function extractMrzTd1(rawText: string): MrzExtraction | null {
+  // We deliberately do NOT do the O→0 substitution here — TD1 line 1 contains
+  // an alphanumeric document number where letter O is legal (French CNIes
+  // use serials with letters), and the `mrz` parser's `autocorrect: true`
+  // handles the numeric-field O↔0 confusion conservatively on its own.
+  const rawLines = rawText.replace(/«/g, '<<').toUpperCase().split(/\r?\n/);
+
+  // Per-line: strip everything that isn't an MRZ character (digits, A-Z, `<`).
+  // Then chunk into 30-char windows in case OCR fused two MRZ lines onto one
+  // visual line.
+  const candidateLines: string[] = [];
+  for (const line of rawLines) {
+    const cleaned = line.replace(/[^0-9A-Z<]/g, '');
+    const chunks = cleaned.match(TD1_LINE_REGEX);
+    if (chunks) candidateLines.push(...chunks);
+  }
+  if (candidateLines.length < 3) return null;
+
+  // Try every consecutive triplet (OCR may slice line breaks differently).
+  for (let i = 0; i <= candidateLines.length - 3; i++) {
+    const triplet = candidateLines.slice(i, i + 3);
+    try {
+      const result = parseMrzLibrary(triplet, { autocorrect: true });
+      if (result?.valid && result.format === 'TD1') {
+        const f = result.fields;
+        if (!f.documentNumber || !f.birthDate || !f.expirationDate || !f.nationality) {
+          continue;
+        }
+        return {
+          documentNumber: f.documentNumber,
+          nationality: f.nationality,
+          dateOfBirth: f.birthDate,
+          dateOfExpiry: f.expirationDate,
+        };
+      }
+    } catch {
+      // `parse` throws on malformed input shape; keep trying other triplets.
+    }
+  }
+  return null;
 }

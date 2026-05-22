@@ -76,11 +76,12 @@ export default function ParametresScreen() {
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
-          {/* Terms & Conditions Row */}
+          {/* Terms & Conditions Row — opens the in-app CGU view (the same
+              text + version the user accepted at the launch gate). */}
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL(LEGAL_URLS.termsAndConditions)}
+            onPress={() => router.push('/terms-view')}
           >
             <Text style={styles.settingLabel}>{t('settings.termsAndConditions')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
@@ -93,16 +94,6 @@ export default function ParametresScreen() {
             onPress={() => Linking.openURL('mailto:contact@referendum-citoyen.fr')}
           >
             <Text style={styles.settingLabel}>{t('settings.contact')}</Text>
-            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-          </TouchableOpacity>
-
-          {/* Diagnostic Passeport */}
-          <TouchableOpacity
-            style={styles.settingRow}
-            activeOpacity={0.7}
-            onPress={() => router.push('/diagnostics-passport')}
-          >
-            <Text style={styles.settingLabel}>Diagnostic Passeport</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
@@ -170,7 +161,7 @@ export default function ParametresScreen() {
 
               {/* French ID Test Row */}
               <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test Carte d'identité</Text>
+                <Text style={styles.settingLabel}>Test Carte d&apos;identité</Text>
                 <TouchableOpacity
                   style={styles.settingValueContainer}
                   activeOpacity={0.7}

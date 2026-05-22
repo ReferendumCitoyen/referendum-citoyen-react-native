@@ -43,7 +43,11 @@ export function hashPacked(x509Key: Uint8Array): Uint8Array {
 
   try {
     const hash = poseidon.hash(decomposed)
-    return Hex.decodeString(hash.toString(16))
+    // Pad to 64 hex chars (32 bytes / 256 bits) before decoding. The raw
+    // bigint→hex conversion is variable-length; when the BN254 scalar has
+    // a leading zero nibble (~1/16 of inputs) the resulting hex is odd-
+    // length, and `Hex.decodeString` rejects it with "Invalid hex string".
+    return Hex.decodeString(hash.toString(16).padStart(64, '0'))
   } catch (error) {
     throw new TypeError(`Failed to compute Poseidon hash: ${error}`)
   }

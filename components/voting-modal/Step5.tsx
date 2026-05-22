@@ -9,7 +9,7 @@ import { useColors } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
 import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
 import { useDevMode } from '@/contexts/DevModeContext';
-import { extractMrz } from '@/utils/mrz-rarimo';
+import { extractMrz, extractMrzTd1 } from '@/utils/mrz-rarimo';
 
 interface Step5Props {
   containerWidth: number;
@@ -21,9 +21,15 @@ interface Step5Props {
   }) => void;
   onManualFill?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  /** Selects the doc-type-specific MRZ extractor + reticle. True =
+   * TD3 passport (2 lines × 44 chars, 1.42 aspect ratio, extractMrz).
+   * False = TD1 ID card (3 lines × 30 chars, 1.586 aspect ratio,
+   * extractMrzTd1). Driven by the selected proposal's voting contract
+   * upstream in voting-flow.tsx. */
+  isPassportFlow?: boolean;
 }
 
-const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout }) => {
+const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, onManualFill, onLayout, isPassportFlow = false }) => {
   // Dev-mode toggle: bypasses the MRZ-level underage / expired guards so
   // QA can scan otherwise-ineligible documents and test the downstream
   // NFC + registration + voting paths. Turn it on with 7 taps on the
@@ -116,14 +122,19 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       ocrProducedResultsRef.current = true;
     }
 
-    // TD1 ID card detection: passport scanner is in this step but the
-    // user might be holding a national ID. ID cards start with "I<" or
-    // "ID" at the top of line 1. Three consecutive frames seeing this
-    // pattern → flip to the "wrong document" state. Done as a quick
-    // pre-filter before the regex so we don't burn cycles on doomed
-    // matches.
+    // Wrong-document detection: this step expects the doc type that
+    // matches the active proposal's voting contract. If the user holds
+    // the other type, line 1 of its MRZ has a distinctive prefix:
+    //   passport flow → expecting "P<" prefix; if we see "I[D<…]" (ID
+    //     card prefix) instead, flag wrong-document.
+    //   ID-card flow → expecting "I[D<…]" / "ID" prefix; if we see "P<"
+    //     (passport prefix) instead, flag wrong-document.
+    // Three consecutive frames of the wrong-prefix → flip to the error
+    // state. Done as a quick pre-filter before the full parse so we
+    // don't burn cycles trying to extract the wrong format.
     const normalised = rawText.replace(/«/g, '<<').replace(/\s+/g, '').toUpperCase();
-    if (/^I[D<]/.test(normalised) || normalised.startsWith('AC')) {
+    const wrongDocRegex = isPassportFlow ? /^I[D<A-Z]/ : /^P[<A-Z]/;
+    if (wrongDocRegex.test(normalised)) {
       passportDetectCount.current++;
       if (passportDetectCount.current >= 3) {
         setScanProgress('passport_detected');
@@ -131,12 +142,22 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       return;
     }
 
-    const mrz = extractMrz(rawText);
+    const mrz = isPassportFlow ? extractMrz(rawText) : extractMrzTd1(rawText);
     if (!mrz) {
-      // No checksum-valid line 2 in this frame yet. Surface "scanning"
-      // unless we've already seen partial signal (an MRZ-shaped run
-      // anywhere in the OCR output — the regex shape without checksums).
-      if (/[0-9A-Z<]{10}[A-Z]{3}/.test(normalised)) {
+      // No checksum-valid MRZ in this frame yet. Surface "scanning"
+      // unless we've already seen partial signal:
+      //   passport flow → TD3 line-2 shape (doc-num run + 3-letter nat).
+      //   ID-card flow → TD1 line-1 prefix OR line-2 DOB+sex+expiry shape.
+      const partialRegex = isPassportFlow
+        ? /[0-9A-Z<]{10}[A-Z]{3}/
+        : /^I[D<A-Z]/;
+      const partialDatesRegex = isPassportFlow
+        ? null
+        : /[0-9]{6}[0-9][MFX<][0-9]{6}/;
+      if (
+        partialRegex.test(normalised) ||
+        (partialDatesRegex && partialDatesRegex.test(normalised))
+      ) {
         setScanProgress('partial');
       } else {
         setScanProgress('scanning');
@@ -144,7 +165,9 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
       return;
     }
 
-    console.log('✅ MRZ detected (rarime algo):', JSON.stringify(mrz));
+    // Operational only — no PII. The MRZ is the BAC key for the NFC chip;
+    // logging it would leak the user's document number + DOB to logcat.
+    console.log(`[Step5] MRZ detected (nationality=${mrz.nationality}, docLen=${mrz.documentNumber.length})`);
 
     // Pre-NFC eligibility gate: same age + expiry policy as the manual
     // entry sheet (utils/mrzDate). Stays in scan state so OCR keeps
@@ -182,7 +205,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
 
     if (onMRZScanned) {
       // The next step (Step 6 NFC reader) wants YYMMDD for BAC derivation,
-      // which is the format extractMrz already returns. Round-tripping
+      // which is the format extractMrzTd1 already returns. Round-tripping
       // through convertMRZDate/convertToMRZFormat is preserved so any
       // future change to that step's expected format only needs to touch
       // these two helpers.
@@ -191,8 +214,13 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         birthDate: convertToMRZFormat(convertMRZDate(mrz.dateOfBirth)),
         expiryDate: convertToMRZFormat(convertMRZDate(mrz.dateOfExpiry)),
       };
-      console.log('[Step5] Sending MRZ to next step:', mrzOut);
-      onMRZScanned(mrzOut);
+      // No PII in the log — see "MRZ detected" comment above.
+      console.log('[Step5] Sending MRZ to next step');
+      // Hold on the green success reticle for ~800ms so the user sees
+      // the success state before the parent slides Step 5 off-screen.
+      // Without this, setScanProgress('success') and onMRZScanned fire
+      // in the same tick (~5ms) and the green frame is never painted.
+      setTimeout(() => onMRZScanned(mrzOut), 800);
     }
   });
 
@@ -344,7 +372,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               return (
             <View style={{
               width: '88%',
-              aspectRatio: 1.42,
+              // Passport data page is ~1.42; ID-1 (credit card) is 85.60 ×
+              // 53.98 mm = 1.586. Drive framing from the active doc type so
+              // the user sees a same-shape outline as the document.
+              aspectRatio: isPassportFlow ? 1.42 : 1.586,
               borderWidth: scanProgress === 'success' ? 4 : scanProgress === 'partial' || isError ? 3 : 2,
               borderColor: scanProgress === 'success' ? colors.scanReticleSuccess : isError ? colors.scanReticleError : scanProgress === 'partial' ? colors.scanReticleWarning : colors.scanOverlayStrong,
               borderRadius: 12,
@@ -356,19 +387,40 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 color: colors.scanOverlayDim,
                 fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                 alignSelf: 'flex-end',
-              }}>PASSEPORT</Text>
+              }}>{isPassportFlow ? 'PASSEPORT' : 'CARTE D’IDENTITÉ'}</Text>
               <View style={{
                 backgroundColor: scanProgress === 'success' ? colors.scanReticleSuccessInnerBg : colors.scanReticleInnerBg,
                 borderWidth: 1,
                 borderColor: scanProgress === 'success' ? colors.scanReticleSuccess : scanProgress === 'partial' ? colors.scanReticleWarning : colors.scanOverlayMedium,
                 borderRadius: 4, padding: 6,
               }}>
-                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
-                  {'P<FRA NOM<<PRENOM<<<<<<<<<<<<<<<<<<<<<<<<'}
-                </Text>
-                <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
-                  {'12AB34567<FRA9001011M3001011<<<<<<<<<<<2'}
-                </Text>
+                {isPassportFlow ? (
+                  // TD3 placeholder: 2 lines × 44 chars. Line 1 = doc code +
+                  // name; line 2 = doc no + nat + DOB + sex + expiry + …
+                  <>
+                    <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
+                      {'P<FRA NOM<<PRENOM<<<<<<<<<<<<<<<<<<<<<<<<'}
+                    </Text>
+                    <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
+                      {'12AB34567<FRA9001011M3001011<<<<<<<<<<<2'}
+                    </Text>
+                  </>
+                ) : (
+                  // TD1 placeholder: 3 lines × 30 chars. Lines 1+2 hold the
+                  // fields BAC needs (doc no, DOB, expiry, nationality);
+                  // line 3 is name.
+                  <>
+                    <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
+                      {'IDFRA12AB34567<<<<<<<<<<<<<<<<'}
+                    </Text>
+                    <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
+                      {'9001011M3001011FRA<<<<<<<<<<<2'}
+                    </Text>
+                    <Text style={{ color: scanProgress === 'success' ? colors.scanReticleSuccess : colors.scanOverlayWeak, fontSize: 7, letterSpacing: 1 }}>
+                      {'DUPONT<<JEAN<<<<<<<<<<<<<<<<<<'}
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
               );

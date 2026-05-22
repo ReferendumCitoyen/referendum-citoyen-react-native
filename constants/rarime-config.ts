@@ -23,9 +23,10 @@
 
 export type Network = 'testnet' | 'mainnet';
 
-/** Default for fresh installs. Testnet keeps real-money writes off by default;
- * Mainnet has to be opted into via Settings → Dev tools. */
-export const DEFAULT_NETWORK: Network = 'testnet';
+/** Default for fresh installs. Switched to Mainnet on 2026-05-22 once the
+ * CNIe registration + voting paths were verified end-to-end. Settings → Dev
+ * tools still lets the user flip to Testnet for debugging. */
+export const DEFAULT_NETWORK: Network = 'mainnet';
 
 // ---------------------------------------------------------------------------
 // Q-Testnet (chainId 7369, light-registrator flow — currently broken for TD3)
