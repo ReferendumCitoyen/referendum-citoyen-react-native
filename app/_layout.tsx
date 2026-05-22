@@ -144,20 +144,6 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
-            name="diagnostics"
-            options={{
-              title: 'Diagnostic NFC (CNIe)',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
-            name="diagnostics-passport"
-            options={{
-              title: 'Diagnostic Passeport',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
             name="voting-flow"
             options={{
               headerShown: false,
@@ -175,13 +161,6 @@ function RootLayoutNav() {
             name="french-id-test"
             options={{
               title: 'Test French ID',
-              headerBackTitle: t('navigation.back'),
-            }}
-          />
-          <Stack.Screen
-            name="id-test"
-            options={{
-              title: 'Test ID',
               headerBackTitle: t('navigation.back'),
             }}
           />

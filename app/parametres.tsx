@@ -239,16 +239,6 @@ export default function ParametresScreen() {
                 )}
               </View>
 
-              {/* Diagnostic NFC (CNIe) */}
-              <TouchableOpacity
-                style={styles.settingRow}
-                activeOpacity={0.7}
-                onPress={() => router.push('/diagnostics')}
-              >
-                <Text style={styles.settingLabel}>Diagnostic NFC (CNIe)</Text>
-                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-              </TouchableOpacity>
-
               {/* Key management — backup / restore the BJJ private key.
                   Lives behind devMode because exposing a private key is a
                   loaded action; ordinary users should never reach this. */}
@@ -274,18 +264,6 @@ export default function ParametresScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* ID Test Row */}
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Test ID (générique)</Text>
-                <TouchableOpacity
-                  style={styles.settingValueContainer}
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/id-test')}
-                >
-                  <Text style={styles.settingValue}>{t('common.open')}</Text>
-                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-                </TouchableOpacity>
-              </View>
 
               {/* Passport Test Row */}
               <View style={styles.settingRow}>
