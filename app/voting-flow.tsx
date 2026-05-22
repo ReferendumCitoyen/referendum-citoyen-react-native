@@ -595,6 +595,10 @@ export default function VotingFlowScreen() {
                     onMRZScanned={handleMRZScanned}
                     onManualFill={handleManualFill}
                     isPassportFlow={isPassportFlow}
+                    // Gate MRZ-extracted nationality against the proposal's
+                    // citizenship whitelist (empty / undefined → open to
+                    // all countries).
+                    allowedCitizenships={proposalInfo?.criteria.citizenshipWhitelist}
                   />
                 ) : spacer('s5'),
                 show(5) ? (

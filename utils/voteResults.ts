@@ -38,6 +38,36 @@ export const computeVoteResults = (
 export const FRA_BIGINT = BigInt('0x465241');
 
 /**
+ * Pack a 3-letter ICAO country code (e.g. "FRA", "DEU") into the same
+ * ASCII-big-endian bigint format the Rarime SDK uses for
+ * `ProposalCriteria.citizenshipWhitelist` entries. Useful when comparing
+ * an MRZ-derived nationality against an on-chain whitelist.
+ */
+export const citizenshipToBigInt = (country: string): bigint => {
+  if (!country) return 0n;
+  const hex = country
+    .split('')
+    .map((ch) => ch.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('');
+  return BigInt('0x' + hex);
+};
+
+/**
+ * Returns true if the given 3-letter country code is allowed by the
+ * proposal's citizenship whitelist. Empty/missing whitelist → open to
+ * any country (returns true). Pass the MRZ's `nationality` (e.g. "FRA")
+ * directly.
+ */
+export const isCitizenshipAllowed = (
+  country: string,
+  whitelist: readonly bigint[] | undefined,
+): boolean => {
+  if (!whitelist || whitelist.length === 0) return true;
+  const packed = citizenshipToBigInt(country);
+  return whitelist.some((c) => c === packed);
+};
+
+/**
  * A proposal is French-compatible if its citizenshipWhitelist either is empty
  * (open to all countries) or explicitly contains FRA.
  */

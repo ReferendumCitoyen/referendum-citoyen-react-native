@@ -80,6 +80,7 @@
     "step5Partial": "MRZ partiellement détecté...",
     "step5Success": "MRZ détecté !",
     "step5Underage": "Vous devez avoir au moins 18 ans pour voter.",
+    "step5WrongCountry": "Ce scrutin n'est pas ouvert à votre nationalité ({{country}}).",
     "step5OcrUnavailable": "La reconnaissance de texte ne semble pas fonctionner sur cet appareil (services Google absents). Utilisez « Saisie manuelle » ci-dessous.",
     "step6MissingMrz": "Données MRZ manquantes. Scannez d'abord le MRZ.",
     "step6Init": "🔄 Initialisation...",
