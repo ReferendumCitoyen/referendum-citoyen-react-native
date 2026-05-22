@@ -254,8 +254,9 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth]);
 
   const handleVoteSelect = useCallback((answerIndex: number) => {
-    const variantName = proposalInfo?.questions[0]?.variants?.[answerIndex] ?? `index=${answerIndex}`;
-    console.log(`[VotingScreen] Vote selected: "${variantName}" (index ${answerIndex}) for proposal #${proposalInfo?.id}`);
+    // Anonymous vote — neither the variant name nor the answer index is
+    // logged. Step9Vote.tsx has the same comment.
+    console.log(`[VotingScreen] Vote selected for proposal #${proposalInfo?.id}`);
     setSelectedVote(answerIndex);
     setCurrentStep(10);
     Animated.timing(slideAnim, {
@@ -294,7 +295,8 @@ export default function VotingScreen() {
   }, [slideAnim, containerWidth]);
 
   const handleMRZScanned = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("[VotingScreen] MRZ data scanned:", data);
+    // No data dump — doc number + DOB are the BAC key inputs.
+    console.log("[VotingScreen] MRZ data scanned");
     setMRZData(data);
     handleNext();
   }, [handleNext]);
@@ -311,7 +313,8 @@ export default function VotingScreen() {
         const sod = new Uint8Array(data.sodBytes);
         passportRef.current = new RP({ dataGroup1: dg1, sod });
         const mrzData = passportRef.current.getMRZData();
-        console.log(`[FreedomTool] RarimePassport created — dg1.length: ${dg1.length}, nationality: ${mrzData.issuingCountry}, docNo: ${mrzData.documentNumber}`);
+        // docNo intentionally NOT logged — it's half of the BAC key.
+        console.log(`[FreedomTool] RarimePassport created — dg1.length: ${dg1.length}, nationality: ${mrzData.issuingCountry}`);
       } catch (err) {
         console.error("[FreedomTool] PASSPORT_CREATE_FAILED", err);
       }
@@ -334,7 +337,8 @@ export default function VotingScreen() {
   }, []);
 
   const handleManualInputSubmit = useCallback((data: { documentNumber: string; birthDate: string; expiryDate: string }) => {
-    console.log("[VotingScreen] Manual MRZ data submitted:", data);
+    // No data dump — see handleMRZScanned above.
+    console.log("[VotingScreen] Manual MRZ data submitted");
     setIsManualInputVisible(false);
     handleMRZScanned(data);
   }, [handleMRZScanned]);

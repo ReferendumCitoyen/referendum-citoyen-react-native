@@ -1,6 +1,6 @@
 import '@/polyfills';
 import 'react-native-reanimated';
-import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@/locales';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
@@ -9,13 +9,15 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import NfcManager from 'react-native-nfc-manager';
 import { ThemeProvider as CustomThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { DevModeProvider } from '@/contexts/DevModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
+import { TermsProvider, useTerms } from '@/contexts/TermsContext';
+import { TERMS_VERSION } from '@/constants/terms';
+import TermsGate from './terms-gate';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -89,7 +91,9 @@ export default function RootLayout() {
         <CustomThemeProvider>
           <DevModeProvider>
             <NetworkProvider>
-              <RootLayoutNav />
+              <TermsProvider>
+                <RootLayoutNav />
+              </TermsProvider>
             </NetworkProvider>
           </DevModeProvider>
         </CustomThemeProvider>
@@ -101,6 +105,13 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { acceptedVersion, hydrated } = useTerms();
+
+  // Block the entire app behind the CGU gate until the user has accepted
+  // the current TERMS_VERSION. While AsyncStorage is still hydrating we
+  // render nothing — avoids a 1-frame flash of the home tab before the
+  // gate appears for users who already accepted on an earlier launch.
+  const needsTerms = hydrated && acceptedVersion !== TERMS_VERSION;
 
   return (
     <ThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -109,6 +120,9 @@ function RootLayoutNav() {
           style={theme === 'dark' ? 'light' : 'dark'}
           translucent={Platform.OS === 'ios'}
         />
+        {!hydrated ? null : needsTerms ? (
+          <TermsGate />
+        ) : (
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
@@ -189,7 +203,15 @@ function RootLayoutNav() {
               headerBackTitle: t('navigation.back'),
             }}
           />
+          <Stack.Screen
+            name="terms-view"
+            options={{
+              title: t('settings.termsAndConditions'),
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
         </Stack>
+        )}
       </BottomSheetModalProvider>
     </ThemeProvider>
   );

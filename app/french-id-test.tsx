@@ -952,7 +952,7 @@ export default function FrenchIDTestScreen() {
               Lecture NFC sur iPhone
             </Text>
             <Text style={styles.iosNoticeText}>
-              La lecture NFC des cartes d'identite francaises est supportee.
+              La lecture NFC des cartes d&apos;identite francaises est supportee.
               La lecture peut etre plus lente que sur Android.
             </Text>
           </View>
@@ -989,7 +989,7 @@ export default function FrenchIDTestScreen() {
                   color: 'rgba(255,255,255,0.5)',
                   fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                   alignSelf: 'flex-end',
-                }}>CARTE D'IDENTITÉ</Text>
+                }}>CARTE D&apos;IDENTITÉ</Text>
                 <View style={{
                   backgroundColor: mrzScanProgress === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
                   borderWidth: 1,
@@ -1265,7 +1265,7 @@ export default function FrenchIDTestScreen() {
 
           {/* Expiry date */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Date d'expiration</Text>
+            <Text style={styles.inputLabel}>Date d&apos;expiration</Text>
             <View style={styles.dateInputRow}>
               <TextInput
                 style={[styles.input, styles.dateInput]}
@@ -1330,7 +1330,7 @@ export default function FrenchIDTestScreen() {
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
                       <Text style={styles.modalTitle}>
-                        Date d'expiration
+                        Date d&apos;expiration
                       </Text>
                       <TouchableOpacity
                         onPress={() => setShowExpiryDatePicker(false)}
@@ -1424,7 +1424,7 @@ export default function FrenchIDTestScreen() {
         {tagData?.personDetails && (
           <View style={styles.resultCard}>
             <Text style={styles.cardTitle}>
-              Carte d'identite scannee
+              Carte d&apos;identite scannee
             </Text>
 
             <Text style={styles.sectionSubtitle}>Champs disponibles:</Text>

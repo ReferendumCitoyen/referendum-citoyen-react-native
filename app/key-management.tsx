@@ -1,24 +1,24 @@
 /**
- * Advanced dev-only screen for backing up and restoring the BJJ private key
- * stored in SecureStore.
+ * Dev-only screen for the per-passport BJJ key DB and a "Tout supprimer"
+ * destructive reset.
  *
- * Why it exists
- * -------------
- * On Rarimo Mainnet, a French passport (TD3, no DG15 / no Active
- * Authentication) is permanently bound to whichever BJJ key was used at
- * registration time — there's no chip-level way to prove fresh ownership for
- * the on-chain `revoke()` call, so re-registering with a new key always
- * fails. To complete an end-to-end vote test against an already-registered
- * passport, the operator has to restore the original key into SecureStore.
+ * Two sections:
  *
- * The screen is gated behind the existing dev-mode toggle (7 taps on the
- * version row); ordinary users should never see this screen, and the route
- * is intentionally not deep-linked from anywhere except Settings.
+ *   1. Base de passeports — export the (passportHash → BJJ key) DB to
+ *      JSON for backup, and import a previous backup (merge or replace).
+ *      Without this, a user who reinstalls the app loses every
+ *      previously-registered on-chain identity, because Mainnet's
+ *      Registration2 contract binds each passport to a specific BJJ key
+ *      and the chip cannot prove fresh ownership for a `revoke()` call.
  *
- * After a key change, the live `Rarime` / `FreedomTool` instances that were
- * constructed with the old key (in `app/voting-flow.tsx`) are stale. The
- * cleanest reset is a manual force-stop + relaunch — we surface that
- * instruction in an Alert at the end of the restore flow.
+ *   2. Tout supprimer — wipes the active BJJ key, the passport DB, and
+ *      the accepted CGU version so the launch gate re-fires. Effectively
+ *      resets the app to a fresh-install state without touching the
+ *      device package or AsyncStorage entries owned by other features
+ *      (theme, network choice, language).
+ *
+ * Gated behind dev mode (7 taps on the version row in Settings); ordinary
+ * users should never see this screen.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -32,11 +32,8 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useTranslation } from 'react-i18next';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import {
-  readPrivateKey,
-  setPrivateKey,
   deletePrivateKey,
   exportToJson as exportPassportDb,
   importFromJson as importPassportDb,
@@ -44,27 +41,19 @@ import {
   wipeDb as wipePassportDb,
   type PassportKeyEntry,
 } from '@/utils/identity';
+import { useTerms } from '@/contexts/TermsContext';
 
 export default function KeyManagementScreen() {
-  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
+  const { clear: clearTerms } = useTerms();
 
-  const [currentKey, setCurrentKey] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
-  const [pasteValue, setPasteValue] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [dbEntries, setDbEntries] = useState<PassportKeyEntry[]>([]);
   const [dbImportPaste, setDbImportPaste] = useState('');
 
-  // Read the current key on mount. We do this even when the user hasn't yet
-  // tapped "Show key" so the "Copy" / "Restore" buttons can react to whether
-  // a key exists at all (fresh install = no key yet).
   useEffect(() => {
     let cancelled = false;
-    readPrivateKey().then((k) => {
-      if (!cancelled) setCurrentKey(k);
-    });
     getAllPassportDbEntries().then((rows) => {
       if (!cancelled) setDbEntries(rows);
     });
@@ -137,89 +126,34 @@ export default function KeyManagementScreen() {
     );
   };
 
-  const handleCopy = async () => {
-    if (!currentKey) return;
-    await Clipboard.setStringAsync(currentKey);
-    setStatus('Clé copiée dans le presse-papiers');
-  };
-
-  const handleReveal = () => {
-    if (revealed) {
-      setRevealed(false);
-      return;
-    }
-    // Confirm before showing the raw key on-screen. A bystander shouldn't be
-    // able to lift the key by walking past while the screen is open.
+  // "Tout supprimer" — destructive reset. Wipes the BJJ private key, the
+  // per-passport DB, and the accepted CGU version so the launch gate
+  // re-fires. Use case: the user wants to give the device to someone
+  // else, or has a corrupted state they can't otherwise recover from.
+  const handleWipeAll = () => {
     Alert.alert(
-      'Afficher la clé privée ?',
-      'Toute personne ayant accès à cette clé peut voter à votre place. ' +
-      'Ne la partagez avec personne et ne l\'enregistrez que dans un gestionnaire de mots de passe.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Afficher', style: 'destructive', onPress: () => setRevealed(true) },
-      ],
-    );
-  };
-
-  const handleRestore = () => {
-    // Validate format before showing the confirmation dialog so the user
-    // doesn't tap through "Yes I want to overwrite" only to discover the
-    // pasted value was unusable.
-    const cleaned = pasteValue.trim().toLowerCase().replace(/^0x/, '');
-    if (!/^[0-9a-f]{64}$/.test(cleaned)) {
-      Alert.alert(
-        'Format invalide',
-        `Une clé BJJ est une chaîne de 64 caractères hexadécimaux (0–9, a–f). ` +
-        `Reçu : ${cleaned.length} caractère${cleaned.length === 1 ? '' : 's'}.`,
-      );
-      return;
-    }
-    Alert.alert(
-      'Remplacer la clé actuelle ?',
-      'La clé en cours sera écrasée et perdue. Toute identité enregistrée ' +
-      'sur la blockchain avec l\'ancienne clé ne pourra plus être contrôlée ' +
-      'depuis cette application sans la sauvegarde correspondante.\n\n' +
-      'Après le remplacement, fermez l\'application complètement (menu ' +
-      'récents → balayer) puis rouvrez-la pour que le changement prenne effet.',
+      'Tout supprimer ?',
+      "Cette action va effacer :\n\n" +
+      "  • La clé privée BJJ actuelle\n" +
+      "  • Toutes les associations passeport → clé\n" +
+      "  • L'acceptation des CGU (vous devrez les ré-accepter au redémarrage)\n\n" +
+      "Toute identité déjà enregistrée sur la blockchain avec ces clés ne pourra plus être utilisée depuis cette application — assurez-vous d'avoir exporté la base de passeports si vous voulez la conserver.\n\n" +
+      "Cette action est irréversible. Continuer ?",
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Remplacer',
+          text: 'Tout supprimer',
           style: 'destructive',
           onPress: async () => {
             try {
-              await setPrivateKey(cleaned);
-              setCurrentKey(cleaned);
-              setRevealed(false);
-              setPasteValue('');
-              setStatus(
-                'Clé remplacée. Fermez et rouvrez l\'application pour prendre en compte le changement.',
-              );
+              await deletePrivateKey();
+              await wipePassportDb();
+              await clearTerms();
+              await refreshDb();
+              setStatus("Données effacées. Redémarrez l'application — vous devrez ré-accepter les CGU.");
             } catch (e: any) {
-              Alert.alert('Erreur', e?.message ?? 'Échec du remplacement de la clé.');
+              Alert.alert('Erreur', e?.message ?? "Échec de l'effacement.");
             }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Supprimer la clé ?',
-      'Une nouvelle clé sera générée au prochain démarrage. Toute identité ' +
-      'enregistrée sur la blockchain avec la clé actuelle ne pourra plus être ' +
-      'utilisée depuis cette application.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            await deletePrivateKey();
-            setCurrentKey(null);
-            setRevealed(false);
-            setStatus('Clé supprimée. Redémarrez l\'application pour générer une nouvelle clé.');
           },
         },
       ],
@@ -228,73 +162,6 @@ export default function KeyManagementScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Clé actuelle</Text>
-        <Text style={styles.helpText}>
-          {"Identité Baby Jubjub enregistrée dans le stockage sécurisé de l'appareil. " +
-           "Sauvegardez cette clé : elle est la SEULE preuve de votre identité on-chain."}
-        </Text>
-
-        <View style={styles.keyBox}>
-          {currentKey ? (
-            revealed ? (
-              <Text style={styles.keyText} selectable>{currentKey}</Text>
-            ) : (
-              <Text style={styles.keyTextMasked}>
-                {'•'.repeat(64)}
-              </Text>
-            )
-          ) : (
-            <Text style={styles.keyTextMasked}>(aucune clé — sera générée au prochain démarrage)</Text>
-          )}
-        </View>
-
-        <View style={styles.row}>
-          <Pressable
-            style={[styles.button, !currentKey && styles.buttonDisabled]}
-            onPress={handleReveal}
-            disabled={!currentKey}
-          >
-            <Text style={styles.buttonText}>
-              {revealed ? 'Masquer' : 'Afficher'}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.button, !currentKey && styles.buttonDisabled]}
-            onPress={handleCopy}
-            disabled={!currentKey}
-          >
-            <Text style={styles.buttonText}>Copier</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Restaurer une clé</Text>
-        <Text style={styles.helpText}>
-          Collez une clé BJJ existante (64 caractères hexadécimaux) pour
-          remplacer la clé actuelle. Utile pour réutiliser une identité déjà
-          enregistrée on-chain avec un autre appareil ou une autre application.
-        </Text>
-
-        <TextInput
-          style={styles.input}
-          value={pasteValue}
-          onChangeText={setPasteValue}
-          placeholder="0x… ou 64 caractères hex"
-          placeholderTextColor={colors.text + '60'}
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          multiline
-        />
-
-        <Pressable style={styles.dangerButton} onPress={handleRestore}>
-          <Text style={styles.dangerButtonText}>Remplacer la clé</Text>
-        </Pressable>
-      </View>
-
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
           Base de passeports ({dbEntries.length})
@@ -358,12 +225,17 @@ export default function KeyManagementScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Supprimer la clé</Text>
+        <Text style={styles.sectionTitle}>Tout supprimer</Text>
         <Text style={styles.helpText}>
-          {"Efface la clé actuelle. Une nouvelle sera générée au prochain démarrage de l'application."}
+          {"⚠️ Efface la clé privée BJJ, la base de passeports et l'acceptation des CGU. " +
+           "L'application redémarrera comme une installation neuve : vous devrez ré-accepter " +
+           "les CGU et rescanner votre passeport. Les identités déjà enregistrées on-chain " +
+           "avec les clés effacées ne pourront plus être utilisées depuis cette application — " +
+           "exportez la base de passeports d'abord si vous voulez la conserver. " +
+           "Action irréversible."}
         </Text>
-        <Pressable style={styles.dangerButton} onPress={handleDelete}>
-          <Text style={styles.dangerButtonText}>Supprimer définitivement</Text>
+        <Pressable style={styles.dangerButton} onPress={handleWipeAll}>
+          <Text style={styles.dangerButtonText}>Tout supprimer</Text>
         </Pressable>
       </View>
 

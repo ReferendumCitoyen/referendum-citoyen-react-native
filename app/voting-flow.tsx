@@ -16,6 +16,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { assertOnChainConstants } from '@/utils/register-via-noir';
 import { getOrCreatePrivateKey } from '@/utils/identity';
 import { findCachedProposal } from '@/utils/proposal-cache';
+import { isPassportVotingTarget } from '@/utils/voteResults';
 import { useTranslation } from 'react-i18next';
 import type { PassportData } from '@/modules/e-document';
 
@@ -40,7 +41,7 @@ import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
 
 
 export default function VotingFlowScreen() {
-  const { proposalId: proposalIdParam } = useLocalSearchParams<{ proposalId?: string }>();
+  const { proposalId: proposalIdParam, isPassport: isPassportParam } = useLocalSearchParams<{ proposalId?: string; isPassport?: string }>();
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
@@ -67,6 +68,18 @@ export default function VotingFlowScreen() {
   // Rarime / FreedomTool state
   const [privateKey, setPrivateKey] = useState<string | null>(null);
   const [proposalInfo, setProposalInfo] = useState<ProposalInfo | null>(null);
+
+  // The MRZ mask (Step 5) + NFC mode (Step 6) need to know whether the
+  // active proposal targets passport (TD3) or ID card (TD1) BEFORE the
+  // full proposalInfo lands. The home screen passes `?isPassport=0|1` in
+  // the URL — that's the most reliable signal because it captures what
+  // the user saw when they tapped. Fall back to proposalInfo (once
+  // hydrated from cache or RPC) if the param is absent (e.g. deep link).
+  const isPassportFlow = useMemo<boolean>(() => {
+    if (isPassportParam === '1') return true;
+    if (isPassportParam === '0') return false;
+    return proposalInfo ? isPassportVotingTarget(proposalInfo) : false;
+  }, [isPassportParam, proposalInfo]);
   const rarimeRef = useRef<Rarime | null>(null);
   const freedomToolRef = useRef<FreedomTool | null>(null);
   const passportRef = useRef<RarimePassport | null>(null);
@@ -94,6 +107,30 @@ export default function VotingFlowScreen() {
     setPassportKeyReady(false);
   }, [network]);
 
+  // Early cache-only hydration: the heavy init effect below is deferred
+  // until after Step 6 (NFC), but Step 5's MRZ reticle needs to know the
+  // doc type (passport vs ID card) which is derived from the proposal's
+  // `sendVoteContractAddress`. Look up the proposal from the home-screen
+  // cache on mount so we can set the right mask before the user even gets
+  // to Step 5. No network call, no SDK init — just a synchronous-ish
+  // lookup against the cache the home tab populated. On cache miss we
+  // stay null and the mask defaults to TD1 (the more common path).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const targetProposalId = proposalIdParam || getDefaultProposalId(network);
+      const cached = await findCachedProposal(network, targetProposalId);
+      if (cancelled) return;
+      if (cached) {
+        console.log(
+          `[voting-flow] proposal hydrated from cache early: #${targetProposalId} sendVoteContract=${cached.sendVoteContractAddress}`,
+        );
+        setProposalInfo(cached);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [proposalIdParam, network]);
+
   // Init Rarime + FreedomTool + load proposal. Deferred until after the NFC
   // scan (Step 6) so that Rarime's native Rust/ZK warmup doesn't contend with
   // IsoDep during PACE. Step 7 reads rarimeRef.current defensively and will
@@ -118,21 +155,22 @@ export default function VotingFlowScreen() {
         const { Rarime: RarimeClass, FreedomTool: FT, RarimeUtils } =
           await import('@rarimo/rarime-rn-sdk');
 
-        // Register self-compiled TD3 (passport) circuits. Rarimo only publishes
-        // TD1 Noir circuits on its GCS bucket; without these, the SDK falls
-        // back to TD1 circuits and rejects 93-byte DG1 with
-        // "Array length mismatch for input 'dg1'. Expected: 95, Actual: 93".
-        RarimeClass.registerBundledCircuit('query_identity_td3', require('@/assets/circuits/query_identity_td3.json'));
-        RarimeClass.registerBundledCircuit('register_light_td3_160', require('@/assets/circuits/register_light_td3_160.json'));
-        RarimeClass.registerBundledCircuit('register_light_td3_224', require('@/assets/circuits/register_light_td3_224.json'));
-        RarimeClass.registerBundledCircuit('register_light_td3_256', require('@/assets/circuits/register_light_td3_256.json'));
-        RarimeClass.registerBundledCircuit('register_light_td3_384', require('@/assets/circuits/register_light_td3_384.json'));
-        RarimeClass.registerBundledCircuit('register_light_td3_512', require('@/assets/circuits/register_light_td3_512.json'));
-        // Heavy register circuit — used by the Mainnet registerViaNoir path
-        // (utils/register-via-noir.ts). 3 MB of Noir bytecode bundled in-app
-        // so registration works offline. See task #16 / HANDOFF-FRENCH-PASSPORT.md.
+        // The voting flow is now TD1 (French ID card) only. The TD1 light
+        // + query_identity circuits are published on Rarimo's GCS bucket
+        // and the SDK fetches them from there on first use — no local
+        // bundle registration needed.
+        //
+        // The TD3 (passport) circuit JSONs are still in assets/circuits/
+        // and are still used by the diagnostic / QA screens that exercise
+        // passport flows out-of-band, but the production voting path
+        // doesn't register them.
+        //
+        // Heavy register circuit — used by the Mainnet registerViaNoir
+        // path (utils/register-via-noir.ts). 3 MB of Noir bytecode bundled
+        // in-app so registration works offline. Same circuit name for both
+        // TD1 and TD3 (the circuit doesn't care about MRZ format).
         RarimeClass.registerBundledCircuit('registerIdentity_1_256_3_5_576_248_NA', require('@/assets/circuits/registerIdentity_1_256_3_5_576_248_NA.json'));
-        console.log('[FreedomTool] TD3 bundled circuits registered (query + register_light 160/224/256/384/512 + registerIdentity_1_256_3_5_576_248_NA heavy)');
+        console.log('[FreedomTool] Heavy register circuit bundled; TD1 light + query come from CDN.');
 
         const storedKey = await getOrCreatePrivateKey();
         setPrivateKey(storedKey);
@@ -413,7 +451,14 @@ export default function VotingFlowScreen() {
     }, 1500);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVerificationError = useCallback(() => {
+  const handleVerificationError = useCallback((_message?: string, fatal?: boolean) => {
+    // Fatal errors (e.g. "passport already registered with another key")
+    // cannot be retried. Keep the user on Step 7 with its own contextual
+    // error display — do NOT trigger the generic Step9Error overlay
+    // ("Une erreur est survenue") or advance to Step 8, both of which
+    // would hide the specific explanation. The user closes the modal via
+    // the top-right X to exit.
+    if (fatal) return;
     setVerificationResult('error');
     setTimeout(() => handleNext(), 1500);
   }, [handleNext]);
@@ -549,6 +594,7 @@ export default function VotingFlowScreen() {
                     isActive={currentStep === 5 && !isManualInputVisible}
                     onMRZScanned={handleMRZScanned}
                     onManualFill={handleManualFill}
+                    isPassportFlow={isPassportFlow}
                   />
                 ) : spacer('s5'),
                 show(5) ? (
@@ -559,6 +605,7 @@ export default function VotingFlowScreen() {
                     mrzData={mrzData}
                     onNFCSuccess={handleNFCSuccess}
                     onGoBack={handleGoBackToMRZScan}
+                    isPassportFlow={isPassportFlow}
                   />
                 ) : spacer('s6'),
                 show(6) ? (
