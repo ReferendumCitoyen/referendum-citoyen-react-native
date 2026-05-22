@@ -4,3 +4,5 @@ export const LEGAL_URLS = {
   privacyPolicy: 'https://referendum-citoyen.fr/politique-de-confidentialite',
   termsAndConditions: 'https://referendum-citoyen.fr/conditions-generales',
 } as const;
+
+export const CONTACT_EMAIL = 'referendumcitoyen@proton.me';

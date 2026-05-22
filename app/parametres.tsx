@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useExtraProposals } from '@/contexts/ExtraProposalsContext';
-import { LEGAL_URLS } from '@/constants/urls';
+import { LEGAL_URLS, CONTACT_EMAIL } from '@/constants/urls';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -121,7 +121,7 @@ export default function ParametresScreen() {
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL('mailto:contact@referendum-citoyen.fr')}
+            onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}
           >
             <Text style={styles.settingLabel}>{t('settings.contact')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
