@@ -1,5 +1,6 @@
 import {
   extractMrz,
+  extractMrzTd1,
   normaliseMrzOcr,
   verifyMrzChecksum,
 } from './mrz-rarimo';
@@ -124,7 +125,72 @@ describe('extractMrz', () => {
     expect(extractMrz('')).toBeNull();
   });
 
-  it('accepts the "D<<" German nationality exception', () => {
+});
+
+describe('extractMrzTd1', () => {
+  // Known-good TD1 sample lifted from the `mrz` package's own test suite
+  // (node_modules/mrz/src/parse/__tests__/td1.test.ts — "swiss ID - valid").
+  // All three ICAO checksums + composite check digit are valid; this is what
+  // the parser path inside extractMrzTd1 is supposed to accept.
+  const CANONICAL_TD1_LINES = [
+    'IDCHEA1234567<6<<<<<<<<<<<<<<<',
+    '7510256M2009018CHE<<<<<<<<<<<8',
+    'SMITH<<JOHN<ALBERT<<<<<<<<<<<<',
+  ];
+
+  it('extracts data from a known-good ICAO-valid TD1 MRZ (mrz lib swiss sample)', () => {
+    // Newline-joined to mimic typical multi-line OCR output. extractMrzTd1
+    // strips whitespace internally before its 30-char regex pass.
+    const ocr = CANONICAL_TD1_LINES.join('\n');
+    const result = extractMrzTd1(ocr);
+    expect(result).not.toBeNull();
+    expect(result).toEqual({
+      documentNumber: 'A1234567',
+      nationality: 'CHE',
+      dateOfBirth: '751025',
+      dateOfExpiry: '200901',
+    });
+  });
+
+  it('returns null on partial OCR (only 2 of 3 lines visible)', () => {
+    // Sanity: ML Kit dropping the name line should fail safely.
+    expect(extractMrzTd1(CANONICAL_TD1_LINES.slice(0, 2).join('\n'))).toBeNull();
+  });
+
+  it('tolerates extra OCR noise around the MRZ block', () => {
+    // Real frame processor output includes printed text from the card
+    // (header, name, address, height). Line-boundary preservation must
+    // keep these from fusing with the MRZ block.
+    const noisy = `REPUBLIQUE FRANCAISE
+Identite
+Nom: SMITH
+Prenom: JOHN ALBERT
+${CANONICAL_TD1_LINES.join('\n')}
+`;
+    expect(extractMrzTd1(noisy)).not.toBeNull();
+  });
+
+  it('handles a real-world CNIe-shaped frame (printed text + Ç misreads + MRZ)', () => {
+    // Shape based on observed ML Kit output on a French CNIe: address,
+    // height, place of birth ("BOUDRY SUISSE"), header line with the Ç
+    // in "FRANÇAISE" misread (here we use a benign substitute), and the
+    // three MRZ lines at the end. Uses the Swiss canonical TD1 (the only
+    // ICAO-valid sample we have on hand) so the parser succeeds.
+    const frame = `04 05 2036
+05 05 2026
+DATE DE DELIVRANCE
+RUE DU PRE-LANDRY 14
+1,86 m
+2017 BOUDRY
+SUISSE
+REPUBLIQUE FRAN?AISE
+${CANONICAL_TD1_LINES.join('\n')}`;
+    expect(extractMrzTd1(frame)).not.toBeNull();
+  });
+});
+
+describe('extractMrz (TD3 - original suite)', () => {
+  it('accepts the "D<<" German nationality exception (moved-down original)', () => {
     // The regex allows either a 3-letter ISO code or the literal "D<<" used
     // for German passports. Construct a valid-checksum line with D<<.
     // doc=ABC123456, nat=D<<, dob=900101, sex=M, exp=300101

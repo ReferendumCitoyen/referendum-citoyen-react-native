@@ -51,7 +51,13 @@ interface Step7Props {
   isActive?: boolean;
   nfcData?: NFCData | null;
   onSuccess?: () => void;
-  onError?: () => void;
+  /** Called when Step 7 hits a verification error. `fatal=true` means
+   * the user cannot recover by retrying — typically a [VOTE_INELIGIBLE]
+   * condition like "passport already registered with another key". The
+   * parent should NOT auto-advance to the vote screen in that case;
+   * leave the user on Step 7 so they can read the actual message
+   * (rendered via `errorMessage` in this component). */
+  onError?: (message?: string, fatal?: boolean) => void;
   onFatalError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   rarime?: Rarime;
@@ -139,7 +145,8 @@ const Step7: React.FC<Step7Props> = ({
       try {
         // Step 1: Check document registration status
         const mrzInfo = passport.getMRZData();
-        console.log(`[Step7] Passport MRZ — nationality: ${mrzInfo.issuingCountry}, docNo: ${mrzInfo.documentNumber}, birthDate: ${mrzInfo.birthDate}`);
+        // No docNo / birthDate — both are PII (and the doc-num is also half of the BAC key).
+        console.log(`[Step7] MRZ loaded — nationality: ${mrzInfo.issuingCountry}`);
         console.log(`[Step7] DG1 length: ${passport.dataGroup1.length} (95=TD1 ID card, 93=TD3 passport)`);
         console.log(`[Step7] SOD length: ${passport.sod.length} bytes; DG15 present: ${passport.dataGroup15 ? `yes (${passport.dataGroup15.length}B)` : 'no'}`);
         try {
@@ -175,21 +182,30 @@ const Step7: React.FC<Step7Props> = ({
         }
 
         // ----------------------------------------------------------------
-        // Step 2: register identity. Two paths, picked by `network`:
+        // Step 2: register identity. Routing matrix is by *document type*,
+        // not just network — confirmed with the Rarimo team 2026-05-21:
+        // ID cards (TD1) always go through `/registerid` on the light
+        // registrator on BOTH testnet and mainnet, because Rarimo never
+        // built a heavy TD1 register circuit (their `passport-zk-circuits-
+        // noir` repo only has `register_identity` for TD3 and
+        // `register_identity_light_td1`). The heavy path is passport-only.
         //
-        //   mainnet  → heavy Noir circuit (`registerIdentity_<suite>`)
-        //              proves the slave-cert chain in-zk, we ABI-encode
-        //              `Registration2.registerViaNoir(...)` and POST the
-        //              calldata to the registration-relayer. Independently
-        //              verified against the user's own successful tx at
-        //              Mainnet block 2330 — the 2144-byte proof shape and
-        //              both keccak constants (P_NO_AA, Z_NOIR_PASSPORT_*)
-        //              match byte-for-byte. See utils/register-via-noir.ts.
+        //   TD3 (dg1=93) + mainnet → heavy Noir circuit
+        //                            (`registerIdentity_<suite>`). Proves
+        //                            the slave-cert chain in-zk, we ABI-
+        //                            encode `Registration2.registerViaNoir`
+        //                            and POST calldata to the registration
+        //                            relayer. Independently verified at
+        //                            Mainnet block 2330 (2144-byte proof
+        //                            shape, P_NO_AA + Z_NOIR_PASSPORT_*
+        //                            keccaks match). See utils/register-
+        //                            via-noir.ts.
         //
-        //   testnet  → SDK's `rarime.registerIdentity()` light flow. Still
-        //              broken for TD3 passports (light-registrator returns
-        //              400) but kept around to smoke-test the rest of the
-        //              flow when the user wants to.
+        //   everything else        → SDK's `rarime.registerIdentity()`
+        //                            light flow → /registerid (TD1) or
+        //                            /register (TD3 testnet). Base URL is
+        //                            network-specific so the same call
+        //                            covers both networks.
         //
         // Either path is a no-op when the passport is already
         // RegisteredWithThisPk — the SDK's getDocumentStatus comparison is
@@ -227,8 +243,9 @@ const Step7: React.FC<Step7Props> = ({
             throw new Error('Step7: nfcData missing dg1/sod bytes');
           }
 
-          if (network === 'mainnet') {
-            // ----- HEAVY NOIR PATH (production registration) ----------
+          const isTd3 = passport.dataGroup1.length === 93;
+          if (network === 'mainnet' && isTd3) {
+            // ----- HEAVY NOIR PATH (TD3 mainnet only) -----------------
             // Confirmed 2026-05-18 (probe logs): light-registrator is
             // broken for TD3 on both networks (HTTP 400 identical), so
             // the heavy circuit is the only viable path on Mainnet.
@@ -355,17 +372,24 @@ const Step7: React.FC<Step7Props> = ({
             });
             console.log(`[Step7][mainnet] registerViaNoir tx submitted: ${txHash}`);
           } else {
-            // ----- TESTNET LIGHT PATH ---------------------------------
-            // Direct call to the SDK. Known to return HTTP 400 today for
-            // TD3 passports on the light-registrator endpoint — see
-            // td3-spike-blocker memory + HANDOFF-FRENCH-PASSPORT.md.
-            // Kept here so the rest of the flow (SOD parsing, NFC,
-            // proposal-cache hydration, vote step) stays exercised.
+            // ----- LIGHT REGISTRATOR PATH -----------------------------
+            // Covers everything except TD3 mainnet: TD1 testnet, TD1
+            // mainnet, TD3 testnet. The SDK posts to /registerid (TD1) or
+            // /register (TD3) on Rarimo's incognito-light-registrator;
+            // the service generates the heavy proof server-side and
+            // submits on-chain. Base URL is set by the Rarime instance's
+            // network config, so the same call routes correctly per
+            // network.
+            //
+            // Note: TD3 testnet on this endpoint has historically returned
+            // HTTP 400 (see td3-spike-blocker memory) — kept here for
+            // completeness but if you're testing TD3, use mainnet.
+            const label = `registerIdentity (light, ${isTd3 ? 'TD3' : 'TD1'}, ${network})`;
             await withRetry(
               () => rarime.registerIdentity(passport),
-              { label: 'registerIdentity (testnet light)' },
+              { label },
             );
-            console.log('[Step7][testnet] light register submitted');
+            console.log(`[Step7][${network}] light register submitted (${isTd3 ? 'TD3' : 'TD1'})`);
           }
         }
 
@@ -380,11 +404,12 @@ const Step7: React.FC<Step7Props> = ({
         // [VOTE_INELIGIBLE] errors carry a French user-facing message that
         // we want to surface verbatim — formatRpcError would replace it
         // with a generic "an error occurred" string.
-        const text = msg.startsWith('[VOTE_INELIGIBLE]')
+        const isFatal = msg.startsWith('[VOTE_INELIGIBLE]');
+        const text = isFatal
           ? msg.replace('[VOTE_INELIGIBLE]', '').trim()
           : formatRpcError(err);
         setErrorMessage(text);
-        onError?.();
+        onError?.(text, isFatal);
       }
     })();
   }, [hasStarted, rarime, passport, freedomTool, onSuccess, onError]);

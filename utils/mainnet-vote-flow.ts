@@ -249,18 +249,20 @@ async function readOnChainContext(args: {
   const whitelist: string[] = Array.from(proposalConfig.votingWhitelist as readonly string[]).map((s) => s.toLowerCase());
   const thisId = whitelist.indexOf(bioPassportVotingAddress.toLowerCase());
   if (thisId === -1) {
-    // The proposal exists on chain but binds to a DIFFERENT voting contract
-    // (most often `0x7d73513d64ee…` = IDCardVoting for national ID cards, not
-    // passports). Our app only supports BioPassportVoting (`0x8Dea8065…`).
-    // The home screen filters these out via `isPassportVotingTarget`; a user
-    // can still land here via a deep link / pre-selected proposalId, so we
-    // surface a French explanation rather than the raw debug string.
-    // Step11's error handler strips the `[VOTE_INELIGIBLE]` prefix and shows
-    // the message verbatim.
+    // We only reach this branch when castMainnetVote was called for a
+    // proposal NOT bound to BioPassportVoting (`0x8Dea8065…`). After the
+    // Step11 routing fix (2026-05-21), only TD3 passports take this code
+    // path — TD1 ID cards now go through freedomTool.submitProposal which
+    // auto-routes per proposal.sendVoteContractAddress. So this error
+    // means: TD3 passport holder hit a proposal whose votingWhitelist[0]
+    // is IDCardVoting (`0x7d73513d64ee…`) — the proposal is reserved for
+    // CNIe holders, not passport holders. Step11's error handler strips
+    // the `[VOTE_INELIGIBLE]` prefix and shows the message verbatim.
     throw new Error(
-      "[VOTE_INELIGIBLE] Ce scrutin n'est pas compatible avec un passeport. " +
-      "Il est rattaché au contrat de vote par carte nationale d'identité — " +
-      "choisissez un autre scrutin dans la liste sur l'écran d'accueil.",
+      "[VOTE_INELIGIBLE] Ce scrutin est réservé aux porteurs de carte " +
+      "nationale d'identité (CNIe) — il n'est pas accessible avec un " +
+      "passeport. Choisissez un autre scrutin dans la liste sur l'écran " +
+      "d'accueil.",
     );
   }
   const rulesBytes: string = proposalConfig.votingWhitelistData[thisId];

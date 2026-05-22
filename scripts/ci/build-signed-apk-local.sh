@@ -93,6 +93,12 @@ echo
 echo "==> Injecting release signing config into android/app/build.gradle"
 node scripts/ci/inject-android-signing.mjs
 
+echo
+echo "==> Bumping Gradle JVM heap (Xmx 2g → 6g) for D8 + APK packager"
+# Without this the build OOMs in mergeExtDexRelease and/or packageRelease
+# on this repo's class graph + bundled circuit assets.
+node scripts/ci/inject-android-gradle-tuning.mjs
+
 chmod +x android/gradlew
 
 # ---- build ---------------------------------------------------------------

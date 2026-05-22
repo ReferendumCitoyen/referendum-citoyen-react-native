@@ -22,10 +22,19 @@ interface Step11Props {
   passport?: RarimePassport;
   proposalInfo?: ProposalInfo;
   answerIndex?: number;
-  /** Active network from NetworkContext. Mainnet routes through the
-   * Groth16 vote pipeline (utils/mainnet-vote-flow.ts) — the SDK's Noir
-   * vote path doesn't match the deployed Mainnet BioPassportVoting ABI.
-   * Testnet keeps the existing freedomTool.submitProposal flow. */
+  /** Active network from NetworkContext. The vote path is picked by both
+   * network *and* document type (confirmed with Rarimo team 2026-05-21):
+   *
+   *   TD3 (passport) + mainnet → Groth16 pipeline (utils/mainnet-vote-flow.ts).
+   *     The deployed BioPassportVoting (0x8Dea…) is Groth16; the SDK's
+   *     Noir path doesn't match its ABI.
+   *
+   *   everything else → freedomTool.submitProposal(). The SDK auto-routes
+   *     via `proposalInfo.sendVoteContractAddress` to IDCardVoting/
+   *     executeTD1Noir (TD1) or BioPassportVoting/executeNoir (TD3 testnet),
+   *     and posts to the v3 vote relayer. Base URLs come from the network-
+   *     specific FreedomTool config so the same call works on both networks.
+   */
   network?: Network;
 }
 
@@ -50,12 +59,14 @@ const Step11: React.FC<Step11Props> = ({
   const isSubmitting = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
 
-  // Mainnet path doesn't need freedomTool (it bypasses the SDK entirely),
-  // so the readiness gate is different per network.
-  const canSubmitReal =
-    network === 'mainnet'
-      ? rarime && passport && proposalInfo && answerIndex !== undefined
-      : freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
+  // The Groth16 mainnet path (TD3 only) bypasses the SDK entirely; every
+  // other path needs freedomTool. Default isTd3=false until passport loads
+  // so we don't drop the freedomTool requirement prematurely.
+  const isTd3Doc = !!passport && passport.dataGroup1.length === 93;
+  const usesGroth16MainnetPath = network === 'mainnet' && isTd3Doc;
+  const canSubmitReal = usesGroth16MainnetPath
+    ? rarime && passport && proposalInfo && answerIndex !== undefined
+    : freedomTool && rarime && passport && proposalInfo && answerIndex !== undefined;
 
   useEffect(() => {
     if (isActive && !hasStarted) {
@@ -97,17 +108,17 @@ const Step11: React.FC<Step11Props> = ({
     (async () => {
       try {
         // ----------------------------------------------------------------
-        // Mainnet branch: deployed BioPassportVoting takes Groth16, not
-        // Noir. Skip the entire SDK Noir flow (freedomTool.isAlreadyVoted /
-        // .verify / .submitProposal — all assume the Noir contract surface
-        // and revert against Mainnet's actual Groth16 verifier). Run
-        // utils/mainnet-vote-flow.ts which mirrors rarime-android-app's
-        // VotingManager.vote() call-for-call.
+        // Vote-path routing (by network + doc type, see props comment):
         //
-        // Testnet keeps the SDK path because that's still Noir on Q-testnet
-        // and the SDK shape matches there.
+        //   TD3 + mainnet  → castMainnetVote() Groth16 against
+        //                    BioPassportVoting (this branch).
+        //
+        //   everything else → freedomTool.submitProposal() Noir, SDK auto-
+        //                    routes destination per proposal.sendVoteContract
+        //                    (the testnet branch below). Covers TD1 on both
+        //                    networks + TD3 testnet.
         // ----------------------------------------------------------------
-        if (network === 'mainnet') {
+        if (usesGroth16MainnetPath) {
           // `canSubmitReal` already validated these are defined on Mainnet
           // (rarime + passport + proposalInfo + answerIndex). Non-null
           // assertions here are safe.
@@ -125,7 +136,8 @@ const Step11: React.FC<Step11Props> = ({
           const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
           const profileKeyHex = RarimeUtils.getProfileKey(sk);
 
-          console.log(`[Step11][mainnet] casting vote on proposal #${proposal.id}, answerIndex=${ai}`);
+          // answerIndex omitted — anonymous vote (see Step9Vote comment).
+          console.log(`[Step11][mainnet] casting vote on proposal #${proposal.id}`);
           setStatusText(t('voting.step11GeneratingProof'));
 
           const { txId } = await castMainnetVote({
@@ -156,8 +168,11 @@ const Step11: React.FC<Step11Props> = ({
         }
 
         // ----------------------------------------------------------------
-        // Testnet (legacy SDK Noir flow). Unchanged from before today's work.
-        // canSubmitReal on testnet already guarantees these are defined.
+        // SDK Noir flow (freedomTool.submitProposal). Covers everything
+        // except TD3-on-mainnet: TD1 testnet, TD1 mainnet, TD3 testnet.
+        // The SDK reads proposalInfo.sendVoteContractAddress to pick the
+        // right destination (IDCardVoting vs BioPassportVoting) and
+        // selects executeTD1Noir vs executeNoir per doc type internally.
         // ----------------------------------------------------------------
         const ft = freedomTool!;
         const r = rarime!;
@@ -202,7 +217,7 @@ const Step11: React.FC<Step11Props> = ({
         const citizenshipHex = BigInt("0x" + Buffer.from(mrzData.issuingCountry).toString("hex")).toString();
         console.log(`[FreedomTool] Step11: Submitting vote...`);
         console.log(`[FreedomTool] Step11: proposal=#${proposal.id} "${proposal.title}"`);
-        console.log(`[FreedomTool] Step11: answerIndex=${ai}, variant="${proposal.questions[0]?.variants?.[ai]}"`);
+        // answerIndex / variant intentionally NOT logged — anonymous vote.
         console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
         console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposal.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
         console.log(`[FreedomTool] Step11: selector=${proposal.criteria.selector}, sendVoteContract=${proposal.sendVoteContractAddress}`);
