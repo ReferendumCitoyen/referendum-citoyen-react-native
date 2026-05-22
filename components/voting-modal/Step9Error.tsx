@@ -9,10 +9,12 @@ interface Step9ErrorProps {
   containerWidth: number;
   onGoHome?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  isPassportFlow?: boolean;
 }
 
-const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLayout }) => {
+const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLayout, isPassportFlow = false }) => {
   const { t } = useTranslation();
+  const docSfx = isPassportFlow ? 'passport' : 'idCard';
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -25,7 +27,7 @@ const Step9Error: React.FC<Step9ErrorProps> = ({ containerWidth, onGoHome, onLay
           </Text>
 
           <Text style={stepSpecificStyles.step9ErrorDescription}>
-            {t('voting.step9ErrorDescription')}
+            {t(`voting.step9ErrorDescription_${docSfx}`)}
           </Text>
 
           <LottieView

@@ -28,6 +28,7 @@ interface Step6Props {
 
 const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyze, onNFCSuccess, onNFCError, onGoBack, onLayout, isPassportFlow = false }) => {
   const { t } = useTranslation();
+  const docSfx = isPassportFlow ? 'passport' : 'idCard';
   const { devMode } = useDevMode();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -59,7 +60,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
 
         listeners = [
           EDocumentModuleListener(EDocumentModuleEvents.RequestPresentPassport, () => {
-            setScanStatus(t('voting.step6PresentCard'));
+            setScanStatus(t(`voting.step6PresentCard_${docSfx}`));
             setScanStep(1);
           }),
           EDocumentModuleListener(EDocumentModuleEvents.AuthenticatingWithPassport, () => {
@@ -145,7 +146,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         }
       }
 
-      setScanStatus(t('voting.step6Now'));
+      setScanStatus(t(`voting.step6Now_${docSfx}`));
       // BAC-key inputs (documentNumber, birthDate, expiryDate) intentionally
       // omitted — logging them would leak the user's doc number + DOB.
       console.log(`[Step6] Starting scanDocument type=${isPassportFlow ? 'P' : 'I'}`);
@@ -251,12 +252,17 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step6Container}>
-        <Text style={stepSpecificStyles.step6Title}>{t('voting.step6Title')}</Text>
+        <Text style={stepSpecificStyles.step6Title}>{t(`voting.step6Title_${docSfx}`)}</Text>
 
         <View style={stepSpecificStyles.step6ImageContainer}>
           {Platform.OS === 'android' ? (
             <Image
-              source={require('@/assets/images/poster-phone-over-card.png')}
+              // poster-phone-over-passport.png is currently a placeholder
+              // copy of poster-phone-over-card.png — replace with passport-
+              // themed art before production.
+              source={isPassportFlow
+                ? require('@/assets/images/poster-phone-over-passport.png')
+                : require('@/assets/images/poster-phone-over-card.png')}
               style={stepSpecificStyles.step6Image}
               resizeMode="contain"
             />
@@ -280,7 +286,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           color: colors.textSecondary || colors.text,
           opacity: 0.7,
         }}>
-          {t('voting.step6Instruction')}
+          {t(`voting.step6Instruction_${docSfx}`)}
         </Text>
 
         {passportDetected && (

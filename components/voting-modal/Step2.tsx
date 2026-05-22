@@ -9,10 +9,12 @@ interface Step2Props {
   player: any;
   containerWidth: number;
   onLayout?: (event: LayoutChangeEvent) => void;
+  isPassportFlow?: boolean;
 }
 
-const Step2: React.FC<Step2Props> = ({ player, containerWidth, onLayout }) => {
+const Step2: React.FC<Step2Props> = ({ player, containerWidth, onLayout, isPassportFlow = false }) => {
   const { t } = useTranslation();
+  const docSfx = isPassportFlow ? 'passport' : 'idCard';
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
@@ -44,7 +46,7 @@ const Step2: React.FC<Step2Props> = ({ player, containerWidth, onLayout }) => {
             <Text style={modalStyles.stepTitle}>{t('voting.step2Title')}</Text>
           </View>
           <Text style={modalStyles.stepDescription}>
-            {t('voting.step2Description')}
+            {t(`voting.step2Description_${docSfx}`)}
           </Text>
         </View>
       </View>
