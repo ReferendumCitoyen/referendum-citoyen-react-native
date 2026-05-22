@@ -12,9 +12,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const SCREEN_W = Dimensions.get('window').width;
-const SCREEN_H = Dimensions.get('window').height;
 import { useColors, Typography } from '@/constants/theme';
 import { scanDocument, testPassportDetection } from '@/modules/e-document';
 import { Camera, useCameraDevice, useCameraPermission, useFrameProcessor, runAtTargetFps } from 'react-native-vision-camera';
@@ -22,6 +19,9 @@ import { useTextRecognition } from 'react-native-vision-camera-text-recognition'
 import { Worklets } from 'react-native-worklets-core';
 import { parse } from 'mrz';
 import { CircuitSuiteProbe } from './CircuitSuiteProbe';
+
+const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
 
 type MRZData = {
   docType: string;
@@ -766,7 +766,7 @@ export function NfcPassportDiagnosticCard() {
       <Text style={styles.cardTitle}>Détecter votre passeport</Text>
       <Text style={styles.helpText}>
         Vérifiez que votre téléphone détecte bien la puce NFC de votre passeport.
-        Déplacez-le lentement — jusqu'à 30 secondes.
+        Déplacez-le lentement — jusqu&apos;à 30 secondes.
       </Text>
       <View style={styles.positionHint}>
         <Text style={styles.positionHintText}>
@@ -810,7 +810,7 @@ export function NfcPassportDiagnosticCard() {
       {/* ── Inputs ── */}
       <Text style={styles.sectionTitle}>Scanner votre passeport</Text>
       <Text style={styles.helpText}>
-        Scannez d'abord le MRZ (les deux lignes en bas de la page photo), puis approchez la puce.
+        Scannez d&apos;abord le MRZ (les deux lignes en bas de la page photo), puis approchez la puce.
       </Text>
 
       {/* MRZ camera scanner */}

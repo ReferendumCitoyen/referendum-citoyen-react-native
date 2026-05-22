@@ -24,7 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.4',
+    version: '1.5',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
@@ -85,6 +85,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // (modules/rapidsnark-wrp + modules/witnesscalculator). Needed by the
       // Mainnet vote flow's witnesscalc + rapidsnark prove pipeline.
       './plugins/withCircomFlatDirs.js',
+      // Sets android:largeHeap="true" on the <application/> element. The
+      // Groth16 witness calculator on the Mainnet vote path allocates a
+      // ~100 MB buffer which OOMs the default 256 MB Dalvik heap. See the
+      // file for the full rationale.
+      './plugins/withLargeHeap.js',
       [
         './plugins/withNfc.plugin/build/index.js',
         {

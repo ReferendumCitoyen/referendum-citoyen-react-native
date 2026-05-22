@@ -4,6 +4,11 @@ import WitnesscalculatorModule from './src/WitnesscalculatorModule'
 // DownloadProgressData are now under /legacy. Without this, the module loads
 // but the FileSystem.* references resolve to undefined at runtime.
 import * as FileSystem from 'expo-file-system/legacy'
+// TODO: `react-native-zip-archive` isn't in package.json. The import works at
+// runtime only because it transitively ships with another dep — confirm and
+// either add it explicitly to dependencies or remove the import if `unzip`
+// is no longer called from this module.
+// eslint-disable-next-line import/no-unresolved
 import { unzip } from 'react-native-zip-archive'
 
 export type CircomZKProof = {

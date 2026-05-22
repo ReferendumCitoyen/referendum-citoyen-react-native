@@ -168,9 +168,9 @@ export default function CanScanScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Comment ça marche ?</Text>
           <Text style={styles.cardText}>
-            1. Trouvez le CAN (6 chiffres) sur votre carte d'identité{'\n'}
+            1. Trouvez le CAN (6 chiffres) sur votre carte d&apos;identité{'\n'}
             2. Entrez le CAN ci-dessous{'\n'}
-            3. Appuyez sur "Scanner" et approchez votre carte
+            3. Appuyez sur &quot;Scanner&quot; et approchez votre carte
           </Text>
         </View>
 

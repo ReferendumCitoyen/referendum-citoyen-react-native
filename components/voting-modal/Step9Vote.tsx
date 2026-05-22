@@ -25,7 +25,10 @@ const Step9Vote: React.FC<Step9VoteProps> = ({ containerWidth, onVoteSubmit, onC
   const variants = proposalInfo?.questions[0]?.variants ?? ['OUI', 'BLANC', 'NON'];
 
   const handleVoteSelect = (idx: number) => {
-    console.log(`[Step9] Vote option tapped: "${variants[idx]}" (index ${idx}) — proposal #${proposalInfo?.id}, variants: [${variants.join(', ')}]`);
+    // Vote choice intentionally NOT logged — this is an anonymous voting
+    // flow; recording the user's choice in logcat / Metro stdout would
+    // defeat the privacy property. Log the proposal id only.
+    console.log(`[Step9] Vote option tapped on proposal #${proposalInfo?.id}`);
     setSelectedIndex(idx);
     if (onVoteSelect) {
       onVoteSelect(idx);
