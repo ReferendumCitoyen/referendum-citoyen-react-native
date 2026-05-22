@@ -2,12 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.withNfc = void 0;
 const config_plugins_1 = require("@expo/config-plugins");
-const config_plugins_2 = require("@expo/config-plugins");
 const NFC_DISPATCH_TAG = 'withNfc:foreground-dispatch';
 const NFC_READER = 'Interact with nearby NFC devices';
 function withIosPermission(c, props = {}) {
     const { nfcPermission } = props;
-    return (0, config_plugins_2.withInfoPlist)(c, config => {
+    return (0, config_plugins_1.withInfoPlist)(c, config => {
         // https://developer.apple.com/documentation/bundleresources/information_property_list/nfcreaderusagedescription?language=objc
         config.modResults.NFCReaderUsageDescription =
             nfcPermission || config.modResults.NFCReaderUsageDescription || NFC_READER;
@@ -34,7 +33,7 @@ obj, key, values) {
     return obj;
 }
 function withIosNfcEntitlement(c, { includeNdefEntitlement = false, }) {
-    return (0, config_plugins_2.withEntitlementsPlist)(c, config => {
+    return (0, config_plugins_1.withEntitlementsPlist)(c, config => {
         // Add the required formats
         let entitlements = ['NDEF', 'TAG'];
         if (includeNdefEntitlement === false) {
@@ -81,13 +80,13 @@ function withIosNfcSelectIdentifiers(c, { selectIdentifiers, }) {
         'A0000002480300',
         'A00000045645444C2D3031',
     ];
-    return (0, config_plugins_2.withInfoPlist)(c, config => {
+    return (0, config_plugins_1.withInfoPlist)(c, config => {
         config.modResults = addValuesToArray(config.modResults, 'com.apple.developer.nfc.readersession.iso7816.select-identifiers', ids);
         return config;
     });
 }
 function withIosNfcSystemCodes(c, { systemCodes, }) {
-    return (0, config_plugins_2.withInfoPlist)(c, config => {
+    return (0, config_plugins_1.withInfoPlist)(c, config => {
         // Add the user defined identifiers
         config.modResults = addValuesToArray(config.modResults, 
         // https://developer.apple.com/documentation/bundleresources/information_property_list/systemcodes
@@ -145,7 +144,7 @@ function withCustomBuildGradle(config) {
     });
 }
 const withNfcAndroidManifest = c => {
-    return (0, config_plugins_2.withAndroidManifest)(c, config => {
+    return (0, config_plugins_1.withAndroidManifest)(c, config => {
         config.modResults = addNfcUsesFeatureTagToManifest(config.modResults);
         return config;
     });
@@ -165,8 +164,8 @@ const UNUSED_PERMISSIONS = [
     'android.permission.MODIFY_AUDIO_SETTINGS',
 ];
 const withTrimmedPermissions = c => {
-    return (0, config_plugins_2.withAndroidManifest)(c, config => {
-        config_plugins_2.AndroidConfig.Permissions.removePermissions(config.modResults, UNUSED_PERMISSIONS);
+    return (0, config_plugins_1.withAndroidManifest)(c, config => {
+        config_plugins_1.AndroidConfig.Permissions.removePermissions(config.modResults, UNUSED_PERMISSIONS);
         return config;
     });
 };
@@ -346,13 +345,13 @@ const withNfc = (config, props = {}) => {
     // config = withNFCPassportReader(config, props)
     // We start to support Android 12 from v3.11.1, and you will need to update compileSdkVersion to 31,
     // otherwise the build will fail:
-    config = config_plugins_2.AndroidConfig.Version.withBuildScriptExtMinimumVersion(config, {
+    config = config_plugins_1.AndroidConfig.Version.withBuildScriptExtMinimumVersion(config, {
         name: 'compileSdkVersion',
         minVersion: 31,
     });
     if (nfcPermission !== false) {
         config = withIosPermission(config, props);
-        config = config_plugins_2.AndroidConfig.Permissions.withPermissions(config, ['android.permission.NFC']);
+        config = config_plugins_1.AndroidConfig.Permissions.withPermissions(config, ['android.permission.NFC']);
         config = withNfcAndroidManifest(config);
         // Android-only: see the function's header comment. iOS builds never run
         // this mod because `withMainActivity` is a no-op outside Android.

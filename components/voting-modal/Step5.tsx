@@ -262,7 +262,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
+          <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
               <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraPermission')}</Text>
@@ -285,7 +285,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
+          <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
               <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraUnavailable')}</Text>
@@ -308,7 +308,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step5Container}>
-        <Text style={stepSpecificStyles.step5Title}>{t('voting.step5Title')}</Text>
+        <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
         <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
           {/*
             Android (Volla / Camera2): keep <Camera /> permanently mounted;
@@ -430,13 +430,13 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
               textAlign: 'center', marginTop: 12,
               textShadowColor: colors.overlay, textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
             }}>
-              {scanProgress === 'idle' && t('voting.step5Positioning')}
+              {scanProgress === 'idle' && t(`voting.step5Positioning_${isPassportFlow ? 'passport' : 'idCard'}`)}
               {scanProgress === 'scanning' && t('voting.step5Scanning')}
               {scanProgress === 'partial' && t('voting.step5Partial')}
               {scanProgress === 'success' && t('voting.step5Success')}
-              {scanProgress === 'passport_detected' && t('voting.step5PassportDetected')}
+              {scanProgress === 'passport_detected' && t(`voting.step5PassportDetected_${isPassportFlow ? 'passport' : 'idCard'}`)}
               {scanProgress === 'underage' && t('voting.step5Underage')}
-              {scanProgress === 'expired' && t('voting.step5Expired')}
+              {scanProgress === 'expired' && t(`voting.step5Expired_${isPassportFlow ? 'passport' : 'idCard'}`)}
             </Text>
           </View>
         </View>
