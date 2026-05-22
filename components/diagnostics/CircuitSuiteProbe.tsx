@@ -421,7 +421,7 @@ export const CircuitSuiteProbe: React.FC<CircuitSuiteProbeProps> = (props) => {
           ) : (
             <>
               <Text style={styles.suiteWarn}>
-                ⚠ Suite resolves but no exact published variant. Rarimo doesn't
+                ⚠ Suite resolves but no exact published variant. Rarimo doesn&apos;t
                 have a deployed verifier for this exact ec/dg1/aa position
                 combination on Q-testnet.
               </Text>

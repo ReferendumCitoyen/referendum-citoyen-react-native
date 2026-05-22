@@ -1,7 +1,6 @@
 import type { ExpoConfig } from '@expo/config'
 import type { AndroidManifest, ConfigPlugin } from '@expo/config-plugins'
-import { withAppBuildGradle } from '@expo/config-plugins'
-import {
+import { withAppBuildGradle ,
   AndroidConfig,
   withAndroidManifest,
   withEntitlementsPlist,

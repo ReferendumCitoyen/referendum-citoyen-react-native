@@ -53,6 +53,9 @@
  * All dates are kept in the raw MRZ YYMMDD form. Conversion to display /
  * BAC formats happens at the caller (see Step5.tsx::convertMRZDate).
  */
+
+import { parse as parseMrzLibrary } from 'mrz';
+
 export interface MrzExtraction {
   /** 9 characters, alphanumeric. The trailing check digit is stripped. */
   documentNumber: string;
@@ -195,8 +198,6 @@ export function extractMrz(rawText: string): MrzExtraction | null {
 // which already implements the full TD1 grammar + per-field checksums. This
 // matches what the pre-3ab5a9c voting flow used (via a multi-frame consensus
 // buffer); single-frame here keeps the same fast-lock UX as `extractMrz`.
-
-import { parse as parseMrzLibrary } from 'mrz';
 
 /**
  * TD1 line shape (per line): 30 chars of `[0-9A-Z<]`.

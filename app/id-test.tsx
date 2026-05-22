@@ -744,7 +744,7 @@ export default function IDTestScreen() {
               </TouchableOpacity>
               <View style={styles.cameraOverlay}>
                 <Text style={styles.cameraInstructions}>
-                  Scannez les 3 lignes MRZ au dos de la carte d'identité
+                  Scannez les 3 lignes MRZ au dos de la carte d&apos;identité
                 </Text>
               </View>
             </View>
@@ -821,7 +821,7 @@ export default function IDTestScreen() {
 
           {/* MRZ Input Section */}
           <View style={styles.mrzSection}>
-            <Text style={styles.sectionTitle}>Données MRZ (au dos de la carte d'identité)</Text>
+            <Text style={styles.sectionTitle}>Données MRZ (au dos de la carte d&apos;identité)</Text>
 
             <TouchableOpacity
               style={styles.cameraButton}
@@ -868,7 +868,7 @@ export default function IDTestScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Date d'expiration</Text>
+              <Text style={styles.inputLabel}>Date d&apos;expiration</Text>
               <View style={styles.dateInputRow}>
                 <TextInput
                   style={[styles.input, styles.dateInput]}
@@ -983,7 +983,7 @@ export default function IDTestScreen() {
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Date d'expiration</Text>
+                      <Text style={styles.modalTitle}>Date d&apos;expiration</Text>
                       <TouchableOpacity
                         onPress={closeExpiryDatePicker}
                         style={styles.modalCloseButton}
@@ -1019,7 +1019,7 @@ export default function IDTestScreen() {
           </View>
 
           {/* ID Card Reading Buttons */}
-          <Text style={styles.sectionTitle}>Lecture complète de la carte d'identité:</Text>
+          <Text style={styles.sectionTitle}>Lecture complète de la carte d&apos;identité:</Text>
 
           {scanStatus && (
             <View style={styles.statusContainer}>
@@ -1129,7 +1129,7 @@ export default function IDTestScreen() {
 
           {tagData && (
             <View style={styles.resultContainer}>
-              <Text style={styles.resultTitle}>✅ Carte d'identité scannée avec succès</Text>
+              <Text style={styles.resultTitle}>✅ Carte d&apos;identité scannée avec succès</Text>
 
               {/* Available Fields */}
               <Text style={styles.sectionSubtitle}>📋 Champs disponibles:</Text>
@@ -1185,7 +1185,7 @@ export default function IDTestScreen() {
           {!error && !tagData && !isScanning && (
             <View style={styles.instructionContainer}>
               <Text style={styles.instructionText}>
-                Scannez d'abord le MRZ, puis appuyez sur le bouton pour lire la puce NFC de votre carte d'identité.
+                Scannez d&apos;abord le MRZ, puis appuyez sur le bouton pour lire la puce NFC de votre carte d&apos;identité.
               </Text>
             </View>
           )}
