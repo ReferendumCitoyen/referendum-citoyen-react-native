@@ -1,25 +1,6 @@
 import { ConfigContext, ExpoConfig } from '@expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  // Toggle between accounts: false = referendum-citoyen (organization), true = eklchan (personal)
-  const usePersonalAccount = true;
-
-  // Account configurations
-  const accountConfig = {
-    organizationAccount: {
-      owner: 'referendum-citoyen',
-      projectId: '0eeee796-7544-484f-9b24-615ec638f7d3',
-    },
-    personalAccount: {
-      owner: 'eklchan',
-      projectId: '2393a07c-1e68-4433-9772-c091d69eb99e',
-    },
-  };
-
-  const currentAccount = usePersonalAccount
-    ? accountConfig.personalAccount
-    : accountConfig.organizationAccount;
-
   return {
     ...config,
     name: 'Référendum Citoyen',
@@ -29,7 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
     userInterfaceStyle: 'automatic',
-    owner: currentAccount.owner,
+    owner: 'referendum-citoyen-fr',
     newArchEnabled: true,
     splash: {
       image: './assets/images/splash.png',
@@ -38,7 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.referendumcitoyen.app2',
+      bundleIdentifier: 'fr.referendumcitoyen.app',
       deploymentTarget: '16.0',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -58,7 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
     android: {
-      package: 'com.referendumcitoyen.app',
+      package: 'fr.referendumcitoyen.app',
       adaptiveIcon: {
         foregroundImage: './assets/images/app-icon-android.png',
         backgroundColor: '#ffffff',
@@ -125,7 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             extraPods: [
               {
                 name: 'NFCPassportReader',
-                git: 'https://github.com/eklchan/NFCPassportReader.git',
+                git: 'https://github.com/referendumcitoyenfr/NFCPassportReader.git',
                 // 9201876: conditional .pace polling based on skipPACE.
                 // Built on 69368850 (retains can: param for CAN-PACE).
                 // skipPACE=false (CNIe) → .pace + .iso14443 (Type A detected).
@@ -148,7 +129,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       router: {},
       eas: {
-        projectId: currentAccount.projectId,
+        projectId: '3cb72532-b213-4dc5-8d33-0b9ef3298949',
       },
     },
   };
