@@ -79,6 +79,7 @@
     "step5Partial": "MRZ partially detected...",
     "step5Success": "MRZ detected!",
     "step5OcrUnavailable": "Text recognition doesn't seem to work on this device (Google services missing). Please use \"Manual entry\" below.",
+    "step5WrongCountry": "This vote is not open to your nationality ({{country}}).",
     "step6MissingMrz": "MRZ data is missing. Scan MRZ first.",
     "step6Init": "🔄 Initializing...",
     "step6Authenticating": "🔐 Authenticating...",
