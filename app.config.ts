@@ -5,13 +5,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.5',
+    version: '1.0',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
     userInterfaceStyle: 'automatic',
     owner: 'referendum-citoyen-fr',
     newArchEnabled: true,
+    runtimeVersion: { policy: 'appVersion' },
+    updates: {
+      url: 'https://u.expo.dev/3cb72532-b213-4dc5-8d33-0b9ef3298949',
+    },
     splash: {
       image: './assets/images/splash.png',
       resizeMode: 'cover',
@@ -19,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'fr.referendumcitoyen.app',
+      bundleIdentifier: 'fr.referendum.citoyen',
       deploymentTarget: '16.0',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
