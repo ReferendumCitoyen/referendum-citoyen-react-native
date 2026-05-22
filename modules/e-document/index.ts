@@ -232,14 +232,14 @@ export function EDocumentModuleListener(
   listener: (payload: unknown) => void,
 ): EventSubscription {
   // FIXME: add event types for module
-  /* eslint-disable-next-line */
+   
   // @ts-ignore
   return EDocumentModuleEmitter.addListener(eventName, listener)
 }
 
 export function EDocumentModuleRemoveAllListeners(eventName: EDocumentModuleEvents): void {
   // FIXME: add event types for module
-  /* eslint-disable-next-line */
+   
   // @ts-ignore
   EDocumentModuleEmitter.removeAllListeners(eventName)
 }

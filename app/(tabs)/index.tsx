@@ -279,10 +279,12 @@ export default function AccueilScreen() {
   }, [getFreedomTool]);
 
   // Hardcoded allowlist of proposal IDs to display on the home screen.
-  // Set on 2026-05-22 to ship a controlled subset to users (#47 is the only
-  // verified-good passport proposal on Mainnet right now). Reverting to the
+  // Set on 2026-05-22 to ship a controlled subset to users:
+  //   #47 — passport vote (BioPassportVoting, TD3)
+  //   #48 — ID card vote (IDCardVoting, TD1)
+  // Both verified end-to-end on Mainnet in this build. Reverting to the
   // full-scan behavior is a one-line change: empty the array.
-  const HARDCODED_PROPOSAL_IDS = ['47'];
+  const HARDCODED_PROPOSAL_IDS = ['47', '48'];
 
   const fetchProposals = useCallback(async (refresh = false) => {
     try {

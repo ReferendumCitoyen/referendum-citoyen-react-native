@@ -1275,7 +1275,7 @@ export default function PassportTestScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Date d'expiration</Text>
+              <Text style={styles.inputLabel}>Date d&apos;expiration</Text>
               <View style={styles.dateInputRow}>
                 <TextInput
                   style={[styles.input, styles.dateInput]}
@@ -1389,7 +1389,7 @@ export default function PassportTestScreen() {
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContent}>
                     <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Date d'expiration</Text>
+                      <Text style={styles.modalTitle}>Date d&apos;expiration</Text>
                       <TouchableOpacity
                         onPress={closeExpiryDatePicker}
                         style={styles.modalCloseButton}
@@ -1565,7 +1565,7 @@ export default function PassportTestScreen() {
                   </View>
 
                   <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Date d'expiration:</Text>
+                    <Text style={styles.infoLabel}>Date d&apos;expiration:</Text>
                     <Text style={styles.infoValue}>{formatMRZDate(tagData.personDetails?.expiryDate, true)}</Text>
                   </View>
                 </>

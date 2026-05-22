@@ -32,7 +32,7 @@ import {
   id_sha512,
   id_sha512WithRSAEncryption,
   RsaSaPssParams,
-} from '@peculiar/asn1-rsa';
+ RSAPublicKey } from '@peculiar/asn1-rsa';
 import {
   ECParameters,
   id_ecdsaWithSHA1,
@@ -41,14 +41,12 @@ import {
   id_ecdsaWithSHA512,
 } from '@peculiar/asn1-ecc';
 import { Certificate } from '@peculiar/asn1-x509';
-import { ethers } from 'ethers';
+import { ethers , toBeArray } from 'ethers';
 import { Buffer } from 'buffer';
 import type { ExtendedCertificate } from '@/utils/e-document/extended-cert';
 import { ECDSA_ALGO_PREFIX, Sod } from '@/utils/e-document/sod';
 import { extractPubKey } from '@/utils/e-document/helpers/misc';
 import { getPublicKeyFromEcParameters } from '@/utils/e-document/helpers/crypto';
-import { RSAPublicKey } from '@peculiar/asn1-rsa';
-import { toBeArray } from 'ethers';
 
 /** Deployed Registration2 on Rarimo Mainnet — owner of the
  * `registerCertificate(...)` entrypoint. Probed against `0x11BB4B14…` (see
