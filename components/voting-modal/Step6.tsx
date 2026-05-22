@@ -20,9 +20,13 @@ interface Step6Props {
   onNFCError?: () => void;
   onGoBack?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
+  /** True = scan a TD3 passport (scanDocument 'P', Type B + BAC). False
+   * = scan a TD1 ID card (scanDocument 'I', Type A + PACE). Driven by
+   * the selected proposal's voting contract via voting-flow.tsx. */
+  isPassportFlow?: boolean;
 }
 
-const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyze, onNFCSuccess, onNFCError, onGoBack, onLayout }) => {
+const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyze, onNFCSuccess, onNFCError, onGoBack, onLayout, isPassportFlow = false }) => {
   const { t } = useTranslation();
   const { devMode } = useDevMode();
   const colors = useColors();
@@ -32,7 +36,10 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   const [scanStatus, setScanStatus] = useState("");
   const [scanStep, setScanStep] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
-  const [idCardDetected, setIdCardDetected] = useState(false);
+  // True when the heuristic below decides the user is holding a passport
+  // instead of a French ID card (CNIe). The named state lets the UI render
+  // a "please use your ID card" hint instead of a generic NFC error.
+  const [passportDetected, setPassportDetected] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [nativeLogs, setNativeLogs] = useState<string[]>([]);
 
@@ -99,7 +106,10 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   }, []);
 
   const handleAnalyzePress = async () => {
-    console.log('[Step6] handleAnalyzePress called, mrzData:', JSON.stringify(mrzData));
+    // Operational only — no PII. mrzData contains documentNumber + DOB
+    // which are the BAC key inputs; logging them would leak both to
+    // logcat / Metro stdout.
+    console.log('[Step6] handleAnalyzePress called, mrzData present:', !!mrzData);
     if (!mrzData) {
       setScanStatus(t('voting.step6MissingMrz'));
       return;
@@ -108,7 +118,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     // Scan NFC on the same screen for both platforms
     try {
       setIsScanning(true);
-      setIdCardDetected(false);
+      setPassportDetected(false);
       setScanStatus(t('voting.step6Init'));
       setNativeLogs([]);
 
@@ -136,19 +146,20 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       }
 
       setScanStatus(t('voting.step6Now'));
-      console.log('[Step6] Starting scanDocument with:', {
-        type: 'I',
-        documentNumber: mrzData.documentNumber,
-        dateOfBirth: mrzData.birthDate,
-        dateOfExpiry: mrzData.expiryDate,
-      });
+      // BAC-key inputs (documentNumber, birthDate, expiryDate) intentionally
+      // omitted — logging them would leak the user's doc number + DOB.
+      console.log(`[Step6] Starting scanDocument type=${isPassportFlow ? 'P' : 'I'}`);
 
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error('NFC scan timeout')), 30000);
       });
 
-      const scanPromise = scanDocument('P', {
+      // 'I' = TD1 ID card → PACE polling on Type A (skipPACE=false), the
+      // protocol French CNIes use. 'P' = TD3 passport → Type B + BAC.
+      // The doc type is driven by the selected proposal's voting contract
+      // upstream (voting-flow.tsx → isPassportFlow prop).
+      const scanPromise = scanDocument(isPassportFlow ? 'P' : 'I', {
         documentNumber: mrzData.documentNumber,
         dateOfBirth: mrzData.birthDate,
         dateOfExpiry: mrzData.expiryDate,
@@ -181,22 +192,46 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         return;
       }
 
-      // Detect if an ID card was held instead of a passport.
-      // PACE-IM is unambiguously an ID card protocol; 6982/SECURITY STATUS on a
-      // skipPACE=true scan means the chip required PACE before BAC — characteristic
-      // of a French CNIe, not a passport.
+      // Detect that the user held the *wrong* doc type for this flow.
+      // The error-text signals from the native module differ per flow:
+      //
+      // ID-card flow (expecting CNIe, user held passport):
+      //   - "iso14443B" / "Type B": passports are Type B; CNIe scan polls
+      //     Type A only.
+      //   - "no PACE" / "pace not supported": passports usually only do
+      //     BAC, no PACE.
+      //   - "passport" / "passeport" in the translated error text.
+      //   - "BAC" mentioned during a CNIe-mode scan but not "carte".
+      //
+      // Passport flow (expecting passport, user held CNIe):
+      //   - "step2im" / "pace-im": PACE-IM is unambiguously an ID card
+      //     protocol; passports don't speak it.
+      //   - "carte d'identité" in the translated error text.
+      //   - "6982" / "security status not satisfied" on a skipPACE=true
+      //     scan: chip required PACE before BAC — characteristic of CNIe.
       const errLower = (error.message || '').toLowerCase();
-      const isIDCard =
-        errLower.includes('step2im') ||
-        errLower.includes('pace-im') ||
-        errLower.includes('im not yet') ||
-        errLower.includes("carte d'identit") ||
-        errLower.includes('pace non support') ||
-        ((errLower.includes('6982') || errLower.includes('security status')) &&
-          !errLower.includes('passeport'));
+      const wrongDocDetected = isPassportFlow
+        ? (
+            errLower.includes('step2im') ||
+            errLower.includes('pace-im') ||
+            errLower.includes('im not yet') ||
+            errLower.includes("carte d'identit") ||
+            errLower.includes('pace non support') ||
+            ((errLower.includes('6982') || errLower.includes('security status')) &&
+              !errLower.includes('passeport'))
+          )
+        : (
+            errLower.includes('iso14443b') ||
+            errLower.includes('type b') ||
+            errLower.includes('passport') ||
+            errLower.includes('passeport') ||
+            errLower.includes('no pace') ||
+            errLower.includes('pace not supported') ||
+            (errLower.includes('bac') && !errLower.includes("carte"))
+          );
 
-      if (isIDCard) {
-        setIdCardDetected(true);
+      if (wrongDocDetected) {
+        setPassportDetected(true);
         setScanStatus('');
         setIsScanning(false);
         setShowRetry(true);
@@ -248,7 +283,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           {t('voting.step6Instruction')}
         </Text>
 
-        {idCardDetected && (
+        {passportDetected && (
           <View style={{
             backgroundColor: '#FEF3C7',
             borderRadius: 10,
@@ -264,7 +299,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
               textAlign: 'center',
               marginBottom: 4,
             }}>
-              {t('voting.step6IdCardDetected')}
+              {t(isPassportFlow ? 'voting.step6IdCardDetected' : 'voting.step6PassportDetected')}
             </Text>
             <Text style={{
               fontFamily: Typography.fontFamily.medium,
@@ -273,7 +308,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
               textAlign: 'center',
               lineHeight: 18,
             }}>
-              {t('voting.step6UsePassportInstead')}
+              {t(isPassportFlow ? 'voting.step6UsePassportInstead' : 'voting.step6UseIdCardInstead')}
             </Text>
           </View>
         )}
@@ -348,7 +383,7 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
           <TouchableOpacity
             style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
             activeOpacity={0.8}
-            onPress={() => { setShowRetry(false); setIdCardDetected(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
+            onPress={() => { setShowRetry(false); setPassportDetected(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
             disabled={isScanning}
           >
             <Text style={stepSpecificStyles.step6ButtonText}>

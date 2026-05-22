@@ -278,12 +278,22 @@ export default function AccueilScreen() {
       .map(r => r.value);
   }, [getFreedomTool]);
 
+  // Hardcoded allowlist of proposal IDs to display on the home screen.
+  // Set on 2026-05-22 to ship a controlled subset to users (#47 is the only
+  // verified-good passport proposal on Mainnet right now). Reverting to the
+  // full-scan behavior is a one-line change: empty the array.
+  const HARDCODED_PROPOSAL_IDS = ['47'];
+
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
       if (!refresh) {
         const parsed = await readCachedProposals(network);
         if (parsed) {
-          setProposals(parsed);
+          // Filter the cache to the same allowlist so we don't briefly
+          // show old proposals (e.g. #48) while the network call is in
+          // flight.
+          const filtered = parsed.filter(p => HARDCODED_PROPOSAL_IDS.includes(String(p.id)));
+          setProposals(filtered);
           setIsLoading(false);
         }
       }
@@ -291,27 +301,48 @@ export default function AccueilScreen() {
       if (refresh) setIsRefreshing(true);
       setLoadError(null);
 
-      const { JsonRpcProvider, Contract } = await import('ethers');
-      const provider = new JsonRpcProvider(ftConfig.api.votingRpcUrl);
-      const contract = new Contract(
-        ftConfig.contracts.proposalStateAddress,
-        ['function lastProposalId() view returns (uint256)'],
-        provider
+      const ft = await getFreedomTool();
+      const results = await Promise.allSettled(
+        HARDCODED_PROPOSAL_IDS.map(id => ft.getProposalInfo(id))
       );
-      const lastId = Number(await contract.lastProposalId());
-      console.log(`[Accueil][${network}] lastProposalId: ${lastId}`);
-
-      const loaded = await fetchBatch(lastId, PAGE_SIZE);
+      const loaded = results
+        .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
+        .map(r => r.value);
       const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
 
-      console.log(`[Accueil][${network}] Fetched ${sorted.length} proposals from network`);
+      console.log(`[Accueil][${network}] Loaded ${sorted.length}/${HARDCODED_PROPOSAL_IDS.length} hardcoded proposals: [${HARDCODED_PROPOSAL_IDS.join(', ')}]`);
       setProposals(sorted);
-      oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
-      setHasMore(oldestIdRef.current > 1);
+      oldestIdRef.current = 0;
+      setHasMore(false);
 
       await writeCachedProposals(network, sorted);
-      // The deps below close over both `network` and `ftConfig`; recreation
-      // when network flips is required so the cache/RPC switch.
+
+      // -----------------------------------------------------------------
+      // Original full-scan code — preserved (commented out) so we can flip
+      // back to "show every proposal on the contract" without rewriting.
+      // To restore: delete the hardcoded block above and uncomment the
+      // block below (and the `PAGE_SIZE` / `fetchBatch` paths it uses).
+      // -----------------------------------------------------------------
+      //
+      // const { JsonRpcProvider, Contract } = await import('ethers');
+      // const provider = new JsonRpcProvider(ftConfig.api.votingRpcUrl);
+      // const contract = new Contract(
+      //   ftConfig.contracts.proposalStateAddress,
+      //   ['function lastProposalId() view returns (uint256)'],
+      //   provider
+      // );
+      // const lastId = Number(await contract.lastProposalId());
+      // console.log(`[Accueil][${network}] lastProposalId: ${lastId}`);
+      //
+      // const loaded = await fetchBatch(lastId, PAGE_SIZE);
+      // const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
+      //
+      // console.log(`[Accueil][${network}] Fetched ${sorted.length} proposals from network`);
+      // setProposals(sorted);
+      // oldestIdRef.current = sorted.length > 0 ? Math.min(...sorted.map(p => Number(p.id))) : 0;
+      // setHasMore(oldestIdRef.current > 1);
+      //
+      // await writeCachedProposals(network, sorted);
     } catch (err) {
       console.error('[Accueil] Failed to load proposals:', err);
       const msg = (err as Error).message?.toLowerCase() || '';
@@ -324,7 +355,7 @@ export default function AccueilScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [fetchBatch, network, ftConfig]);
+  }, [getFreedomTool, network, ftConfig]);
 
   const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;
@@ -405,31 +436,43 @@ export default function AccueilScreen() {
 
   const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
 
-  const handleVoterPress = (proposalId: string) => {
+  const handleVoterPress = (p: ProposalInfo) => {
+    // Pass `isPassport` in the URL so voting-flow can pick the correct MRZ
+    // mask (TD3 passport vs TD1 CNIe) immediately, without waiting on the
+    // AsyncStorage cache. Cache hydration on the voting-flow side is racy
+    // when the user paginates older proposals and clicks one before the
+    // freshly-paginated batch has been written to storage. '1' / '0' for
+    // URL-friendliness; voting-flow parses with `=== '1'`.
+    const isPassport = isPassportVotingTarget(p) ? '1' : '0';
+    const params = { proposalId: String(p.id), isPassport };
     if (Platform.OS === 'android') {
-      router.push({ pathname: '/voting-flow', params: { proposalId } });
+      router.push({ pathname: '/voting-flow', params });
     } else {
-      router.push({ pathname: '/voting-screen', params: { proposalId } });
+      router.push({ pathname: '/voting-screen', params });
     }
   };
 
   // Hide proposals whose citizenshipWhitelist excludes FRA (per 2026-04-23
   // recap: only show votes a French ID card can actually be used on).
-  // On Mainnet, also hide proposals targeting a non-passport voting contract
-  // (the IDCardVoting deployment at 0x7d73513d64… is for TD1 national-ID
-  // cards — a French passport can't produce a proof the IDCard verifier
-  // accepts). Testnet has different deployments so we don't apply this.
   // Dev mode bypasses the filter so we can see every proposal during testing.
+  //
+  // The previous build also filtered Mainnet proposals to only those targeting
+  // the BioPassportVoting contract (`isPassportVotingTarget`). That filter
+  // has been removed now that the voting flow targets TD1 (French ID card)
+  // instead of TD3 (passport) — see Step5/Step6. ID-card-targeted proposals
+  // route to the IDCardVoting deployment at 0x7d73513d64…
+  //
+  // Known gap: `utils/mainnet-vote-flow.ts` + `utils/vote-calldata.ts` still
+  // build calldata for BioPassportVoting only. On Mainnet, voting on an
+  // IDCardVoting proposal will fail at submit time. Testnet works because
+  // it goes through `FreedomTool.submitProposal` which auto-routes per
+  // `sendVoteContractAddress`. Tracked in CLAUDE.md ▸ "TD1 voting status".
   const eligibleProposals = useMemo(
     () => {
       if (devMode) return proposals;
-      let out = proposals.filter(isFrenchCompatible);
-      if (network === 'mainnet') {
-        out = out.filter(isPassportVotingTarget);
-      }
-      return out;
+      return proposals.filter(isFrenchCompatible);
     },
-    [proposals, devMode, network]
+    [proposals, devMode]
   );
   const activeProposals = useMemo(() => eligibleProposals.filter(isActive), [eligibleProposals]);
   const pastProposals = useMemo(() => eligibleProposals.filter(p => !isActive(p)), [eligibleProposals]);
@@ -523,6 +566,11 @@ export default function AccueilScreen() {
   const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
     const active = isActive(p);
     const variants = p.questions[0]?.variants ?? [];
+    // Multi-question proposals require N answers; our UI + vote calldata
+    // only support N=1. The on-chain BioPassportVoting / IDCardVoting
+    // contracts reject `vote_.length !== questions.length` with
+    // "wrong number of votes". Disable voting for these and surface why.
+    const isMultiQuestion = (p.questions?.length ?? 0) > 1;
     const { percents, counts, total } = computeVoteResults(p.votingResults, variants.length);
     const belowThreshold = total <= VOTE_COUNT_THRESHOLD && !devMode;
     const endTime = p.startTimestamp + p.duration;
@@ -552,7 +600,13 @@ export default function AccueilScreen() {
                   </TouchableOpacity>
                   <View style={styles.devInfoBadge}>
                     <Text style={styles.devInfoText}>
-                      {Number(p.criteria.selector) === 6689 ? 'ID' : 'PP'}
+                      {/* Tag the doc type by voting contract, not selector.
+                          selector is a field-reveal bitmask shared by ID and
+                          passport proposals (e.g. 39457 appears on both). The
+                          authoritative signal is sendVoteContractAddress —
+                          BioPassportVoting → passport (PP), everything else
+                          (currently IDCardVoting `0x7d73…`) → ID. */}
+                      {isPassportVotingTarget(p) ? 'PP' : 'ID'}
                       {p.criteria.citizenshipWhitelist.length > 0
                         ? ' ' + p.criteria.citizenshipWhitelist.map((c: string) => {
                             try {
@@ -593,10 +647,15 @@ export default function AccueilScreen() {
             </View>
           </View>
 
-          {active && (
-            <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p.id)}>
+          {active && !isMultiQuestion && (
+            <TouchableOpacity style={styles.voteButton} activeOpacity={0.8} onPress={() => handleVoterPress(p)}>
               <Text style={styles.voteButtonText}>{t('home.voteButton')}</Text>
             </TouchableOpacity>
+          )}
+          {active && isMultiQuestion && (
+            <View style={[styles.voteButton, { backgroundColor: colors.border, opacity: 0.7 }]}>
+              <Text style={[styles.voteButtonText, { color: colors.text }]}>{t('home.voteUnsupportedMultiQuestion')}</Text>
+            </View>
           )}
 
           {variants.length > 0 && (

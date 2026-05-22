@@ -27,7 +27,8 @@ const Step10: React.FC<Step10Props> = ({ containerWidth, player, onCancel, onCon
 
   useEffect(() => {
     if (proposalInfo) {
-      console.log(`[Step10] Confirming vote: "${variantName}" (index ${selectedVote}) for proposal #${proposalInfo.id}`);
+      // No variant / index — anonymous voting (see Step9Vote comment).
+      console.log(`[Step10] Confirming vote for proposal #${proposalInfo.id}`);
     }
   }, [selectedVote, proposalInfo]);
 
