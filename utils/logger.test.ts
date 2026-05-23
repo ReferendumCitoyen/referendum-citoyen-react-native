@@ -134,3 +134,22 @@ describe('formatArgs', () => {
     expect(formatArgs([o])).not.toContain('too-deep');
   });
 });
+
+import { startSweep, stopSweep, formatSessionHeader } from './logger';
+
+describe('sweep + header', () => {
+  afterEach(() => stopSweep());
+
+  it('start/stop is idempotent', () => {
+    startSweep();
+    startSweep(); // no error, no second interval
+    stopSweep();
+    stopSweep();
+  });
+
+  it('formatSessionHeader includes platform + network', () => {
+    const h = formatSessionHeader('testnet');
+    expect(h).toContain('Platform:');
+    expect(h).toContain('Network : testnet');
+  });
+});

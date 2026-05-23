@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+import * as Application from 'expo-application';
+
 // Best-effort PII redaction. Applied at insert time so the in-memory buffer
 // itself never holds personally identifiable information. Not a security
 // guarantee — see docs/superpowers/specs/2026-05-23-diagnostic-logging-design.md.
@@ -128,4 +131,33 @@ export function uninstall(): void {
     if (originals[level]) (console as any)[level] = originals[level]!;
     delete originals[level];
   }
+}
+
+let sweepHandle: ReturnType<typeof setInterval> | null = null;
+const SWEEP_MS = 30 * 1000;
+
+export function startSweep(): void {
+  if (sweepHandle != null) return;
+  sweepHandle = setInterval(() => {
+    // evict() is internal; trigger it via a no-op snapshot.
+    snapshotBuffer();
+  }, SWEEP_MS);
+}
+
+export function stopSweep(): void {
+  if (sweepHandle != null) {
+    clearInterval(sweepHandle);
+    sweepHandle = null;
+  }
+}
+
+export function formatSessionHeader(network: string | null): string {
+  const lines = [
+    `App     : ${Application.nativeApplicationVersion ?? '?'} (build ${Application.nativeBuildVersion ?? '?'})`,
+    `Platform: ${Platform.OS} ${Platform.Version}`,
+    `Locale  : ${typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().locale : '?'}`,
+    `Network : ${network ?? '?'}`,
+    `Time    : ${new Date().toISOString()}`,
+  ];
+  return lines.join('\n');
 }
