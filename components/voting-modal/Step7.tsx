@@ -57,7 +57,7 @@ interface Step7Props {
    * parent should NOT auto-advance to the vote screen in that case;
    * leave the user on Step 7 so they can read the actual message
    * (rendered via `errorMessage` in this component). */
-  onError?: (message?: string, fatal?: boolean) => void;
+  onError?: (message?: string, fatal?: boolean, error?: unknown) => void;
   onFatalError?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   rarime?: Rarime;
@@ -409,7 +409,7 @@ const Step7: React.FC<Step7Props> = ({
           ? msg.replace('[VOTE_INELIGIBLE]', '').trim()
           : formatRpcError(err);
         setErrorMessage(text);
-        onError?.(text, isFatal);
+        onError?.(text, isFatal, err);
       }
     })();
   }, [hasStarted, rarime, passport, freedomTool, onSuccess, onError]);
