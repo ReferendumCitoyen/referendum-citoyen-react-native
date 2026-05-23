@@ -168,6 +168,11 @@ export default function PassportJsonTool() {
   const [proposalId, setProposalId] = useState<string>(() => getDefaultProposalId(network));
   const [voteAnswer, setVoteAnswer] = useState<string>('0');
 
+  // UI state — collapsible JSON dumps. Default closed so the screen
+  // doesn't lead with a wall of monospace text; user clicks to expand.
+  const [showResultJson, setShowResultJson] = useState(false);
+  const [showProposalJson, setShowProposalJson] = useState(false);
+
   type SdkStatus = 'idle' | 'running' | 'success' | 'failure';
   const [registerStatus, setRegisterStatus] = useState<SdkStatus>('idle');
   const [registerMsg, setRegisterMsg] = useState<string | null>(null);
@@ -664,7 +669,9 @@ export default function PassportJsonTool() {
       keyboardShouldPersistTaps="handled"
     >
       {/* Section A — Scan → JSON */}
-      <Text style={styles.sectionTitle}>1. Scanner et exporter en JSON</Text>
+      <View style={styles.sectionBanner}>
+        <Text style={styles.sectionBannerTitle}>1 · Scanner et exporter en JSON</Text>
+      </View>
       <Text style={styles.help}>
         Saisis les champs MRZ (BAC), choisis le type de document, puis scanne.
         Le résultat apparaît en JSON ci-dessous — copie-le ou écris-le
@@ -745,14 +752,23 @@ export default function PassportJsonTool() {
 
       {resultJson.length > 0 && (
         <>
-          <Text style={styles.jsonLabel}>JSON ({resultJson.length} caractères)</Text>
-          <TextInput
-            style={styles.jsonBox}
-            value={resultJson}
-            multiline
-            editable={false}
-            scrollEnabled
-          />
+          <TouchableOpacity
+            style={styles.jsonToggleBtn}
+            onPress={() => setShowResultJson(s => !s)}
+          >
+            <Text style={styles.jsonToggleText}>
+              {showResultJson ? '▾' : '▸'} JSON ({resultJson.length} caractères)
+            </Text>
+          </TouchableOpacity>
+          {showResultJson && (
+            <TextInput
+              style={styles.jsonBox}
+              value={resultJson}
+              multiline
+              editable={false}
+              scrollEnabled
+            />
+          )}
           <View style={styles.row}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={handleCopyJson}>
               <Text style={styles.secondaryBtnText}>Copier JSON</Text>
@@ -764,10 +780,10 @@ export default function PassportJsonTool() {
         </>
       )}
 
-      <View style={styles.divider} />
-
       {/* Section B — Charger un JSON et voter (paste + load + replay) */}
-      <Text style={styles.sectionTitle}>2. Coller un JSON et voter</Text>
+      <View style={styles.sectionBanner}>
+        <Text style={styles.sectionBannerTitle}>2 · Coller un JSON et voter</Text>
+      </View>
       <Text style={styles.help}>
         Colle un JSON depuis le presse-papier (ou lis passport.json sur
         disque), choisis le réseau et l’ID de scrutin, puis « Voter ». Le
@@ -843,7 +859,10 @@ export default function PassportJsonTool() {
             the bundled 3-MB circuit and posts to registration-relayer.
             This is the diagnostic that actually validates the prod
             register pipeline on this iOS build. */}
-      <Text style={styles.subSectionTitle}>2a. Register</Text>
+      <View style={styles.pillRow}>
+        <Text style={styles.subSectionTitle}>2a · Register</Text>
+        <StatusPill status={registerStatus} />
+      </View>
       <View style={styles.row}>
         <TouchableOpacity
           style={[
@@ -885,7 +904,10 @@ export default function PassportJsonTool() {
       )}
 
       {/* ---- Vote ---------------------------------------------------- */}
-      <Text style={styles.subSectionTitle}>2b. Vote</Text>
+      <View style={styles.pillRow}>
+        <Text style={styles.subSectionTitle}>2b · Vote</Text>
+        <StatusPill status={voteStatus} />
+      </View>
       <LabeledInput
         label="Proposal ID"
         value={proposalId}
@@ -938,19 +960,28 @@ export default function PassportJsonTool() {
               <Text style={styles.summaryLine}>Options acceptées: {String(loadedProposal.acceptedOptions)}</Text>
             )}
           </View>
-          <Text style={styles.jsonLabel}>Réponse complète</Text>
-          <TextInput
-            style={styles.jsonBox}
-            value={JSON.stringify(
-              loadedProposal,
-              (_k, v) => (typeof v === 'bigint' ? v.toString() : v),
-              2,
-            )}
-            multiline
-            editable={false}
-            scrollEnabled
-            selectTextOnFocus
-          />
+          <TouchableOpacity
+            style={styles.jsonToggleBtn}
+            onPress={() => setShowProposalJson(s => !s)}
+          >
+            <Text style={styles.jsonToggleText}>
+              {showProposalJson ? '▾' : '▸'} Réponse complète (JSON)
+            </Text>
+          </TouchableOpacity>
+          {showProposalJson && (
+            <TextInput
+              style={styles.jsonBox}
+              value={JSON.stringify(
+                loadedProposal,
+                (_k, v) => (typeof v === 'bigint' ? v.toString() : v),
+                2,
+              )}
+              multiline
+              editable={false}
+              scrollEnabled
+              selectTextOnFocus
+            />
+          )}
         </>
       )}
 
@@ -1028,6 +1059,38 @@ export default function PassportJsonTool() {
   );
 }
 
+// Status pill: small coloured badge that replaces the raw status text.
+// Status arg is the shared SdkStatus type ('idle' | 'running' | 'success' |
+// 'failure'). When 'running', a tiny ActivityIndicator is rendered next
+// to the label so the user knows work is in progress.
+type StatusPillStatus = 'idle' | 'running' | 'success' | 'failure';
+function StatusPill({ status, label }: { status: StatusPillStatus; label?: string }) {
+  const colors = useColors();
+  const styles = createStyles(colors);
+  const text =
+    label ??
+    (status === 'idle' ? 'EN ATTENTE'
+      : status === 'running' ? 'EN COURS'
+      : status === 'success' ? 'OK'
+      : 'ÉCHEC');
+  const bgStyle =
+    status === 'running' ? styles.pillRunning
+      : status === 'success' ? styles.pillSuccess
+      : status === 'failure' ? styles.pillFailure
+      : styles.pillIdle;
+  const txtStyle =
+    status === 'running' ? styles.pillTextRunning
+      : status === 'success' ? styles.pillTextSuccess
+      : status === 'failure' ? styles.pillTextFailure
+      : styles.pillTextIdle;
+  return (
+    <View style={[styles.pill, bgStyle]}>
+      {status === 'running' && <ActivityIndicator size="small" color={colors.secondary} />}
+      <Text style={[styles.pillText, txtStyle]}>{text}</Text>
+    </View>
+  );
+}
+
 function LabeledInput(props: React.ComponentProps<typeof TextInput> & { label: string }) {
   const colors = useColors();
   const styles = createStyles(colors);
@@ -1066,6 +1129,67 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.text,
       marginTop: 16,
       marginBottom: 4,
+    },
+    // Section banner: tinted strip with the section number + title.
+    // Replaces the plain Text section title so the eye finds sections
+    // faster as you scroll. Background is the secondary tint at ~10% opacity.
+    sectionBanner: {
+      backgroundColor: (colors.secondary ?? '#3044DD') + '15',
+      borderLeftWidth: 3,
+      borderLeftColor: colors.secondary ?? '#3044DD',
+      borderRadius: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      marginTop: 16,
+    },
+    sectionBannerTitle: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: Typography.fontSize.body,
+      color: colors.secondary ?? colors.text,
+    },
+    // Status pills — small rounded badge that replaces the wall of status
+    // text. Each variant differs by background colour + label colour.
+    pillRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      marginTop: 4,
+    },
+    pill: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    pillIdle: { backgroundColor: (colors.border ?? '#cccccc') + '60' },
+    pillRunning: { backgroundColor: (colors.secondary ?? '#3044DD') + '25' },
+    pillSuccess: { backgroundColor: '#1B873420' },
+    pillFailure: { backgroundColor: '#D32F2F20' },
+    pillText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 11,
+      letterSpacing: 0.4,
+    },
+    pillTextIdle:    { color: colors.text, opacity: 0.6 },
+    pillTextRunning: { color: colors.secondary ?? '#3044DD' },
+    pillTextSuccess: { color: '#1B8734' },
+    pillTextFailure: { color: '#D32F2F' },
+    // Collapsible JSON section — small inline button that toggles the
+    // large monospace TextInput. Saves vertical real-estate when the
+    // user just wants to see status, not byte-level content.
+    jsonToggleBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 6,
+    },
+    jsonToggleText: {
+      color: colors.secondary,
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: Typography.fontSize.small,
     },
     logHeaderRow: {
       flexDirection: 'row',
@@ -1115,10 +1239,13 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     toggleBtn: {
       flex: 1,
       paddingVertical: 12,
+      paddingHorizontal: 12,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border ?? colors.secondary,
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 44,
       backgroundColor: colors.cardBackground,
     },
     toggleBtnActive: {
@@ -1152,15 +1279,23 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.text,
       backgroundColor: colors.cardBackground,
     },
+    // Unified button shape. primaryBtn and secondaryBtn must share height +
+    // flex behaviour so side-by-side rows ([Light (SDK)] + [Heavy (prod)],
+    // [SDK Noir] + [Groth16 (prod)]) align cleanly. The ScrollView's
+    // `gap: 12` handles vertical spacing between sibling elements — no
+    // need for marginTop on the buttons themselves.
     primaryBtn: {
+      flex: 1,
       backgroundColor: colors.secondary,
-      paddingVertical: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
       borderRadius: 8,
       alignItems: 'center',
-      marginTop: 8,
+      justifyContent: 'center',
+      minHeight: 44,
     },
     primaryBtnDisabled: {
-      opacity: 0.6,
+      opacity: 0.5,
     },
     primaryBtnText: {
       color: 'white',
@@ -1173,8 +1308,11 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1,
       borderColor: colors.secondary,
       paddingVertical: 12,
+      paddingHorizontal: 12,
       borderRadius: 8,
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 44,
     },
     secondaryBtnText: {
       color: colors.secondary,
