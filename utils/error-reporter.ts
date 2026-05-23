@@ -3,7 +3,7 @@ import * as MailComposer from 'expo-mail-composer';
 import * as Sharing from 'expo-sharing';
 import * as Application from 'expo-application';
 import i18n from 'i18next';
-import { snapshotBuffer, formatSessionHeader, LogEntry } from './logger';
+import { snapshotBuffer, formatSessionHeader, LogEntry, redact } from './logger';
 import { ERROR_REPORT_EMAIL } from '@/constants/urls';
 
 // Errors that the app already explains to the user and that do not benefit
@@ -61,24 +61,32 @@ export interface PreparedReport {
   errorMessage: string;
 }
 
-function formatError(err: unknown): string {
+// Per-line redaction so stack traces and multi-line messages have every
+// line scrubbed, not just the first. The buffer entries already arrive
+// redacted via the console interceptor, but the error/context blocks below
+// come straight from the caller and MUST be filtered before write.
+function redactMultiline(s: string): string {
+  return s.split('\n').map(redact).join('\n');
+}
+
+export function formatError(err: unknown): string {
   if (err == null) return '<no error object>';
-  if (typeof err === 'string') return err;
+  if (typeof err === 'string') return redactMultiline(err);
   if (err instanceof Error) {
     const stack = (err.stack ?? '').split('\n').slice(0, 30).join('\n');
-    return `${err.name}: ${err.message}\n${stack}`;
+    return redactMultiline(`${err.name}: ${err.message}\n${stack}`);
   }
   try {
-    return JSON.stringify(err);
+    return redactMultiline(JSON.stringify(err));
   } catch {
-    return String(err);
+    return redactMultiline(String(err));
   }
 }
 
-function formatContext(ctx?: ReportContext): string {
+export function formatContext(ctx?: ReportContext): string {
   if (!ctx) return '<none>';
   return Object.entries(ctx)
-    .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+    .map(([k, v]) => `${k}: ${redact(typeof v === 'string' ? v : JSON.stringify(v))}`)
     .join('\n');
 }
 
