@@ -13,7 +13,7 @@ export default function TermsView() {
   const colors = useColors();
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <TermsBody />
+      <TermsBody bottomPadding={120} />
     </View>
   );
 }

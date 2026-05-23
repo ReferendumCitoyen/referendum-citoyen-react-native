@@ -22,9 +22,16 @@ import { TERMS_TITLE_FR, TERMS_TEXT_FR, TERMS_VERSION } from '@/constants/terms'
 
 interface TermsBodyProps {
   onReachedEnd?: () => void;
+  /** Extra paddingBottom on the scroll content. The read-only Settings view
+   * uses this for breathing room past the home indicator. The launch gate
+   * leaves this at 0 so its `onReachedEnd` distance-from-bottom threshold
+   * still fires right at the end of the text — adding bottom padding here
+   * would force the user to scroll past empty space before "J'accepte"
+   * activates. */
+  bottomPadding?: number;
 }
 
-export default function TermsBody({ onReachedEnd }: TermsBodyProps) {
+export default function TermsBody({ onReachedEnd, bottomPadding = 0 }: TermsBodyProps) {
   const colors = useColors();
   const styles = createStyles(colors);
   const mdStyles = createMarkdownStyles(colors);
@@ -41,7 +48,7 @@ export default function TermsBody({ onReachedEnd }: TermsBodyProps) {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, bottomPadding > 0 && { paddingBottom: bottomPadding }]}
       onScroll={handleScroll}
       scrollEventThrottle={64}
     >
