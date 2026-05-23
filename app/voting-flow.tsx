@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
-import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
@@ -543,14 +543,54 @@ export default function VotingFlowScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        // iOS modal-sheet only: clear the home-indicator strip so the nav row
+        // (progress bars + arrow) doesn't sit flush against the bottom of the
+        // screen. Mirrors the `paddingBottom: insets.bottom` pattern from the
+        // old app/voting-screen.tsx (commit 3a0e3c1). Android is untouched —
+        // insets.bottom is applied as an inline style only on iOS.
+        Platform.OS === 'ios' && { paddingBottom: insets.bottom },
+      ]}
+    >
       <StatusBar barStyle="dark-content" />
-      <View style={styles.topSection}>
-        {/* Safe area spacer */}
-        <View style={{ height: insets.top, backgroundColor: colors.cardBackground }} />
 
-        {/* Title Section - Hidden for Step 4, 5, and 6 */}
-        {currentStep < 4 && (
+      {/* iOS modal sheet: native header bar with Fermer in headerRight.
+          Android skips this override entirely — keeps the headerless card
+          presentation defined in app/_layout.tsx. Mirrors the pattern from
+          the old app/voting-screen.tsx (commit 3a0e3c1). */}
+      {Platform.OS === 'ios' && (
+        <Stack.Screen
+          options={{
+            title: currentStep < 4 ? t('voting.title') : '',
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={handleClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+              >
+                <Text style={{ fontSize: 17, color: colors.secondary }}>
+                  {t('common.close')}
+                </Text>
+              </TouchableOpacity>
+            ),
+          }}
+        />
+      )}
+
+      <View style={styles.topSection}>
+        {/* Safe area spacer — only Android needs this; iOS modal renders the
+            native nav bar above the screen content area so insets.top is
+            already 0 below the header. */}
+        {Platform.OS !== 'ios' && (
+          <View style={{ height: insets.top, backgroundColor: colors.cardBackground }} />
+        )}
+
+        {/* Title Section — Android only. On iOS the native modal header
+            already shows the title in its centre. Hidden for Step 4+. */}
+        {Platform.OS !== 'ios' && currentStep < 4 && (
           <View style={modalStyles.titleSection}>
             <Text style={modalStyles.title}>{t('voting.title')}</Text>
           </View>
@@ -560,7 +600,13 @@ export default function VotingFlowScreen() {
         <View
           style={[
             modalStyles.slidingWrapper,
-            currentStep < 4 && { backgroundColor: colors.background }
+            // Steps 1–3 use a tinted backdrop on Android (colors.background =
+            // #EDEFF9). On iOS we keep the entire modal sheet white
+            // (cardBackground) so the bottom-sheet feels like one continuous
+            // surface instead of a tinted band.
+            currentStep < 4 && {
+              backgroundColor: Platform.OS === 'ios' ? colors.cardBackground : colors.background,
+            },
           ]}
           onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
         >
@@ -701,7 +747,17 @@ export default function VotingFlowScreen() {
         </View>
       </View>
 
-      <View style={[styles.bottomSection, currentStep < 4 && { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.bottomSection,
+          // Match the sliding container's per-platform backdrop for steps 1–3
+          // so the seam between slide area and nav row stays invisible. iOS:
+          // white (continuous modal sheet). Android: tinted (unchanged).
+          currentStep < 4 && {
+            backgroundColor: Platform.OS === 'ios' ? colors.cardBackground : colors.background,
+          },
+        ]}
+      >
         {/* Progress and Navigation */}
         {currentStep < 4 && (
           <View style={styles.navigationSection}>
@@ -763,6 +819,12 @@ const createStyles = (colors: FlowColors) =>
       alignItems: 'center',
       gap: 8,
       flex: 1,
+      // iOS-only: explicit breathing room between the right edge of the 3rd
+      // progress bar and the next-arrow button. The navigationSection has
+      // gap: 39 but some RN versions/builds don't honour it on a flex: 1
+      // child + fixed sibling combo. Platform.select keeps Android
+      // byte-identical (no marginRight at all).
+      marginRight: Platform.select({ ios: 16 }),
     },
     progressBar: {
       flex: 1,
