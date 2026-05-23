@@ -533,8 +533,10 @@ export default function VotingFlowScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const [voteErrorReason, setVoteErrorReason] = useState<string | null>(null);
-  const handleStep11Error = useCallback((reason?: string) => {
+  const [voteError, setVoteError] = useState<unknown>(null);
+  const handleStep11Error = useCallback((reason?: string, error?: unknown) => {
     setVoteErrorReason(reason || null);
+    setVoteError(error ?? new Error(reason ?? 'Unknown vote error'));
     setVoteSubmissionResult('error');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
@@ -739,6 +741,7 @@ export default function VotingFlowScreen() {
                     containerWidth={containerWidth}
                     onGoHome={handleClose}
                     errorReason={voteErrorReason}
+                    error={voteError}
                   />
                 ) : spacer('s12e'),
               ];
