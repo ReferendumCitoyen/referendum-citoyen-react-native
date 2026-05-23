@@ -190,7 +190,13 @@ function RootLayoutNav() {
             name="terms-view"
             options={{
               title: t('settings.termsAndConditions'),
-              headerBackTitle: t('navigation.back'),
+              // iOS: chevron-only back button. `headerBackTitle: ''` isn't
+              // enough on React Navigation 7 — iOS falls back to showing the
+              // previous screen's title ("Paramètres") as the label. The
+              // `'minimal'` display mode is the official escape hatch.
+              // Android renders no back-title by default, so this is a no-op
+              // on Android.
+              headerBackButtonDisplayMode: 'minimal',
             }}
           />
         </Stack>
