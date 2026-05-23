@@ -60,16 +60,32 @@ describe('lookup + add', () => {
     await addPassportKey({
       passportHash: 'a'.repeat(64),
       privateKey: 'b'.repeat(64),
-      label: 'P<FRA12345',
       addedAt: 100,
     });
     const out = await lookupKeyForPassport('a'.repeat(64));
     expect(out).toEqual({
       passportHash: 'a'.repeat(64),
       privateKey: 'b'.repeat(64),
-      label: 'P<FRA12345',
       addedAt: 100,
     });
+  });
+
+  // Migration safety: existing installs that already persisted a `label`
+  // field (the MRZ document number) get the PII scrubbed on next read.
+  it('scrubs legacy `label` field from previously-stored entries', async () => {
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    await SecureStore.setItemAsync(
+      'passport_key_db_v1',
+      JSON.stringify({
+        version: 1,
+        entries: [
+          { passportHash: 'a'.repeat(64), privateKey: 'b'.repeat(64), label: 'P<FRA12345', addedAt: 1 },
+        ],
+      }),
+    );
+    const out = await lookupKeyForPassport('a'.repeat(64));
+    expect(out).toEqual({ passportHash: 'a'.repeat(64), privateKey: 'b'.repeat(64), addedAt: 1 });
+    expect(out).not.toHaveProperty('label');
   });
 
   it('rejects duplicates', async () => {
