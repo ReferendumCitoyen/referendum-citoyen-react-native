@@ -22,6 +22,14 @@
     "no": "Non",
     "blank": "Blanc"
   },
+  "errorReport": {
+    "button": "Envoyer un rapport d'erreur",
+    "subject": "Rapport d'erreur",
+    "body": "Bonjour,\n\nL'application a rencontré une erreur inattendue. Le fichier joint contient des informations de diagnostic anonymisées qui aideront à corriger le problème.\n\nAucune donnée personnelle (numéro de passeport, nom, clé privée, etc.) n'est incluse dans ce rapport.\n\nMerci pour votre aide.\n\n— Application Référendum Citoyen, v{{version}} (build {{build}})",
+    "shareDialogTitle": "Envoyer le rapport",
+    "fallbackTitle": "Une erreur est survenue",
+    "fallbackMessage": "L'application a rencontré un problème inattendu. Vous pouvez envoyer un rapport pour nous aider à le corriger."
+  },
   "navigation": {
     "nfcTest": "Test NFC",
     "nfcScan": "Lecture NFC",

@@ -1,3 +1,4 @@
+import '@/utils/logger-install';
 import '@/polyfills';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,6 +18,8 @@ import { DevModeProvider } from '@/contexts/DevModeContext';
 import { NetworkProvider } from '@/contexts/NetworkContext';
 import { TermsProvider, useTerms } from '@/contexts/TermsContext';
 import { ExtraProposalsProvider } from '@/contexts/ExtraProposalsContext';
+import { ErrorReportProvider } from '@/contexts/ErrorReportContext';
+import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { TERMS_VERSION } from '@/constants/terms';
 import TermsGate from './terms-gate';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -89,17 +92,21 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <CustomThemeProvider>
-          <DevModeProvider>
-            <NetworkProvider>
-              <TermsProvider>
-                <ExtraProposalsProvider>
-                  <RootLayoutNav />
-                </ExtraProposalsProvider>
-              </TermsProvider>
-            </NetworkProvider>
-          </DevModeProvider>
-        </CustomThemeProvider>
+        <ErrorReportProvider>
+          <RootErrorBoundary>
+            <CustomThemeProvider>
+              <DevModeProvider>
+                <NetworkProvider>
+                  <TermsProvider>
+                    <ExtraProposalsProvider>
+                      <RootLayoutNav />
+                    </ExtraProposalsProvider>
+                  </TermsProvider>
+                </NetworkProvider>
+              </DevModeProvider>
+            </CustomThemeProvider>
+          </RootErrorBoundary>
+        </ErrorReportProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

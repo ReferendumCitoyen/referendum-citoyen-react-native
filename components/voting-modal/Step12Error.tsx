@@ -4,12 +4,14 @@ import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
+import { ErrorReportButton } from '@/components/ErrorReportButton';
 
 interface Step12ErrorProps {
   containerWidth: number;
   onGoHome?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   errorReason?: string | null;
+  error?: unknown;
 }
 
 // On Android, voting-flow's slidingWrapper has flex: 0 so percentage heights
@@ -17,7 +19,7 @@ interface Step12ErrorProps {
 // laid out around y=0 and ends up mostly off-screen.
 const ANDROID_SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
-const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout, errorReason }) => {
+const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout, errorReason, error }) => {
   const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -48,6 +50,10 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
             autoPlay
             loop={false}
           />
+
+          {error != null && (
+            <ErrorReportButton error={error} context={{ step: 12, reason: errorReason ?? null }} />
+          )}
         </View>
 
         <TouchableOpacity
