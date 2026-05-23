@@ -200,12 +200,13 @@ export class ExtendedCertificate {
         return hash512(paddedRawBytes).toString(16)
       })()
 
-      // hash512 / hash512P512 return a 512-bit value; the hex form is up to
-      // 128 chars but ~50% of the time the high nibble is zero and the string
-      // comes out odd-length. Pad to 128 hex chars (64 bytes) so the result
-      // is a stable 64-byte Uint8Array and `Hex.decodeString` never rejects
-      // an odd-length input. See the matching pad in helpers/crypto.ts:50.
-      return Hex.decodeString(hashedHex.padStart(128, '0'))
+      // `hash512` / `hash512P512` return a Poseidon BN254 field element
+      // (≤256-bit bigint) — the "512" in the name refers to the input key
+      // size (64 bytes = 512 bits), not the output. Pad to 64 hex chars
+      // (32 bytes) so the result is a stable bytes32 leaf key and
+      // `Hex.decodeString` never rejects an odd-length input. Same pad
+      // pattern as `hashPacked` in helpers/crypto.ts:50.
+      return Hex.decodeString(hashedHex.padStart(64, '0'))
     }
 
     throw new TypeError(
