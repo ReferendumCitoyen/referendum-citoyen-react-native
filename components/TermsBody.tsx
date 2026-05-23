@@ -7,10 +7,16 @@
  * bottom of the text — the gate uses this to enable the "J'accepte" button
  * only after the user has actually seen the end. The view passes nothing
  * (no acceptance, no gate to lift).
+ *
+ * The body is markdown (see TERMS_TEXT_FR in constants/terms.ts), rendered
+ * by react-native-markdown-display. The renderer is wrapped in our own
+ * ScrollView so the scroll-to-end detection keeps working — the library's
+ * built-in ScrollView would swallow the events.
  */
 
 import React from 'react';
 import { ScrollView, View, Text, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { TERMS_TITLE_FR, TERMS_TEXT_FR, TERMS_VERSION } from '@/constants/terms';
 
@@ -21,6 +27,7 @@ interface TermsBodyProps {
 export default function TermsBody({ onReachedEnd }: TermsBodyProps) {
   const colors = useColors();
   const styles = createStyles(colors);
+  const mdStyles = createMarkdownStyles(colors);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!onReachedEnd) return;
@@ -41,7 +48,9 @@ export default function TermsBody({ onReachedEnd }: TermsBodyProps) {
       <Text style={styles.title}>{TERMS_TITLE_FR}</Text>
       <Text style={styles.version}>{`Version : ${TERMS_VERSION}`}</Text>
       <View style={styles.divider} />
-      <Text style={styles.body} selectable>{TERMS_TEXT_FR}</Text>
+      {/* react-native-markdown-display normally wraps in its own ScrollView;
+          we pass `mergeStyle` and rely on the outer ScrollView above. */}
+      <Markdown style={mdStyles}>{TERMS_TEXT_FR}</Markdown>
     </ScrollView>
   );
 }
@@ -73,10 +82,70 @@ const createStyles = (colors: any) =>
       backgroundColor: colors.border,
       marginVertical: Spacing.m,
     },
-    body: {
-      fontFamily: Typography.fontFamily.regular,
-      fontSize: Typography.fontSize.body,
-      color: colors.text,
-      lineHeight: 22,
-    },
   });
+
+// Style overrides for react-native-markdown-display. Each key maps to a
+// markdown AST node; the renderer falls back to its built-in defaults for
+// anything we don't override. See:
+// https://github.com/iamacup/react-native-markdown-display/blob/master/src/lib/styles.js
+const createMarkdownStyles = (colors: any) => ({
+  body: {
+    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.body,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  heading1: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.h1,
+    color: colors.text,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  heading2: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.h1,
+    color: colors.text,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  heading3: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.body + 2,
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  strong: {
+    fontFamily: Typography.fontFamily.semibold,
+  },
+  em: {
+    fontStyle: 'italic' as const,
+  },
+  // Bullet lists — keep the marker in the theme color, add a touch of
+  // vertical breathing room between items.
+  bullet_list: {
+    marginVertical: 4,
+  },
+  list_item: {
+    marginVertical: 2,
+  },
+  bullet_list_icon: {
+    color: colors.text,
+    fontSize: Typography.fontSize.body,
+    lineHeight: 22,
+    marginRight: 6,
+  },
+  // Paragraph spacing — default is fine for body text. Override only if
+  // the spec asks for tighter / looser typography.
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  // Hyperlinks (currently unused in the CGU text but worth styling for
+  // future edits).
+  link: {
+    color: colors.secondary,
+    textDecorationLine: 'underline' as const,
+  },
+});
