@@ -140,21 +140,25 @@ function RootLayoutNav() {
             name="parametres"
             options={{
               title: t('settings.title'),
-              headerBackTitle: t('navigation.back'),
+              // iOS: chevron-only back button (see terms-view note below for
+              // why `headerBackTitle: ''` isn't enough on React Navigation 7).
+              // Android is a no-op.
+              headerBackButtonDisplayMode: 'minimal',
             }}
           />
           <Stack.Screen
             name="voting-flow"
             options={{
-              headerShown: false,
-              presentation: 'card'
-            }}
-          />
-          <Stack.Screen
-            name="voting-screen"
-            options={{
-              presentation: 'modal',
-              gestureEnabled: false,
+              // iOS gets a native bottom-sheet modal (slide up from bottom)
+              // with the native nav-bar header so we can hang a Fermer button
+              // in `headerRight` (configured per-screen in app/voting-flow.tsx).
+              // Android keeps the existing card push + no header (unchanged).
+              // Gesture-dismiss is disabled on iOS so the Fermer button is
+              // the only exit — mirrors the old voting-screen behaviour and
+              // prevents accidental dismissal mid-NFC scan.
+              headerShown: Platform.OS === 'ios',
+              presentation: Platform.OS === 'ios' ? 'modal' : 'card',
+              gestureEnabled: Platform.OS !== 'ios',
             }}
           />
           <Stack.Screen
@@ -189,7 +193,13 @@ function RootLayoutNav() {
             name="terms-view"
             options={{
               title: t('settings.termsAndConditions'),
-              headerBackTitle: t('navigation.back'),
+              // iOS: chevron-only back button. `headerBackTitle: ''` isn't
+              // enough on React Navigation 7 — iOS falls back to showing the
+              // previous screen's title ("Paramètres") as the label. The
+              // `'minimal'` display mode is the official escape hatch.
+              // Android renders no back-title by default, so this is a no-op
+              // on Android.
+              headerBackButtonDisplayMode: 'minimal',
             }}
           />
         </Stack>
