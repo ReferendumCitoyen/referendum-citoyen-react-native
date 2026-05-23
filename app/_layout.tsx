@@ -176,6 +176,13 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
+            name="passport-json-tool"
+            options={{
+              title: 'Passeport JSON',
+              headerBackButtonDisplayMode: 'minimal',
+            }}
+          />
+          <Stack.Screen
             name="can-scan"
             options={{
               title: 'Scan CAN',
