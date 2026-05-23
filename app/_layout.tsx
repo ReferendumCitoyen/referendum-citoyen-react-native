@@ -146,15 +146,16 @@ function RootLayoutNav() {
           <Stack.Screen
             name="voting-flow"
             options={{
-              headerShown: false,
-              presentation: 'card'
-            }}
-          />
-          <Stack.Screen
-            name="voting-screen"
-            options={{
-              presentation: 'modal',
-              gestureEnabled: false,
+              // iOS gets a native bottom-sheet modal (slide up from bottom)
+              // with the native nav-bar header so we can hang a Fermer button
+              // in `headerRight` (configured per-screen in app/voting-flow.tsx).
+              // Android keeps the existing card push + no header (unchanged).
+              // Gesture-dismiss is disabled on iOS so the Fermer button is
+              // the only exit — mirrors the old voting-screen behaviour and
+              // prevents accidental dismissal mid-NFC scan.
+              headerShown: Platform.OS === 'ios',
+              presentation: Platform.OS === 'ios' ? 'modal' : 'card',
+              gestureEnabled: Platform.OS !== 'ios',
             }}
           />
           <Stack.Screen

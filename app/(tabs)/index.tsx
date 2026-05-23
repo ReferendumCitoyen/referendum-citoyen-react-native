@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, Platform, ActivityIndicator, RefreshControl, Linking, Pressable } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, Pressable } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -453,11 +453,7 @@ export default function AccueilScreen() {
     // URL-friendliness; voting-flow parses with `=== '1'`.
     const isPassport = isPassportVotingTarget(p) ? '1' : '0';
     const params = { proposalId: String(p.id), isPassport };
-    if (Platform.OS === 'android') {
-      router.push({ pathname: '/voting-flow', params });
-    } else {
-      router.push({ pathname: '/voting-screen', params });
-    }
+    router.push({ pathname: '/voting-flow', params });
   };
 
   // Hide proposals whose citizenshipWhitelist excludes FRA (per 2026-04-23
