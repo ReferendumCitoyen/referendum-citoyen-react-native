@@ -22,6 +22,14 @@
     "no": "No",
     "blank": "Blank"
   },
+  "errorReport": {
+    "button": "Send error report",
+    "subject": "Error report",
+    "body": "Hello,\n\nThe app encountered an unexpected error. The attached file contains anonymised diagnostic information to help fix the issue.\n\nNo personal data (passport number, name, private key, etc.) is included in this report.\n\nThank you for your help.\n\n— Référendum Citoyen app, v{{version}} (build {{build}})",
+    "shareDialogTitle": "Send the report",
+    "fallbackTitle": "Something went wrong",
+    "fallbackMessage": "The app encountered an unexpected problem. You can send a report to help us fix it."
+  },
   "navigation": {
     "nfcTest": "NFC test",
     "nfcScan": "NFC scan",
