@@ -41,6 +41,13 @@ import { serializeRichPassportJson } from '@/utils/passport-rich-json';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { getDefaultProposalId, getRarimeConfig, getFreedomToolConfig } from '@/constants/rarime-config';
 import Step5 from '@/components/voting-modal/Step5';
+// Production-path imports — heavy Noir register + Groth16 vote. The dev
+// tool's existing SDK-light handlers stay; these add the second path the
+// production main screen actually uses for mainnet TD3.
+import { EPassport } from '@/utils/e-document/e-document';
+import { generateHeavyNoirProof, registerIdentityViaNoir } from '@/utils/register-via-noir';
+import { castMainnetVote } from '@/utils/mainnet-vote-flow';
+import { getOrCreatePrivateKey } from '@/utils/identity';
 
 type DocType = 'P' | 'I';
 
@@ -366,6 +373,193 @@ export default function PassportJsonTool() {
     }
   };
 
+  // ---- Heavy Noir register — mirrors the production main-screen path
+  // in components/voting-modal/Step7.tsx:247–372. Generates a 3-MB
+  // bundled-circuit proof (~20 s), bootstraps the CSCA on chain if
+  // missing, then posts to the registration-relayer. This is what the
+  // real "Voter" button runs on mainnet TD3.
+  const handleRegisterHeavy = async () => {
+    setRegisterStatus('running');
+    setRegisterMsg('Mode: HEAVY Noir (prod) — initialisation…');
+    setRegisterTx(null);
+    tlog('register', `[heavy] démarrage sur ${network}`);
+    if (network !== 'mainnet') {
+      tlog('register', '[heavy] AVERTISSEMENT — le path heavy est conçu pour mainnet (registration-relayer)');
+    }
+    if (!loadedPassport || loadedPassport.docCode !== 'P') {
+      setRegisterStatus('failure');
+      setRegisterMsg('Heavy Noir s’applique aux passeports TD3 uniquement. Charge un JSON avec docCode="P".');
+      return;
+    }
+    const t0 = Date.now();
+    try {
+      // ensureSdk does the per-passport BJJ key mirror into the legacy
+      // SecureStore slot that getOrCreatePrivateKey reads — call it
+      // first so the heavy path uses the same key as the SDK light path
+      // would have, and as the production main-screen would.
+      await ensureSdk();
+      const skHex = '0x' + (await getOrCreatePrivateKey());
+      tlog('register', `[heavy] BJJ sk=${skHex.slice(0, 10)}…`);
+
+      const eDoc = new EPassport({
+        docCode: 'P',
+        personDetails: loadedPassport.personDetails as any,
+        dg1Bytes: new Uint8Array(loadedPassport.dg1Bytes),
+        sodBytes: new Uint8Array(loadedPassport.sodBytes),
+        dg15Bytes: loadedPassport.dg15Bytes
+          ? new Uint8Array(loadedPassport.dg15Bytes)
+          : undefined,
+        aaSignature: loadedPassport.aaSignature
+          ? new Uint8Array(loadedPassport.aaSignature)
+          : undefined,
+      });
+      tlog('register', `[heavy] EPassport construit (encapsulatedContent=${eDoc.sod.encapsulatedContent.length}B)`);
+
+      // Generate the heavy register proof. If the slave-cert SMT lookup
+      // fails because the French CSCA isn't on chain yet, bootstrap it
+      // (registerCertificate → poll SMT) then retry. Mirrors Step7.tsx:
+      // 301-359 verbatim.
+      setRegisterMsg('Mode: HEAVY Noir — génération de la preuve (~20 s)…');
+      tlog('register', '[heavy] generateHeavyNoirProof…');
+      let heavyProof;
+      try {
+        heavyProof = await generateHeavyNoirProof(eDoc, skHex);
+      } catch (e: any) {
+        const msg = e?.message ?? '';
+        const isMissingCsca = msg.includes("n'est pas encore enregistré sur Mainnet");
+        if (!isMissingCsca) throw e;
+        tlog('register', '[heavy] CSCA manquant — bootstrap via registerCscaForSlave…');
+        setRegisterMsg('Mode: HEAVY Noir — bootstrap CSCA en cours (~30 s)…');
+        const { registerCscaForSlave } = await import('@/utils/csca-bootstrap');
+        const { txHash: cscaTxHash, dispatcherName } =
+          await registerCscaForSlave(eDoc.sod.slaveCertificate);
+        tlog('register', `[heavy] CSCA tx=${cscaTxHash} (${dispatcherName}) — attente SMT…`);
+
+        // Poll the slave-cert SMT until the CSCA registration lands.
+        const { JsonRpcProvider, Contract } = await import('ethers');
+        const provider = new JsonRpcProvider('https://l2.rarimo.com');
+        const { slaveCertSmtLeafKey } = await import('@/utils/heavy-noir-inputs');
+        const leafKey = slaveCertSmtLeafKey(eDoc);
+        const smtAbi = ['function getProof(bytes32) view returns (tuple(bytes32 root, bytes32[] siblings, bool existence, bytes32 key, bytes32 value, bool auxExistence, bytes32 auxKey, bytes32 auxValue))'];
+        const smtAddr = '0xA8b350d699632569D5351B20ffC1b31202AcEDD8';
+        const smt = new Contract(smtAddr, smtAbi, provider);
+        let landed = false;
+        for (let i = 0; i < 12; i++) {
+          await new Promise((r) => setTimeout(r, 2500));
+          try {
+            const probe = await smt.getProof(leafKey);
+            if (probe.existence === true) { landed = true; break; }
+          } catch (probeErr: any) {
+            tlog('register', `[heavy] SMT probe err: ${probeErr?.message ?? probeErr}`);
+          }
+        }
+        tlog('register', `[heavy] SMT landed=${landed} — nouvelle tentative de preuve`);
+        heavyProof = await generateHeavyNoirProof(eDoc, skHex);
+      }
+      tlog('register', `[heavy] preuve générée en ${((Date.now() - t0) / 1000).toFixed(1)} s — soumission relayer…`);
+
+      setRegisterMsg('Mode: HEAVY Noir — soumission au relayer…');
+      const { txHash } = await registerIdentityViaNoir({
+        network: 'mainnet',
+        noirProof: heavyProof,
+        circuitName: 'registerIdentity_1_256_3_5_576_248_NA',
+        aaPubKeyPem: new Uint8Array(),
+        aaSignature: new Uint8Array(),
+        ecSizeInBits: eDoc.sod.encapsulatedContent.length * 8,
+      });
+      const ms = Date.now() - t0;
+      tlog('register', `[heavy] OK en ${(ms / 1000).toFixed(1)} s tx=${txHash}`);
+      setRegisterStatus('success');
+      setRegisterMsg(`Register (heavy) OK en ${(ms / 1000).toFixed(1)} s`);
+      setRegisterTx(txHash);
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      tlog('register', `[heavy] ÉCHEC en ${((Date.now() - t0) / 1000).toFixed(1)} s: ${msg}`);
+      setRegisterStatus('failure');
+      setRegisterMsg(msg);
+    }
+  };
+
+  // ---- Groth16 mainnet vote — mirrors the production main-screen path
+  // in components/voting-modal/Step11.tsx:126–172. Uses native witnesscalc
+  // + rapidsnark (NOT the SDK), proves against query_identity.zkey, and
+  // submits to BioPassportVoting via the proof-verification-relayer. First
+  // vote on a device downloads ~750 MB of zkey + bytecode.
+  const handleVoteGroth16 = async () => {
+    setVoteStatus('running');
+    setVoteMsg('Mode: Groth16 (prod) — initialisation…');
+    setVoteTx(null);
+    const answerIdx = Math.max(0, parseInt(voteAnswer, 10) || 0);
+    tlog('vote', `[groth16] démarrage sur ${network} proposal=#${proposalId} answer=${answerIdx}`);
+    if (network !== 'mainnet') {
+      tlog('vote', '[groth16] AVERTISSEMENT — castMainnetVote vise mainnet uniquement');
+    }
+    if (!loadedPassport || loadedPassport.docCode !== 'P') {
+      setVoteStatus('failure');
+      setVoteMsg('Groth16 vote s’applique aux passeports TD3 uniquement.');
+      return;
+    }
+    const t0 = Date.now();
+    try {
+      // ensureSdk → mirrors per-passport BJJ key into the legacy slot
+      // that castMainnetVote reads via getOrCreatePrivateKey. Also gives
+      // us `ft` for loading the proposal info.
+      const { ft } = await ensureSdk();
+      tlog('vote', `[groth16] chargement getProposalInfo(${proposalId})…`);
+      setVoteMsg(`Mode: Groth16 — chargement scrutin #${proposalId}…`);
+      const proposalInfo = await ft.getProposalInfo(proposalId);
+      tlog('vote', `[groth16] proposal: "${proposalInfo?.title ?? '?'}"`);
+
+      // castMainnetVote needs: dg1, BJJ sk, passport hash, profile key,
+      // proposalId, citizenship, voteIndices. Mirrors Step11.tsx:148-167.
+      const { RarimePassport, RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
+      const sk = await getOrCreatePrivateKey();
+      const rp = new (RarimePassport as any)({
+        dataGroup1: new Uint8Array(loadedPassport.dg1Bytes),
+        sod: new Uint8Array(loadedPassport.sodBytes),
+      });
+      const passportHash = rp.getPassportHash();
+      const profileKeyHex = '0x' + RarimeUtils.getProfileKey(sk);
+      const mrz = rp.getMRZData();
+      tlog(
+        'vote',
+        `[groth16] passportHash=${String(passportHash).slice(0, 12)}… ` +
+        `profileKey=${profileKeyHex.slice(0, 12)}… citizenship=${mrz.issuingCountry}`,
+      );
+
+      setVoteMsg('Mode: Groth16 — preuve native (~30-60 s, peut télécharger 750 MB la 1re fois)…');
+      tlog('vote', '[groth16] castMainnetVote → witnesscalc + rapidsnark…');
+      const { txId } = await castMainnetVote({
+        dg1: new Uint8Array(loadedPassport.dg1Bytes),
+        bjjPrivateKeyHex: sk,
+        passportHash,
+        profileKey: profileKeyHex,
+        proposalId: Number(proposalId),
+        citizenship: mrz.issuingCountry,
+        voteIndices: [answerIdx],
+        onZkeyProgress: (p: any) => {
+          if (p?.totalBytesExpectedToWrite > 0) {
+            const pct = Math.round(
+              (p.totalBytesWritten / p.totalBytesExpectedToWrite) * 100,
+            );
+            // Throttle: only log on 10% boundaries.
+            if (pct % 10 === 0) tlog('vote', `[groth16] zkey download ${pct}%`);
+          }
+        },
+      });
+      const ms = Date.now() - t0;
+      tlog('vote', `[groth16] OK en ${(ms / 1000).toFixed(1)} s tx=${txId}`);
+      setVoteStatus('success');
+      setVoteMsg(`Vote (Groth16) OK en ${(ms / 1000).toFixed(1)} s`);
+      setVoteTx(typeof txId === 'string' ? txId : String(txId ?? ''));
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      tlog('vote', `[groth16] ÉCHEC en ${((Date.now() - t0) / 1000).toFixed(1)} s: ${msg}`);
+      setVoteStatus('failure');
+      setVoteMsg(msg);
+    }
+  };
+
   const handleScan = async () => {
     setScanning(true);
     setScanStatus('Initialisation NFC...');
@@ -640,22 +834,46 @@ export default function PassportJsonTool() {
         </TouchableOpacity>
       </View>
 
-      {/* ---- Register ------------------------------------------------ */}
+      {/* ---- Register ------------------------------------------------
+          Two paths, side by side, so the user can pick which to exercise:
+          • SDK light = rarime.registerIdentity() — same call the dev
+            tool has had all along; goes to incognito-light-registrator.
+          • HEAVY Noir = identical code path to the production main
+            screen on mainnet TD3 (Step7.tsx:247–372); proves against
+            the bundled 3-MB circuit and posts to registration-relayer.
+            This is the diagnostic that actually validates the prod
+            register pipeline on this iOS build. */}
       <Text style={styles.subSectionTitle}>2a. Register</Text>
-      <TouchableOpacity
-        style={[
-          styles.primaryBtn,
-          (registerStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
-        ]}
-        onPress={handleRegister}
-        disabled={registerStatus === 'running' || !loadedPassport}
-      >
-        {registerStatus === 'running' ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.primaryBtnText}>Register</Text>
-        )}
-      </TouchableOpacity>
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={[
+            styles.secondaryBtn,
+            (registerStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
+          ]}
+          onPress={handleRegister}
+          disabled={registerStatus === 'running' || !loadedPassport}
+        >
+          {registerStatus === 'running' ? (
+            <ActivityIndicator color={colors.secondary} />
+          ) : (
+            <Text style={styles.secondaryBtnText}>Light (SDK)</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.primaryBtn,
+            (registerStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
+          ]}
+          onPress={handleRegisterHeavy}
+          disabled={registerStatus === 'running' || !loadedPassport}
+        >
+          {registerStatus === 'running' ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.primaryBtnText}>Heavy Noir (prod)</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {registerMsg && (
         <Text style={registerStatus === 'failure' ? styles.errorText : styles.statusText}>
@@ -743,20 +961,41 @@ export default function PassportJsonTool() {
         keyboardType="number-pad"
         maxLength={3}
       />
-      <TouchableOpacity
-        style={[
-          styles.primaryBtn,
-          (voteStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
-        ]}
-        onPress={handleVote}
-        disabled={voteStatus === 'running' || !loadedPassport}
-      >
-        {voteStatus === 'running' ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.primaryBtnText}>Voter</Text>
-        )}
-      </TouchableOpacity>
+      {/* Two vote paths side by side — same pattern as Register:
+          • SDK Noir = ft.submitProposal() — covers TD1 + testnet TD3.
+          • Groth16 = castMainnetVote() — production main-screen path
+            for mainnet TD3 (Step11.tsx:126–172). Native witnesscalc +
+            rapidsnark; downloads ~750 MB zkey on first run. */}
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={[
+            styles.secondaryBtn,
+            (voteStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
+          ]}
+          onPress={handleVote}
+          disabled={voteStatus === 'running' || !loadedPassport}
+        >
+          {voteStatus === 'running' ? (
+            <ActivityIndicator color={colors.secondary} />
+          ) : (
+            <Text style={styles.secondaryBtnText}>SDK Noir</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.primaryBtn,
+            (voteStatus === 'running' || !loadedPassport) && styles.primaryBtnDisabled,
+          ]}
+          onPress={handleVoteGroth16}
+          disabled={voteStatus === 'running' || !loadedPassport}
+        >
+          {voteStatus === 'running' ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.primaryBtnText}>Groth16 (prod)</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {voteMsg && (
         <Text style={voteStatus === 'failure' ? styles.errorText : styles.statusText}>
