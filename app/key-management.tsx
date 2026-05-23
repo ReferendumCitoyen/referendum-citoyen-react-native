@@ -176,7 +176,6 @@ export default function KeyManagementScreen() {
           <View style={[styles.keyBox, { gap: 6 }]}>
             {dbEntries.map((e) => (
               <Text key={e.passportHash} style={styles.keyText} numberOfLines={1}>
-                {(e.label ?? '—') + '  ·  '}
                 <Text style={{ opacity: 0.55 }}>{e.passportHash.slice(0, 12)}…</Text>
               </Text>
             ))}
