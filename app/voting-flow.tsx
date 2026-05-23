@@ -341,11 +341,11 @@ export default function VotingFlowScreen() {
         // utils/identity.ts::getOrCreateKeyForPassport for the migration.
         try {
           const { getOrCreateKeyForPassport } = await import('@/utils/identity');
-          const mrzDoc = (() => {
-            try { return passportRef.current!.getMRZData().documentNumber; }
-            catch { return undefined; }
-          })();
-          const resolved = await getOrCreateKeyForPassport({ dg1, sod, label: mrzDoc });
+          // No `label` arg — the previous wiring stored the MRZ document
+          // number in the on-device key DB as a display aid for backups,
+          // but that's PII we don't want at rest. See
+          // utils/passport-key-db.ts::PassportKeyEntry.
+          const resolved = await getOrCreateKeyForPassport({ dg1, sod });
           console.log(
             `[FreedomTool][passport-key] hash=${resolved.passportHash.slice(0, 12)}… ` +
             `key=${resolved.privateKey.slice(0, 8)}… isNew=${resolved.isNew} ` +

@@ -43,11 +43,14 @@ export interface PassportKeyEntry {
   /** 64-char lowercase hex BJJ private key (no 0x prefix). Same format as
    * `RarimeUtils.generateBJJPrivateKey()`. */
   privateKey: string;
-  /** Optional human label — e.g., MRZ document number — to help users
-   * identify entries in a backup file. Not used for lookup. */
-  label?: string;
   /** Unix seconds when the entry was first added. */
   addedAt: number;
+  // Previously a `label` field (MRZ document number) was stored here as a
+  // display aid in dev tools + JSON backups. Removed 2026-05-23 because
+  // the document number is PII that didn't belong in on-device storage or
+  // exported backups. The field is also scrubbed on read (see readDb) so
+  // existing installs lose any persisted labels the next time the DB is
+  // accessed.
 }
 
 interface DbShape {
@@ -63,7 +66,27 @@ async function readDb(): Promise<DbShape> {
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.version === 1 && Array.isArray(parsed.entries)) {
-      return parsed as DbShape;
+      // Scrub legacy `label` field if any existing install still has it.
+      // Strips the MRZ document number from previously-stored rows so the
+      // PII removal applies retroactively. See PassportKeyEntry comment.
+      let hadLabels = false;
+      const entries: PassportKeyEntry[] = parsed.entries.map((e: any) => {
+        if (e && typeof e === 'object' && 'label' in e) {
+          hadLabels = true;
+          const { label: _drop, ...rest } = e;
+          void _drop;
+          return rest as PassportKeyEntry;
+        }
+        return e as PassportKeyEntry;
+      });
+      const db: DbShape = { version: 1, entries };
+      // Re-persist immediately so the scrub is durable (won't reappear on
+      // the next launch). Fire-and-forget — the in-memory copy is already
+      // clean, and a failed write just defers the cleanup to next time.
+      if (hadLabels) {
+        void writeDb(db);
+      }
+      return db;
     }
   } catch {
     // Fall through to empty — better to lose a corrupt DB than crash the app.
@@ -110,7 +133,6 @@ export async function lookupKeyForPassport(passportHash: string): Promise<Passpo
 export async function addPassportKey(args: {
   passportHash: string;
   privateKey: string;
-  label?: string;
   /** Optional override for the timestamp — defaults to `Date.now()`. Used
    * mostly by tests to assert on a known value. */
   addedAt?: number;
@@ -122,7 +144,6 @@ export async function addPassportKey(args: {
   const entry: PassportKeyEntry = {
     passportHash: args.passportHash,
     privateKey: args.privateKey,
-    label: args.label,
     addedAt: args.addedAt ?? Math.floor(Date.now() / 1000),
   };
   db.entries.push(entry);
