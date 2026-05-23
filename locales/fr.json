@@ -22,6 +22,14 @@
     "no": "Non",
     "blank": "Blanc"
   },
+  "errorReport": {
+    "button": "Envoyer un rapport d'erreur",
+    "subject": "Rapport d'erreur",
+    "body": "Bonjour,\n\nL'application a rencontré une erreur inattendue. Le fichier joint contient des informations de diagnostic anonymisées qui aideront à corriger le problème.\n\nAucune donnée personnelle (numéro de passeport, nom, clé privée, etc.) n'est incluse dans ce rapport.\n\nMerci pour votre aide.\n\n— Application Référendum Citoyen, v{{version}} (build {{build}})",
+    "shareDialogTitle": "Envoyer le rapport",
+    "fallbackTitle": "Une erreur est survenue",
+    "fallbackMessage": "L'application a rencontré un problème inattendu. Vous pouvez envoyer un rapport pour nous aider à le corriger."
+  },
   "navigation": {
     "nfcTest": "Test NFC",
     "nfcScan": "Lecture NFC",
@@ -261,7 +269,7 @@
           },
           {
             "title": "En quoi c'est différent d'une pétition ?",
-            "content": "Une pétition exprime un soutien déclaratif sans garantir que chaque signataire est un citoyen français majeur ni qu'une même personne ne signe qu'une seule fois, et elle repose sur une liste contrôlée par ses organisateurs, qui en fixent la formulation et publient eux-mêmes le résultat. À l'inverse, ce référendum citoyen vérifié repose sur une authentification par carte d'identité garantissant 1 personne = 1 vote, permet de voter pour, contre ou blanc, et rend le résultat contrôlable par tous grâce à un registre public vérifiable indépendamment de ses organisateurs. Là où une pétition mesure une mobilisation dirigée autour d'une position, ce dispositif permet l'expression neutre et vérifiable d'une décision collective authentifiée de citoyens, ce qui lui donne une portée démocratique et politique d'une nature entièrement différente."
+            "content": "Une pétition exprime un soutien déclaratif sans garantir que chaque signataire est un citoyen français majeur ni qu'une même personne ne signe qu'une seule fois, et elle repose sur une liste contrôlée par ses organisateurs, qui en fixent la formulation et publient eux-mêmes le résultat. À l'inverse, ce référendum citoyen vérifié repose sur une authentification par pièce d'identité garantissant 1 personne = 1 vote, permet de voter pour, contre ou blanc, et rend le résultat contrôlable par tous grâce à un registre public vérifiable indépendamment de ses organisateurs. Là où une pétition mesure une mobilisation dirigée autour d'une position, ce dispositif permet l'expression neutre et vérifiable d'une décision collective authentifiée de citoyens, ce qui lui donne une portée démocratique et politique d'une nature entièrement différente."
           },
           {
             "title": "Est-ce un référendum officiel ?",
@@ -271,19 +279,19 @@
       },
       {
         "title": "Un vote unique et vérifiable par tous",
-        "intro": "Le droit de vote est vérifié par lecture de la puce de votre carte d'identité directement sur votre téléphone. Cette vérification permet de garantir :\n1. que vous êtes français et majeur\n2. qu'une même personne ne peut voter qu'une seule fois\n\nCette vérification est réalisée localement sur votre téléphone : aucun fichier central d'identité n'est créé.",
+        "intro": "Le droit de vote est vérifié par lecture de la puce de votre pièce d'identité directement sur votre téléphone. Cette vérification permet de garantir :\n1. que vous êtes français et majeur\n2. qu'une même personne ne peut voter qu'une seule fois\n\nCette vérification est réalisée localement sur votre téléphone : aucun fichier central d'identité n'est créé.",
         "accordions": [
           {
             "title": "De quoi ai-je besoin pour voter ?",
-            "content": "Vous avez besoin d'une carte d'identité nouvelle génération au format carte de crédit, et d'un smartphone avec l'application Référendum Citoyen installée."
+            "content": "Vous avez besoin d'un passeport, et d'un smartphone avec l'application Référendum Citoyen installée."
           },
           {
-            "title": "Pourquoi pas le passeport ?",
-            "content": "La technologie de vote n'utilise pas de liste de votants mais un document d'identité qui certifie la légitimité de voter. Il n'est pas possible de permettre l'accès aux votes à la fois par passeport ou par carte d'identité sans risquer de doubles votes pour une même personne. Il fallait donc choisir : tous les Français n'ont pas de passeport, et la carte d'identité est aujourd'hui le document le plus universellement disponible chez les citoyens français."
+            "title": "Pourquoi pas la carte d'identité ?",
+            "content": "C'est un choix technique, pragmatique et provisoire. La technologie de vote ne fonctionne pas avec une liste électorale centrale. Elle repose sur un document d'identité permettant de garantir qu'une personne ne vote qu'une seule fois, tout en restant anonyme. Or il n'est pas possible, aujourd'hui, de permettre simultanément le vote par passeport ET par carte d'identité sans prendre le risque de doubles votes pour une même personne. Il fallait donc choisir une base unique pour démarrer. Nous avons choisi le passeport biométrique parce qu'il existe aujourd'hui beaucoup plus de passeports compatibles que de cartes d'identité biométriques réellement exploitables. Les passeports biométriques français existent depuis de nombreuses années et circulent massivement. Les nouvelles cartes d'identité biométriques, elles, sont beaucoup plus récentes et beaucoup moins répandues."
           },
           {
             "title": "Pourquoi ne pas utiliser FranceConnect ?",
-            "content": "Parce que FranceConnect repose sur un fichier central d'identité. Notre système repose au contraire sur une vérification locale de la carte d'identité sans base centrale reliant identité et vote. FranceConnect est géré par l'État, notre système est indépendant du gouvernement."
+            "content": "Parce que FranceConnect repose sur un fichier central d'identité. Notre système repose au contraire sur une vérification locale de la pièce d'identité sans base centrale reliant identité et vote. FranceConnect est géré par l'État, notre système est indépendant du gouvernement."
           },
           {
             "title": "Peut-on voter deux fois avec deux téléphones ?",
@@ -291,7 +299,7 @@
           },
           {
             "title": "Existe-t-il une possibilité de double vote ?",
-            "content": "Le système empêche une personne de voter deux fois avec la même carte d'identité.\n\nDans l'état actuel du déploiement des nouvelles cartes d'identité électroniques, une personne déclarant sa carte perdue et obtenant une nouvelle carte pourrait théoriquement voter deux fois. Ce cas reste extrêmement rare aujourd'hui. À terme, nous pouvons faire en sorte que ce risque disparaisse techniquement : lorsque les cartes perdues et renouvelées partageront un identifiant commun empêchant toute double utilisation."
+            "content": "Le système empêche une personne de voter deux fois avec la même pièce d'identité.\n\nDans l'état actuel du déploiement des nouvelles pièces d'identité électroniques, une personne déclarant sa carte ou son passeport perdus et obtenant une nouvelle pièce d'identité pourrait théoriquement voter deux fois. Ce cas reste extrêmement rare aujourd'hui. À terme, nous pouvons faire en sorte que ce risque disparaisse techniquement : lorsque les pièces d'identité perdues et renouvelées partageront un identifiant commun empêchant toute double utilisation."
           },
           {
             "title": "Pour aller plus loin",
@@ -301,11 +309,11 @@
       },
       {
         "title": "Un vote garanti anonyme",
-        "intro": "On prouve que vous avez le droit de voter, pas qui vous êtes. Votre identité est vérifiée uniquement pour confirmer que vous avez le droit de voter. Ensuite, votre identité est séparée de votre vote avant son envoi. Le vote envoyé dans le registre infalsifiable et visible par tous ne contient aucune information permettant de relier votre identité à votre vote. Par conséquent, le bulletin de vote comptabilisé ne peut pas remonter jusqu'à une carte d'identité.\n\nEn termes techniques, le vote se fait dans le cadre d'un smart contract sur une chaîne (de Rarimo pour commencer).",
+        "intro": "On prouve que vous avez le droit de voter, pas qui vous êtes. Votre identité est vérifiée uniquement pour confirmer que vous avez le droit de voter. Ensuite, votre identité est séparée de votre vote avant son envoi. Le vote envoyé dans le registre infalsifiable et visible par tous ne contient aucune information permettant de relier votre identité à votre vote. Par conséquent, le bulletin de vote comptabilisé ne peut pas remonter jusqu'à une pièce d'identité.\n\nEn termes techniques, le vote se fait dans le cadre d'un smart contract sur une chaîne (de Rarimo pour commencer).",
         "accordions": [
           {
             "title": "Comment garantir « 1 personne = 1 vote » sans connaître l'identité ?",
-            "content": "La carte d'identité est lue directement sur le téléphone afin de vérifier que la personne est française, majeure et qu'elle n'utilise son droit de vote qu'une seule fois. Un jeton cryptographique prouvant le droit de voter est ensuite généré. Cette preuve confirme que la personne a le droit de voter sans révéler son identité. Aucun fichier central ne relie l'identité au vote. Le système vous permet de voter mais ne sait pas qui vous êtes."
+            "content": "La pièce d'identité est lue directement sur le téléphone afin de vérifier que la personne est française, majeure et qu'elle n'utilise son droit de vote qu'une seule fois. Un jeton cryptographique prouvant le droit de voter est ensuite généré. Cette preuve confirme que la personne a le droit de voter sans révéler son identité. Aucun fichier central ne relie l'identité au vote. Le système vous permet de voter mais ne sait pas qui vous êtes."
           },
           {
             "title": "Qui peut voir mon vote ?",
@@ -313,7 +321,7 @@
           },
           {
             "title": "L'État peut-il savoir ce que j'ai voté ?",
-            "content": "Non. Aucun fichier central ne relie identité et vote. Si une carte d'identité est utilisée après votre vote, le système détecte qu'elle a déjà servi et empêche tout second vote. Parmi les options lorsque vous réalisez un vote, une option « je refuse de voter » existe pour signaler publiquement qu'aucun vote n'a été exprimé avec votre carte. Cela vous protège."
+            "content": "Non. Aucun fichier central ne relie identité et vote. Si une pièce d'identité est utilisée après votre vote, le système détecte qu'elle a déjà servi et empêche tout second vote. Parmi les options lorsque vous réalisez un vote, une option « je refuse de voter » existe pour signaler publiquement qu'aucun vote n'a été exprimé avec votre pièce d'identité. Cela vous protège."
           }
         ]
       },
@@ -333,7 +341,7 @@
       },
       {
         "title": "Les autres peuvent voter sur votre téléphone",
-        "intro": "Plusieurs personnes peuvent voter depuis un même téléphone. Chaque vote nécessite la lecture d'une carte d'identité différente. Une fois le vote enregistré, aucune information n'est conservée sur le téléphone.",
+        "intro": "Plusieurs personnes peuvent voter depuis un même téléphone. Chaque vote nécessite la lecture d'une pièce d'identité différente. Une fois le vote enregistré, aucune information n'est conservée sur le téléphone.",
         "accordions": [
           {
             "title": "Le propriétaire du téléphone peut-il voir mon vote ?",
@@ -341,13 +349,13 @@
           },
           {
             "title": "Peut-on voter pour quelqu'un d'autre ?",
-            "content": "Non. La carte d'identité est nécessaire. Utiliser la carte d'identité de quelqu'un d'autre est une usurpation d'identité et c'est pénalement répréhensible."
+            "content": "Non. La pièce d'identité est nécessaire. Utiliser une pièce d'identité de quelqu'un d'autre est une usurpation d'identité et c'est pénalement répréhensible."
           }
         ]
       },
       {
-        "title": "Un registre de votes distribué entre des millions d'ordinateurs et vérifiable publiquement",
-        "intro": "Les votes ne sont pas stockés dans un serveur unique. Ils sont enregistrés dans un registre distribué entre des millions d'ordinateurs et public. Cela signifie qu'aucun acteur unique ne peut modifier ou supprimer les résultats sans que cela soit visible. Le système repose sur la vérification publique des résultats plutôt que sur la confiance dans une autorité centrale.",
+        "title": "Un registre de votes distribué entre des ordinateurs et vérifiable publiquement",
+        "intro": "Les votes ne sont pas stockés dans un serveur unique. Ils sont enregistrés dans un registre distribué entre de nombreux d'ordinateurs et public. Cela signifie qu'aucun acteur unique ne peut modifier ou supprimer les résultats sans que cela soit visible. Le système repose sur la vérification publique des résultats plutôt que sur la confiance dans une autorité centrale.",
         "accordions": [
           {
             "title": "Un tiers peut-il faire fermer l'application ?",
@@ -369,11 +377,11 @@
       },
       {
         "title": "D'où ça vient ?",
-        "intro": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN et actuel Nym) du potentiel de technologies cryptographiques éprouvées pour mettre en place une démocratie directe sans attendre. Ils s'associent avec Alexis Roussel (penseur de la démocratie numérique suisse et co-fondateur de Nym) qui établit le cahier des charges de cette application et en détermine l'architecture. L'application s'appuie notamment sur les technologies développées par l'équipe européenne Rarimo, déjà utilisées pour organiser des votes citoyens sécurisés dans des contextes politiquement sensibles.",
+        "intro": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN) du potentiel de technologies cryptographiques éprouvées pour mettre en place une démocratie directe sans attendre. Ils s'associent avec Alexis Roussel (penseur de la démocratie numérique suisse) qui établit le cahier des charges de cette application et en détermine l'architecture. L'application s'appuie notamment sur les technologies développées par l'équipe européenne Rarimo, déjà utilisées pour organiser des votes citoyens sécurisés dans des contextes politiquement sensibles.",
         "accordions": [
           {
             "title": "En quoi ce système est-il différent d'une blockchain classique ?",
-            "content": "Ce système n'est pas une simple blockchain. Il combine la lecture locale de la carte d'identité, la génération d'un jeton cryptographique prouvant le droit de voter et l'enregistrement des votes dans un registre public vérifiable, sans base centrale d'identité. Cette combinaison permet de garantir qu'une personne ne peut voter qu'une seule fois tout en préservant l'anonymat du vote et en rendant le résultat contrôlable par tous."
+            "content": "Ce système n'est pas une simple blockchain. Il combine la lecture locale de la pièce d'identité, la génération d'un jeton cryptographique prouvant le droit de voter et l'enregistrement des votes dans un registre public vérifiable, sans base centrale d'identité. Cette combinaison permet de garantir qu'une personne ne peut voter qu'une seule fois tout en préservant l'anonymat du vote et en rendant le résultat contrôlable par tous."
           }
         ]
       }

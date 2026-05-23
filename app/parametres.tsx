@@ -81,7 +81,7 @@ export default function ParametresScreen() {
 
   return (
     <View style={styles.screenContainer}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Settings Container */}
         <View style={styles.settingsContainer}>
           {/* Dark Mode Row */}
@@ -317,7 +317,9 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   scrollView: {
     flex: 1,
   },
-  contentContainer: {},
+  contentContainer: {
+    paddingBottom: 120,
+  },
   settingsContainer: {
     gap: Spacing.settingRow.gap,
   },

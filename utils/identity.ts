@@ -100,9 +100,6 @@ export interface ResolvedPassportKey {
 export async function getOrCreateKeyForPassport(args: {
   dg1: Uint8Array;
   sod: Uint8Array;
-  /** Optional human label stored alongside the new entry (e.g., MRZ
-   * document number). Ignored when the entry already exists. */
-  label?: string;
 }): Promise<ResolvedPassportKey> {
   const passportHash = computePassportHash({ dg1: args.dg1, sod: args.sod });
 
@@ -143,7 +140,7 @@ export async function getOrCreateKeyForPassport(args: {
     privateKey = RarimeUtils.generateBJJPrivateKey();
   }
 
-  await addPassportKey({ passportHash, privateKey, label: args.label });
+  await addPassportKey({ passportHash, privateKey });
 
   // Also write into the legacy slot so non-passport-specific call sites
   // (e.g., diagnostic screens, register-via-noir without a passport

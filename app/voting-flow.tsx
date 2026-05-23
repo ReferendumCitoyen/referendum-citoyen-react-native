@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
-import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
@@ -51,6 +51,7 @@ export default function VotingFlowScreen() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
+  const [verificationError, setVerificationError] = useState<unknown>(null);
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const [mrzData, setMRZData] = useState<{ documentNumber: string; birthDate: string; expiryDate: string } | null>(null);
   const [nfcData, setNFCData] = useState<PassportData | null>(null);
@@ -255,7 +256,9 @@ export default function VotingFlowScreen() {
       // Reset to step 1 when screen is focused
       setCurrentStep(1);
       setVerificationResult(null);
+      setVerificationError(null);
       setVoteSubmissionResult(null);
+      setVoteTxId(null);
       setMRZData(null);
       setNFCData(null);
       // Critical: clear the manual-input modal flag too. If the user backed
@@ -341,11 +344,11 @@ export default function VotingFlowScreen() {
         // utils/identity.ts::getOrCreateKeyForPassport for the migration.
         try {
           const { getOrCreateKeyForPassport } = await import('@/utils/identity');
-          const mrzDoc = (() => {
-            try { return passportRef.current!.getMRZData().documentNumber; }
-            catch { return undefined; }
-          })();
-          const resolved = await getOrCreateKeyForPassport({ dg1, sod, label: mrzDoc });
+          // No `label` arg — the previous wiring stored the MRZ document
+          // number in the on-device key DB as a display aid for backups,
+          // but that's PII we don't want at rest. See
+          // utils/passport-key-db.ts::PassportKeyEntry.
+          const resolved = await getOrCreateKeyForPassport({ dg1, sod });
           console.log(
             `[FreedomTool][passport-key] hash=${resolved.passportHash.slice(0, 12)}… ` +
             `key=${resolved.privateKey.slice(0, 8)}… isNew=${resolved.isNew} ` +
@@ -451,7 +454,7 @@ export default function VotingFlowScreen() {
     }, 1500);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVerificationError = useCallback((_message?: string, fatal?: boolean) => {
+  const handleVerificationError = useCallback((_message?: string, fatal?: boolean, error?: unknown) => {
     // Fatal errors (e.g. "passport already registered with another key")
     // cannot be retried. Keep the user on Step 7 with its own contextual
     // error display — do NOT trigger the generic Step9Error overlay
@@ -459,6 +462,7 @@ export default function VotingFlowScreen() {
     // would hide the specific explanation. The user closes the modal via
     // the top-right X to exit.
     if (fatal) return;
+    setVerificationError(error ?? new Error(_message ?? 'Unknown verification error'));
     setVerificationResult('error');
     setTimeout(() => handleNext(), 1500);
   }, [handleNext]);
@@ -514,7 +518,9 @@ export default function VotingFlowScreen() {
     handleClose();
   }, [handleClose]);
 
-  const handleStep11Success = useCallback(() => {
+  const [voteTxId, setVoteTxId] = useState<string | null>(null);
+  const handleStep11Success = useCallback((txHash: string) => {
+    setVoteTxId(txHash);
     setVoteSubmissionResult('success');
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -527,8 +533,10 @@ export default function VotingFlowScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const [voteErrorReason, setVoteErrorReason] = useState<string | null>(null);
-  const handleStep11Error = useCallback((reason?: string) => {
+  const [voteError, setVoteError] = useState<unknown>(null);
+  const handleStep11Error = useCallback((reason?: string, error?: unknown) => {
     setVoteErrorReason(reason || null);
+    setVoteError(error ?? new Error(reason ?? 'Unknown vote error'));
     setVoteSubmissionResult('error');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
@@ -543,14 +551,54 @@ export default function VotingFlowScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        // iOS modal-sheet only: clear the home-indicator strip so the nav row
+        // (progress bars + arrow) doesn't sit flush against the bottom of the
+        // screen. Mirrors the `paddingBottom: insets.bottom` pattern from the
+        // old app/voting-screen.tsx (commit 3a0e3c1). Android is untouched —
+        // insets.bottom is applied as an inline style only on iOS.
+        Platform.OS === 'ios' && { paddingBottom: insets.bottom },
+      ]}
+    >
       <StatusBar barStyle="dark-content" />
-      <View style={styles.topSection}>
-        {/* Safe area spacer */}
-        <View style={{ height: insets.top, backgroundColor: colors.cardBackground }} />
 
-        {/* Title Section - Hidden for Step 4, 5, and 6 */}
-        {currentStep < 4 && (
+      {/* iOS modal sheet: native header bar with Fermer in headerRight.
+          Android skips this override entirely — keeps the headerless card
+          presentation defined in app/_layout.tsx. Mirrors the pattern from
+          the old app/voting-screen.tsx (commit 3a0e3c1). */}
+      {Platform.OS === 'ios' && (
+        <Stack.Screen
+          options={{
+            title: currentStep < 4 ? t('voting.title') : '',
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={handleClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+              >
+                <Text style={{ fontSize: 17, color: colors.secondary }}>
+                  {t('common.close')}
+                </Text>
+              </TouchableOpacity>
+            ),
+          }}
+        />
+      )}
+
+      <View style={styles.topSection}>
+        {/* Safe area spacer — only Android needs this; iOS modal renders the
+            native nav bar above the screen content area so insets.top is
+            already 0 below the header. */}
+        {Platform.OS !== 'ios' && (
+          <View style={{ height: insets.top, backgroundColor: colors.cardBackground }} />
+        )}
+
+        {/* Title Section — Android only. On iOS the native modal header
+            already shows the title in its centre. Hidden for Step 4+. */}
+        {Platform.OS !== 'ios' && currentStep < 4 && (
           <View style={modalStyles.titleSection}>
             <Text style={modalStyles.title}>{t('voting.title')}</Text>
           </View>
@@ -560,7 +608,13 @@ export default function VotingFlowScreen() {
         <View
           style={[
             modalStyles.slidingWrapper,
-            currentStep < 4 && { backgroundColor: colors.background }
+            // Steps 1–3 use a tinted backdrop on Android (colors.background =
+            // #EDEFF9). On iOS we keep the entire modal sheet white
+            // (cardBackground) so the bottom-sheet feels like one continuous
+            // surface instead of a tinted band.
+            currentStep < 4 && {
+              backgroundColor: Platform.OS === 'ios' ? colors.cardBackground : colors.background,
+            },
           ]}
           onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
         >
@@ -677,6 +731,7 @@ export default function VotingFlowScreen() {
                   <Step12Success
                     key="s12s"
                     containerWidth={containerWidth}
+                    voteIdentifier={voteTxId ?? undefined}
                     onViewResults={handleClose}
                   />
                 ) : spacer('s12s'),
@@ -686,6 +741,7 @@ export default function VotingFlowScreen() {
                     containerWidth={containerWidth}
                     onGoHome={handleClose}
                     errorReason={voteErrorReason}
+                    error={voteError}
                   />
                 ) : spacer('s12e'),
               ];
@@ -695,13 +751,24 @@ export default function VotingFlowScreen() {
                 containerWidth={containerWidth}
                 onGoHome={handleClose}
                 isPassportFlow={isPassportFlow}
+                error={verificationError}
               />
             )}
           </Animated.View>
         </View>
       </View>
 
-      <View style={[styles.bottomSection, currentStep < 4 && { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.bottomSection,
+          // Match the sliding container's per-platform backdrop for steps 1–3
+          // so the seam between slide area and nav row stays invisible. iOS:
+          // white (continuous modal sheet). Android: tinted (unchanged).
+          currentStep < 4 && {
+            backgroundColor: Platform.OS === 'ios' ? colors.cardBackground : colors.background,
+          },
+        ]}
+      >
         {/* Progress and Navigation */}
         {currentStep < 4 && (
           <View style={styles.navigationSection}>
@@ -763,6 +830,12 @@ const createStyles = (colors: FlowColors) =>
       alignItems: 'center',
       gap: 8,
       flex: 1,
+      // iOS-only: explicit breathing room between the right edge of the 3rd
+      // progress bar and the next-arrow button. The navigationSection has
+      // gap: 39 but some RN versions/builds don't honour it on a flex: 1
+      // child + fixed sibling combo. Platform.select keeps Android
+      // byte-identical (no marginRight at all).
+      marginRight: Platform.select({ ios: 16 }),
     },
     progressBar: {
       flex: 1,
