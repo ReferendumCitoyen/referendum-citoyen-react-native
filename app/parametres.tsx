@@ -278,19 +278,6 @@ export default function ParametresScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Passport JSON Tool — scan ↔ JSON round-trip (dev) */}
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Passeport JSON (outil)</Text>
-                <TouchableOpacity
-                  style={styles.settingValueContainer}
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/passport-json-tool' as any)}
-                >
-                  <Text style={styles.settingValue}>{t('common.open')}</Text>
-                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-                </TouchableOpacity>
-              </View>
-
               {/* CAN Scan Row */}
               <View style={styles.settingRow}>
                 <Text style={styles.settingLabel}>Scan CAN (ID)</Text>
