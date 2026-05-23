@@ -68,3 +68,64 @@ export const __testing = {
   snapshot: snapshotBuffer,
   reset: () => { buffer.length = 0; },
 };
+
+const LEVELS: LogLevel[] = ['log', 'info', 'warn', 'error', 'debug'];
+const originals: Partial<Record<LogLevel, (...a: unknown[]) => void>> = {};
+let installed = false;
+
+export function formatArgs(args: readonly unknown[]): string {
+  return args
+    .map((arg) => {
+      if (typeof arg === 'string') return arg;
+      if (arg instanceof Error) return `${arg.name}: ${arg.message}\n${arg.stack ?? ''}`;
+      try {
+        return JSON.stringify(arg, circularSafeReplacer(3));
+      } catch {
+        return String(arg);
+      }
+    })
+    .join(' ');
+}
+
+function circularSafeReplacer(maxDepth: number) {
+  const seen = new WeakSet<object>();
+  const depths = new WeakMap<object, number>();
+  return function (this: unknown, key: string, value: unknown) {
+    if (typeof value !== 'object' || value === null) return value;
+    if (seen.has(value)) return '<circular>';
+    seen.add(value);
+    const parentDepth =
+      typeof this === 'object' && this !== null && depths.has(this as object)
+        ? depths.get(this as object)!
+        : 0;
+    const myDepth = parentDepth + 1;
+    depths.set(value, myDepth);
+    if (myDepth > maxDepth) return '<...>';
+    return value;
+  };
+}
+
+export function install(): void {
+  if (installed) return;
+  installed = true;
+  for (const level of LEVELS) {
+    originals[level] = console[level].bind(console);
+    (console as any)[level] = (...args: unknown[]) => {
+      try {
+        push(level, formatArgs(args));
+      } catch {
+        // Never let logging crash the app.
+      }
+      originals[level]!(...args);
+    };
+  }
+}
+
+export function uninstall(): void {
+  if (!installed) return;
+  installed = false;
+  for (const level of LEVELS) {
+    if (originals[level]) (console as any)[level] = originals[level]!;
+    delete originals[level];
+  }
+}

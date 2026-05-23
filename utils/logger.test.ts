@@ -82,3 +82,55 @@ describe('ring buffer', () => {
     expect(__testing.snapshot()[0].msg).toBe('key <hex64>');
   });
 });
+
+import { install, uninstall, formatArgs } from './logger';
+
+describe('install / uninstall', () => {
+  beforeEach(() => __testing.reset());
+  afterEach(() => uninstall());
+
+  it('captures console.log into the buffer', () => {
+    install();
+    console.log('hello');
+    const snap = __testing.snapshot();
+    expect(snap.some((e) => e.level === 'log' && e.msg.includes('hello'))).toBe(true);
+  });
+
+  it('still calls the original console method', () => {
+    const spy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    install();
+    console.log('through');
+    expect(spy).toHaveBeenCalledWith('through');
+    spy.mockRestore();
+  });
+
+  it('is idempotent (install twice does not double-capture)', () => {
+    install();
+    install();
+    console.log('once');
+    const count = __testing.snapshot().filter((e) => e.msg.includes('once')).length;
+    expect(count).toBe(1);
+  });
+});
+
+describe('formatArgs', () => {
+  it('joins primitives with spaces', () => {
+    expect(formatArgs(['a', 1, true])).toBe('a 1 true');
+  });
+
+  it('JSON.stringify-s objects', () => {
+    expect(formatArgs([{ a: 1 }])).toBe('{"a":1}');
+  });
+
+  it('handles circular references safely', () => {
+    const o: any = { a: 1 };
+    o.self = o;
+    expect(() => formatArgs([o])).not.toThrow();
+    expect(formatArgs([o])).toContain('"a":1');
+  });
+
+  it('caps object depth at 3', () => {
+    const o = { a: { b: { c: { d: { e: 'too-deep' } } } } };
+    expect(formatArgs([o])).not.toContain('too-deep');
+  });
+});
