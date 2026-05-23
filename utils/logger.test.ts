@@ -46,3 +46,39 @@ describe('redact', () => {
     expect(redact('[FreedomTool] starting registration')).toBe('[FreedomTool] starting registration');
   });
 });
+
+import { __testing } from './logger';
+
+describe('ring buffer', () => {
+  beforeEach(() => __testing.reset());
+
+  it('evicts entries older than RETENTION_MS on push', () => {
+    const now = 1_000_000_000_000;
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    __testing.push('log', 'first');
+    jest.spyOn(Date, 'now').mockReturnValue(now + 6 * 60 * 1000); // 6 min later
+    __testing.push('log', 'second');
+    const entries = __testing.snapshot();
+    expect(entries.map((e) => e.msg)).toEqual(['second']);
+  });
+
+  it('caps at MAX_ENTRIES (oldest dropped)', () => {
+    for (let i = 0; i < 2050; i++) __testing.push('log', `m${i}`);
+    const entries = __testing.snapshot();
+    expect(entries.length).toBeLessThanOrEqual(2000);
+    expect(entries[0].msg).toBe('m50');
+    expect(entries[entries.length - 1].msg).toBe('m2049');
+  });
+
+  it('snapshot returns a frozen copy (does not reflect later pushes)', () => {
+    __testing.push('log', 'a');
+    const snap = __testing.snapshot();
+    __testing.push('log', 'b');
+    expect(snap.map((e) => e.msg)).toEqual(['a']);
+  });
+
+  it('redacts at push time', () => {
+    __testing.push('log', 'key 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef');
+    expect(__testing.snapshot()[0].msg).toBe('key <hex64>');
+  });
+});

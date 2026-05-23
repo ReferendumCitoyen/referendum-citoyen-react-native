@@ -37,3 +37,34 @@ export function redact(line: string): string {
   }
   return out;
 }
+
+export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug';
+export interface LogEntry { t: number; level: LogLevel; msg: string }
+
+const RETENTION_MS = 5 * 60 * 1000;
+const MAX_ENTRIES = 2000;
+
+const buffer: LogEntry[] = [];
+
+function evict() {
+  const cutoff = Date.now() - RETENTION_MS;
+  while (buffer.length > 0 && buffer[0].t < cutoff) buffer.shift();
+  while (buffer.length > MAX_ENTRIES) buffer.shift();
+}
+
+function push(level: LogLevel, msg: string) {
+  buffer.push({ t: Date.now(), level, msg: redact(msg) });
+  evict();
+}
+
+export function snapshotBuffer(): readonly LogEntry[] {
+  evict();
+  return buffer.slice();
+}
+
+// Test-only hooks. Not for production import sites.
+export const __testing = {
+  push,
+  snapshot: snapshotBuffer,
+  reset: () => { buffer.length = 0; },
+};
