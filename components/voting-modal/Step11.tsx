@@ -15,7 +15,7 @@ interface Step11Props {
   containerWidth: number;
   isActive?: boolean;
   onSuccess?: (txHash: string) => void;
-  onError?: (reason?: string) => void;
+  onError?: (reason?: string, error?: unknown) => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   freedomTool?: FreedomTool;
   rarime?: Rarime;
@@ -213,7 +213,7 @@ const Step11: React.FC<Step11Props> = ({
           hasCalledCallback.current = true;
           const msg = t('voting.step11DownloadFailed');
           setStatusText(msg);
-          onError?.(msg);
+          onError?.(msg, dlErr);
           return;
         }
 
@@ -299,7 +299,7 @@ const Step11: React.FC<Step11Props> = ({
           errorMsg = formatRpcError(err);
         }
         setStatusText(errorMsg);
-        onError?.(errorMsg);
+        onError?.(errorMsg, err);
       }
     })();
   }, [hasStarted, canSubmitReal, freedomTool, rarime, passport, proposalInfo, answerIndex, onSuccess, onError]);
