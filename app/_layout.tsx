@@ -1,3 +1,6 @@
+import { install as installLogger, startSweep } from '@/utils/logger';
+installLogger();
+startSweep();
 import '@/polyfills';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
