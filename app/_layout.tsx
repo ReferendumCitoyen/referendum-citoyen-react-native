@@ -140,7 +140,10 @@ function RootLayoutNav() {
             name="parametres"
             options={{
               title: t('settings.title'),
-              headerBackTitle: t('navigation.back'),
+              // iOS: chevron-only back button (see terms-view note below for
+              // why `headerBackTitle: ''` isn't enough on React Navigation 7).
+              // Android is a no-op.
+              headerBackButtonDisplayMode: 'minimal',
             }}
           />
           <Stack.Screen
