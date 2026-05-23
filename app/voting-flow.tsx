@@ -256,6 +256,7 @@ export default function VotingFlowScreen() {
       setCurrentStep(1);
       setVerificationResult(null);
       setVoteSubmissionResult(null);
+      setVoteTxId(null);
       setMRZData(null);
       setNFCData(null);
       // Critical: clear the manual-input modal flag too. If the user backed
@@ -514,7 +515,9 @@ export default function VotingFlowScreen() {
     handleClose();
   }, [handleClose]);
 
-  const handleStep11Success = useCallback(() => {
+  const [voteTxId, setVoteTxId] = useState<string | null>(null);
+  const handleStep11Success = useCallback((txHash: string) => {
+    setVoteTxId(txHash);
     setVoteSubmissionResult('success');
     setCurrentStep(12);
     Animated.timing(slideAnim, {
@@ -723,6 +726,7 @@ export default function VotingFlowScreen() {
                   <Step12Success
                     key="s12s"
                     containerWidth={containerWidth}
+                    voteIdentifier={voteTxId ?? undefined}
                     onViewResults={handleClose}
                   />
                 ) : spacer('s12s'),
