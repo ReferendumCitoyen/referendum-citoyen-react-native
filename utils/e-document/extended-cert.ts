@@ -179,7 +179,14 @@ export class ExtendedCertificate {
 
       const rawPoint = new Uint8Array([...toBeArray(publicKey.px), ...toBeArray(publicKey.py)])
 
-      const nBitLength = Hex.decodeString(namedCurve.CURVE.n.toString(16)).length * 8
+      // BigInt → hex is variable-length: the leading nibble drops when the
+      // high byte's top 4 bits are zero. `Hex.decodeString` rejects odd-length
+      // input ("Invalid hex string"). The curve order `n` only hits this for
+      // 521-bit curves (P-521 → 131 hex chars), but pad defensively so any
+      // future curve choice round-trips cleanly.
+      const nHex = namedCurve.CURVE.n.toString(16)
+      const nBitLength =
+        Hex.decodeString(nHex.length % 2 ? '0' + nHex : nHex).length * 8
 
       const hashedHex = (() => {
         const paddedRaw = zeroPadBytes(rawPoint, 64)
@@ -193,7 +200,12 @@ export class ExtendedCertificate {
         return hash512(paddedRawBytes).toString(16)
       })()
 
-      return Hex.decodeString(hashedHex)
+      // hash512 / hash512P512 return a 512-bit value; the hex form is up to
+      // 128 chars but ~50% of the time the high nibble is zero and the string
+      // comes out odd-length. Pad to 128 hex chars (64 bytes) so the result
+      // is a stable 64-byte Uint8Array and `Hex.decodeString` never rejects
+      // an odd-length input. See the matching pad in helpers/crypto.ts:50.
+      return Hex.decodeString(hashedHex.padStart(128, '0'))
     }
 
     throw new TypeError(
