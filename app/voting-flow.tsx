@@ -51,6 +51,7 @@ export default function VotingFlowScreen() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [verificationResult, setVerificationResult] = useState<'success' | 'error' | null>(null);
+  const [verificationError, setVerificationError] = useState<unknown>(null);
   const [voteSubmissionResult, setVoteSubmissionResult] = useState<'success' | 'error' | null>(null);
   const [mrzData, setMRZData] = useState<{ documentNumber: string; birthDate: string; expiryDate: string } | null>(null);
   const [nfcData, setNFCData] = useState<PassportData | null>(null);
@@ -255,6 +256,7 @@ export default function VotingFlowScreen() {
       // Reset to step 1 when screen is focused
       setCurrentStep(1);
       setVerificationResult(null);
+      setVerificationError(null);
       setVoteSubmissionResult(null);
       setVoteTxId(null);
       setMRZData(null);
@@ -452,7 +454,7 @@ export default function VotingFlowScreen() {
     }, 1500);
   }, [slideAnim, containerWidth, handleStepChange]);
 
-  const handleVerificationError = useCallback((_message?: string, fatal?: boolean) => {
+  const handleVerificationError = useCallback((_message?: string, fatal?: boolean, error?: unknown) => {
     // Fatal errors (e.g. "passport already registered with another key")
     // cannot be retried. Keep the user on Step 7 with its own contextual
     // error display — do NOT trigger the generic Step9Error overlay
@@ -460,6 +462,7 @@ export default function VotingFlowScreen() {
     // would hide the specific explanation. The user closes the modal via
     // the top-right X to exit.
     if (fatal) return;
+    setVerificationError(error ?? new Error(_message ?? 'Unknown verification error'));
     setVerificationResult('error');
     setTimeout(() => handleNext(), 1500);
   }, [handleNext]);
@@ -745,6 +748,7 @@ export default function VotingFlowScreen() {
                 containerWidth={containerWidth}
                 onGoHome={handleClose}
                 isPassportFlow={isPassportFlow}
+                error={verificationError}
               />
             )}
           </Animated.View>
