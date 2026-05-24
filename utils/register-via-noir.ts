@@ -370,7 +370,13 @@ export async function generateHeavyNoirProof(
 ): Promise<HeavyNoirProof> {
   // ---- 1. SMT leaf key --------------------------------------------------
   const leafKey = slaveCertSmtLeafKey(passport);
-  console.log(`[registerViaNoir][heavy] slave SMT leaf: ${leafKey}`);
+  // SECURITY: this leaf is a deterministic hash of the slave cert + chip
+  // contents and is stable per-passport across sessions. Logging it in
+  // release lets logcat readers correlate the same passport across
+  // registration attempts. Keep dev-only.
+  if (__DEV__) {
+    console.log(`[registerViaNoir][heavy] slave SMT leaf: ${leafKey}`);
+  }
 
   // ---- 2. CertificatesSMT.getProof --------------------------------------
   const provider = new ethers.JsonRpcProvider(

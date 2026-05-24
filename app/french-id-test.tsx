@@ -1,6 +1,7 @@
 import { useColors, Typography, Spacing } from "@/constants/theme";
+import { useDevMode } from "@/contexts/DevModeContext";
 import { useRouter, Stack } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -143,6 +144,15 @@ export default function FrenchIDTestScreen() {
   const router = useRouter();
   const colors = useColors();
   const styles = createStyles(colors);
+  const { devMode } = useDevMode();
+  // Diagnostic screen. Reachable only while the Settings 7-tap dev-mode
+  // is enabled. Anyone deep-linking `referendumcitoyen://french-id-test`
+  // on a release install gets bounced to home before the screen renders
+  // its NFC / MRZ internals. (Render-time guard sits below all hooks to
+  // honour the rules-of-hooks; useEffect fires the redirect.)
+  useEffect(() => {
+    if (!devMode) router.replace('/');
+  }, [devMode, router]);
 
   // --- State ---
 
@@ -928,6 +938,7 @@ export default function FrenchIDTestScreen() {
 
   // --- Render ---
 
+  if (!devMode) return null;
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />

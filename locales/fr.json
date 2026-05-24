@@ -47,7 +47,7 @@
     "nfcTest": "Test NFC",
     "diagnostics": "Diagnostics",
     "language": "Langue",
-    "version": "Version {{version}} ({{build}})",
+    "version": "Version {{version}} ({{build}}) · GPLv3",
     "network": "Réseau",
     "networkMainnet": "Mainnet — chain 7368",
     "networkTestnet": "Testnet — chain 7369",
@@ -337,7 +337,7 @@
   "comprendre": {
     "welcome": {
       "title": "Bienvenue !",
-      "text": "Nous développons une application qui permet aux citoyens français d'exprimer collectivement leur volonté politique par des référendums citoyens vérifiables. Lorsqu'un grand nombre de citoyens participent à un vote authentifié, son résultat devient une expression démocratique forte, publiquement vérifiable, et politiquement difficile à ignorer."
+      "text": "Nous développons une application libre qui permet aux citoyens français d'exprimer collectivement leur volonté politique par des référendums citoyens vérifiables. Lorsqu'un grand nombre de citoyens participent à un vote authentifié, son résultat devient une expression démocratique forte, publiquement vérifiable, et politiquement difficile à ignorer."
     },
     "sections": [
       {
@@ -384,7 +384,7 @@
           },
           {
             "title": "Pour aller plus loin",
-            "content": "Le lien technique du code : https://github.com/rarimo/rarime-rn-sdk\n\nLe projet de Rarimo avec des votes existants : https://freedomtool.org/"
+            "content": "Le code source de l'application est disponible sous licence GPLv3 https://github.com/ReferendumCitoyen/referendum-citoyen-react-native Le système de vote avec l'urne électronique est disponible sur https://github.com/rarimo/\n\nLe projet de Rarimo avec des votes existants : https://freedomtool.org/"
           }
         ]
       },
@@ -452,17 +452,7 @@
           },
           {
             "title": "Que se passe-t-il si une faille est découverte ?",
-            "content": "Le système repose sur la transparence plutôt que sur le secret. Le code est open source, ce qui permet à des experts indépendants de l'examiner à tout moment. Si une faille est identifiée, elle peut être corrigée par l'équipe derrière l'app, publiquement et rapidement. Cette logique d'audit permanent renforce la sécurité du système au lieu de l'affaiblir."
-          }
-        ]
-      },
-      {
-        "title": "D'où ça vient ?",
-        "intro": "Alexandre Jardin (écrivain, fondateur du mouvement #LesGueux) est convaincu par son fils Robinson Jardin (ex-NordVPN) du potentiel de technologies cryptographiques éprouvées pour mettre en place une démocratie directe sans attendre. Ils s'associent avec Alexis Roussel (penseur de la démocratie numérique suisse) qui établit le cahier des charges de cette application et en détermine l'architecture. L'application s'appuie notamment sur les technologies développées par l'équipe européenne Rarimo, déjà utilisées pour organiser des votes citoyens sécurisés dans des contextes politiquement sensibles.",
-        "accordions": [
-          {
-            "title": "En quoi ce système est-il différent d'une blockchain classique ?",
-            "content": "Ce système n'est pas une simple blockchain. Il combine la lecture locale de la pièce d'identité, la génération d'un jeton cryptographique prouvant le droit de voter et l'enregistrement des votes dans un registre public vérifiable, sans base centrale d'identité. Cette combinaison permet de garantir qu'une personne ne peut voter qu'une seule fois tout en préservant l'anonymat du vote et en rendant le résultat contrôlable par tous."
+            "content": "Le système repose sur la transparence plutôt que sur le secret. Le code est open source, ce qui permet à des experts indépendants de l'examiner à tout moment. Si une faille est identifiée, elle peut être corrigée par l'équipe derrière l'app, publiquement et rapidement. Cette logique d'audit permanent renforce la sécurité du système au lieu de l'affaiblir. Si vous trouvez une faille vous-même, annoncez la sur https://github.com/ReferendumCitoyen/referendum-citoyen-react-native"
           }
         ]
       }

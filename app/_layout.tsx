@@ -168,6 +168,23 @@ function RootLayoutNav() {
               gestureEnabled: Platform.OS !== 'ios',
             }}
           />
+          {/* Diagnostic / dev-only screens. Expo Router auto-registers
+              every file under `app/` regardless of what's listed here, so
+              we can't gate the *route* — we register the Stack.Screen
+              unconditionally just for header options. The real barrier
+              lives inside each screen component: a `useDevMode()` check
+              that calls `router.replace('/')` and renders `null` when
+              devMode is off. Anyone deep-linking
+              `referendumcitoyen://french-id-test` etc. on a production
+              install bounces back to the home tab before the screen
+              renders any chip / MRZ internals.
+              We previously wrapped these in `{devMode && (...)}` for
+              defence-in-depth on the navigation layer, but expo-router's
+              Stack iterates children directly and treats every falsy
+              expression as a non-Screen child — logging "Layout
+              children must be of type Screen…" warnings and surfacing
+              as "App entry not found" on reload. The unconditional form
+              avoids the warning; the in-component guard is sufficient. */}
           <Stack.Screen
             name="french-id-test"
             options={{

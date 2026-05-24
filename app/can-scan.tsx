@@ -1,6 +1,7 @@
 import { useColors, Typography, Spacing } from "@/constants/theme";
+import { useDevMode } from "@/contexts/DevModeContext";
 import { useRouter, Stack } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -30,6 +31,13 @@ export default function CanScanScreen() {
   const router = useRouter();
   const colors = useColors();
   const styles = createStyles(colors);
+  const { devMode } = useDevMode();
+  // Diagnostic screen — gated to dev mode; production deep-links bounce
+  // home before the CAN / chip-scan internals render. (Render guard lives
+  // below all hooks; this useEffect drives the redirect.)
+  useEffect(() => {
+    if (!devMode) router.replace('/');
+  }, [devMode, router]);
 
   const [can, setCan] = React.useState("");
   const [isScanning, setIsScanning] = React.useState(false);
@@ -150,6 +158,7 @@ export default function CanScanScreen() {
 
   const isCanValid = can.length === 6;
 
+  if (!devMode) return null;
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />

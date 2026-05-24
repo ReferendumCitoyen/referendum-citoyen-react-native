@@ -223,7 +223,16 @@ const Step11: React.FC<Step11Props> = ({
         console.log(`[FreedomTool] Step11: Submitting vote...`);
         console.log(`[FreedomTool] Step11: proposal=#${proposal.id} "${proposal.title}"`);
         // answerIndex / variant intentionally NOT logged — anonymous vote.
-        console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
+        // SECURITY: `issuingCountry` is a 3-letter country code (too short
+        // for the digit-length filter); the redaction labels catch
+        // `citizenship` but the trailing `(FRA)` in parens would still
+        // leak the country. Gate the per-user nationality dump out of
+        // release builds entirely. The citizenshipWhitelist + selector +
+        // sendVoteContract are properties of the proposal, not the
+        // voter, and are safe to keep.
+        if (__DEV__) {
+          console.log(`[FreedomTool] Step11: citizenshipMask=${citizenshipHex} (${mrzData.issuingCountry})`);
+        }
         console.log(`[FreedomTool] Step11: citizenshipWhitelist=[${proposal.criteria.citizenshipWhitelist.map(String).join(', ')}]`);
         console.log(`[FreedomTool] Step11: selector=${proposal.criteria.selector}, sendVoteContract=${proposal.sendVoteContractAddress}`);
 

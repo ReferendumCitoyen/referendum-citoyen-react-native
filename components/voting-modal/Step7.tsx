@@ -3,7 +3,13 @@ import { View, Text, LayoutChangeEvent, Platform, Image, TouchableOpacity, Activ
 import { VideoView } from 'expo-video';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
-import { withRetry, formatRpcError, type Network } from '@/constants/rarime-config';
+import {
+  withRetry,
+  formatRpcError,
+  RARIME_MAINNET_CONFIG,
+  MAINNET_CERT_POSEIDON_SMT_ADDRESS,
+  type Network,
+} from '@/constants/rarime-config';
 import type { Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import {
@@ -324,13 +330,12 @@ const Step7: React.FC<Step7Props> = ({
               // × 2.5 s ≈ 30 s — generous given L2 block times.
               const { JsonRpcProvider, Contract } = await import('ethers');
               const provider = new JsonRpcProvider(
-                'https://l2.rarimo.com',
+                RARIME_MAINNET_CONFIG.apiConfiguration.jsonRpcEvmUrl,
               );
               const { slaveCertSmtLeafKey } = await import('@/utils/heavy-noir-inputs');
               const leafKey = slaveCertSmtLeafKey(eDoc);
               const smtAbi = ['function getProof(bytes32) view returns (tuple(bytes32 root, bytes32[] siblings, bool existence, bytes32 key, bytes32 value, bool auxExistence, bytes32 auxKey, bytes32 auxValue))'];
-              const smtAddr = '0xA8b350d699632569D5351B20ffC1b31202AcEDD8';
-              const smt = new Contract(smtAddr, smtAbi, provider);
+              const smt = new Contract(MAINNET_CERT_POSEIDON_SMT_ADDRESS, smtAbi, provider);
               let landed = false;
               for (let i = 0; i < 12; i++) {
                 await new Promise((r) => setTimeout(r, 2500));

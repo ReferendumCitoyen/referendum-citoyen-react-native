@@ -13,6 +13,13 @@ on:
   pull_request:
     branches: [develop]
 
+# Default GITHUB_TOKEN scopes are read-write across most APIs on private
+# repos. Pin the workflow to read-only so a compromised third-party action
+# can't push, open issues, or rewrite branches via the chain of trust.
+# Jobs that need to write (cache, comment, release) must add the specific
+# permission they need at the job level.
+permissions: read-all
+
 concurrency:
   group: pr-validate-${{ github.event.pull_request.number }}
   cancel-in-progress: true
