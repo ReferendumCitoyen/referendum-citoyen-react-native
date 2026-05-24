@@ -1,5 +1,32 @@
 #!/usr/bin/env sh
 
+# Secret-shape scan. The memory note `secret-hygiene` records the audit
+# rule: a keyword grep alone is not enough, we must also match the literal
+# byte shapes that BJJ private keys, SHA-256 / Keccak digests, and
+# Ethereum private keys all share. SecureStore returns BJJ keys as BARE
+# hex (no `0x` prefix), so we match both `0x[a-f0-9]{64}` and the
+# word-bounded `\b[a-f0-9]{64}\b` form. Scan only the about-to-be-
+# committed diff so unstaged scratch notes don't trip it. Lines may opt
+# out with a `// nosec: <reason>` suffix, but the reason token is
+# required so the bypass can be audited later.
+diff_added=$(git diff --cached --no-color -U0 | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+# Strip lines that carry a non-empty `nosec:` reason. Bare `// nosec:`
+# without a reason still hits the secret-shape grep below.
+diff_filtered=$(echo "$diff_added" | grep -ivE '// *nosec: *[A-Za-z0-9]' || true)
+secret_hits=$(echo "$diff_filtered" | grep -iE '0x[a-f0-9]{64}\b|\b[a-f0-9]{64}\b' || true)
+if [ -n "$secret_hits" ]; then
+  echo ""
+  echo "🚨  Secret-shape match in staged diff (0x?+64 hex):"
+  echo ""
+  echo "$secret_hits" | head -5
+  echo ""
+  echo "   If this is a fixture or test vector, append \`// nosec: <reason>\`"
+  echo "   to the offending line (reason token required), or move it to a"
+  echo "   file in .gitignore. Commit aborted."
+  echo ""
+  exit 1
+fi
+
 echo ""
 echo "🧪  Running pre-commit tests…"
 echo ""

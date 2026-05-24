@@ -47,7 +47,7 @@
     "nfcTest": "NFC test",
     "diagnostics": "Diagnostics",
     "language": "Language",
-    "version": "Version {{version}} ({{build}})",
+    "version": "Version {{version}} ({{build}}) · GPLv3",
     "network": "Network",
     "networkMainnet": "Mainnet — chain 7368",
     "networkTestnet": "Testnet — chain 7369",
