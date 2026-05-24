@@ -90,3 +90,15 @@ tmp/
 **/tmp/
 temp/
 **/temp/
+
+.claude
+CLAUDE.md
+.nvmrc
+
+# Local SDK tarballs (e.g. rarimo-rarime-rn-sdk-0.3.1.tgz, 50 MB binary).
+# package.json references the npm registry version; the .tgz isn't a
+# dependency. Keeping it untracked locally is fine for one-off testing
+# but it must not be committed — both because of the size and because
+# a local-tarball install can bypass the supply-chain controls of the
+# registry path.
+*.tgz

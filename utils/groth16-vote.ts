@@ -148,50 +148,60 @@ export async function generateQueryGroth16Proof(args: GenerateQueryProofArgs): P
   const inputsJson = JSON.stringify(args.inputs);
   const inputsBytes = new Uint8Array(Buffer.from(inputsJson, 'utf8'));
 
-  // Dump per-key type + size — witnesscalc errors with "Error loading signal
-  // X / assert failed" are almost always a shape mismatch (scalar vs array,
-  // or wrong array length). Printing the structure makes those obvious from
-  // a single logcat dump.
-  for (const [k, v] of Object.entries(args.inputs)) {
-    if (Array.isArray(v)) {
-      console.log(`[groth16-vote][inputs] ${k}: array[${v.length}] sample=${JSON.stringify(v.slice(0, 2))}`);
-    } else {
-      console.log(`[groth16-vote][inputs] ${k}: ${typeof v} value=${JSON.stringify(v)}`);
-    }
-  }
-
-  // Locally compute the SMT leaf the circuit will derive from dg1/skIdentity/
-  // identityCounter/timestamp. The on-chain SMT proof has a fixed leaf value
-  // at our index; if our computed leaf doesn't match, the circuit's
-  // `smtVerifier.isVerified === 1` will fail with "assert failed" — which is
-  // exactly what we're seeing. Witnesscalc reports the last-set signal name
-  // (timestampUpperbound, alphabetically last) so the error is misleading.
-  try {
-    const { Poseidon } = await import('@iden3/js-crypto');
-    const inp = args.inputs as any;
-    const dg1Bits: number[] = inp.dg1;
-    // The circuit splits dg1 into 4 chunks of 186 bits and uses Bits2Num
-    // (in[k] * 2^k → LSB-first). Replicate that exactly.
-    const chunks: bigint[] = [0n, 0n, 0n, 0n];
-    for (let c = 0; c < 4; c++) {
-      let acc = 0n;
-      for (let k = 0; k < 186; k++) {
-        if (dg1Bits[c * 186 + k]) acc |= 1n << BigInt(k);
+  // SECURITY: the inputs dump and the SMT-leaf pre-compute below both log
+  // identity-correlating bytes (skIdentity, pkPassportHash, eventId, leaf
+  // hashes, SMT siblings). They were left in for one-shot witnesscalc
+  // shape debugging; gating them out of release prevents the ring buffer
+  // from holding those per-passport identifiers in error reports. The
+  // hardcoded chain-leaf at the end of the smtcheck block was a single
+  // dev-session reference and would mislead future log readers if shown
+  // alongside someone else's computed leaf.
+  if (__DEV__) {
+    // Dump per-key type + size — witnesscalc errors with "Error loading
+    // signal X / assert failed" are almost always a shape mismatch
+    // (scalar vs array, or wrong array length). Printing the structure
+    // makes those obvious from a single logcat dump.
+    for (const [k, v] of Object.entries(args.inputs)) {
+      if (Array.isArray(v)) {
+        console.log(`[groth16-vote][inputs] ${k}: array[${v.length}] sample=${JSON.stringify(v.slice(0, 2))}`);
+      } else {
+        console.log(`[groth16-vote][inputs] ${k}: ${typeof v} value=${JSON.stringify(v)}`);
       }
-      chunks[c] = acc;
     }
-    const skIdentity = BigInt(inp.skIdentity);
-    const skHash = Poseidon.hash([skIdentity]);
-    const dgCommit = Poseidon.hash([chunks[0], chunks[1], chunks[2], chunks[3], skHash]);
-    const identityCounter = BigInt(inp.identityCounter);
-    const timestamp = BigInt(inp.timestamp);
-    const leaf = Poseidon.hash([dgCommit, identityCounter, timestamp]);
-    const hex = (b: bigint) => '0x' + b.toString(16).padStart(64, '0');
-    console.log(`[groth16-vote][smtcheck] computed dgCommit=${hex(dgCommit)}`);
-    console.log(`[groth16-vote][smtcheck] computed leaf   =${hex(leaf)}`);
-    console.log(`[groth16-vote][smtcheck] chain leaf (proof.value at proofIndex 0x0f0ec4ce…) = 0x220b633c2869d7d03b8f9c986b307e4dc09dcb52ef2403b3ffb39a2701d39d0d`);
-  } catch (e: any) {
-    console.log('[groth16-vote][smtcheck] failed to pre-compute leaf:', e?.message ?? e);
+
+    // Locally compute the SMT leaf the circuit will derive from
+    // dg1/skIdentity/identityCounter/timestamp. The on-chain SMT proof
+    // has a fixed leaf value at our index; if our computed leaf doesn't
+    // match, the circuit's `smtVerifier.isVerified === 1` will fail
+    // with "assert failed" — which is exactly what we were seeing.
+    // Witnesscalc reports the last-set signal name (timestampUpperbound,
+    // alphabetically last) so the error is misleading.
+    try {
+      const { Poseidon } = await import('@iden3/js-crypto');
+      const inp = args.inputs as any;
+      const dg1Bits: number[] = inp.dg1;
+      // The circuit splits dg1 into 4 chunks of 186 bits and uses
+      // Bits2Num (in[k] * 2^k → LSB-first). Replicate that exactly.
+      const chunks: bigint[] = [0n, 0n, 0n, 0n];
+      for (let c = 0; c < 4; c++) {
+        let acc = 0n;
+        for (let k = 0; k < 186; k++) {
+          if (dg1Bits[c * 186 + k]) acc |= 1n << BigInt(k);
+        }
+        chunks[c] = acc;
+      }
+      const skIdentity = BigInt(inp.skIdentity);
+      const skHash = Poseidon.hash([skIdentity]);
+      const dgCommit = Poseidon.hash([chunks[0], chunks[1], chunks[2], chunks[3], skHash]);
+      const identityCounter = BigInt(inp.identityCounter);
+      const timestamp = BigInt(inp.timestamp);
+      const leaf = Poseidon.hash([dgCommit, identityCounter, timestamp]);
+      const hex = (b: bigint) => '0x' + b.toString(16).padStart(64, '0');
+      console.log(`[groth16-vote][smtcheck] computed dgCommit=${hex(dgCommit)}`);
+      console.log(`[groth16-vote][smtcheck] computed leaf   =${hex(leaf)}`);
+    } catch (e: any) {
+      console.log('[groth16-vote][smtcheck] failed to pre-compute leaf:', e?.message ?? e);
+    }
   }
 
   // Witnesscalc: dat + inputs → wtns. Native call, ~1–3 s on a phone.

@@ -31,10 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
         NSCameraUsageDescription:
           "Cette application a besoin d'accéder à la caméra pour scanner la zone MRZ de votre carte d'identité.",
-        NSLocationWhenInUseUsageDescription:
-          "Cette application a besoin d'accéder à votre localisation.",
         'com.apple.developer.nfc.readersession.iso7816.select-identifiers': [
-          '',
           'A0000002471001',
           'A0000001510000',
           '00000000000000',

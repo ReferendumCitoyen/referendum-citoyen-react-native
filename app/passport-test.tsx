@@ -1,6 +1,7 @@
 import { Colors, Spacing, Typography } from "@/constants/theme";
+import { useDevMode } from "@/contexts/DevModeContext";
 import { useRouter, Stack } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -45,6 +46,13 @@ const formatMRZDate = (mrzDate: string | null, isExpiry: boolean = false): strin
 
 export default function PassportTestScreen() {
   const router = useRouter();
+  const { devMode } = useDevMode();
+  // Diagnostic screen — gated to dev mode; production deep-links bounce
+  // home before the NFC / passport internals render. (Render guard lives
+  // below all hooks; this useEffect drives the redirect.)
+  useEffect(() => {
+    if (!devMode) router.replace('/');
+  }, [devMode, router]);
   const [tagData, setTagData] = React.useState<any>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState(false);
@@ -123,9 +131,15 @@ export default function PassportTestScreen() {
         const derivedProfileKey = RarimeUtils.getProfileKey(storedKey);
         setProfileKey(derivedProfileKey);
 
-        console.log(`Private Key: ${storedKey.substring(0, 8)}...${storedKey.substring(56)}`);
-        console.log(`Profile Key: ${derivedProfileKey.substring(0, 8)}...${derivedProfileKey.substring(56)}`);
-        console.log('=== RARIME TESTNET INIT COMPLETE ===');
+        // SECURITY: 8-char prefix + 8-char suffix from each end of the
+        // 64-char BJJ key shrinks the brute-force surface to 32 bits.
+        // Screen is devMode-gated but the global ring buffer ships logs
+        // in user-submitted error reports, so guard the dump itself.
+        if (__DEV__) {
+          console.log(`Private Key: ${storedKey.substring(0, 8)}...${storedKey.substring(56)}`);
+          console.log(`Profile Key: ${derivedProfileKey.substring(0, 8)}...${derivedProfileKey.substring(56)}`);
+          console.log('=== RARIME TESTNET INIT COMPLETE ===');
+        }
       } catch (error) {
         console.error('Failed to initialize private key:', error);
       }
@@ -782,10 +796,16 @@ export default function PassportTestScreen() {
         return;
       }
 
-      console.log("=== STARTING EDOCUMENT READER ===");
-      console.log("Document No:", documentNo);
-      console.log("Birth Date (input):", birthDate);
-      console.log("Expiry Date (input):", expiryDate);
+      // SECURITY: document number + DOB + expiry are the three BAC key
+      // parameters. Screen is devMode-gated but the in-memory ring
+      // buffer still captures these lines if a release build ever
+      // reaches the diagnostic — keep the dump dev-only.
+      if (__DEV__) {
+        console.log("=== STARTING EDOCUMENT READER ===");
+        console.log("Document No:", documentNo);
+        console.log("Birth Date (input):", birthDate);
+        console.log("Expiry Date (input):", expiryDate);
+      }
 
       const { scanDocument } = await import('@/modules/e-document');
 
@@ -930,6 +950,7 @@ export default function PassportTestScreen() {
     }
   }
 
+  if (!devMode) return null;
   return (
     <>
       <Stack.Screen

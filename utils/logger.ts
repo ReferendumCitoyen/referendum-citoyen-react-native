@@ -14,7 +14,19 @@ const PII_LABELS = [
   'lastName',
   'dateOfBirth',
   'dateOfExpiry',
+  // `birthDate` covers the JSX prop name used by Step5 / Step7;
+  // `dateOfBirth` covers the SDK / ICAO field name.
+  'birthDate',
+  'expiryDate',
   'nationality',
+  // `citizenship` is the 3-letter country code (FRA, CHE, …). 3 chars
+  // bypasses the digit-length filter; pattern-match the label so it
+  // never lands in the ring buffer regardless of the call site.
+  // `issuingCountry` covers the MRZ field name; `citizenshipMask`
+  // covers the Step11 hex-encoded form. All three are belt-and-braces
+  // — the call sites that emit them are now also __DEV__-gated.
+  'citizenship(?:Mask)?',
+  'issuingCountry',
   'personalNumber',
 ].join('|');
 

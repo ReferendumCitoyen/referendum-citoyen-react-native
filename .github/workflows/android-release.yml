@@ -284,6 +284,13 @@ jobs:
           echo "name=$name" >> "$GITHUB_OUTPUT"
           ls -la "$RUNNER_TEMP/$name"
 
+      # CLAUDE.md flags the allowlist for upstream-blocked 4 KB-aligned
+      # libs as our only regression-catch — wire it into release builds
+      # so the next dep bump that adds a misaligned .so fails CI instead
+      # of shipping and crashing on Pixel 8+ / GrapheneOS at launch.
+      - name: Check 16 KB page-size alignment
+        run: bash scripts/ci/check-16k-alignment.sh "${{ steps.apk.outputs.path }}"
+
       - name: Verify APK signature
         # apksigner ships under $ANDROID_HOME/build-tools/<ver>/ but
         # android-actions/setup-android@v4 doesn't put it on PATH by

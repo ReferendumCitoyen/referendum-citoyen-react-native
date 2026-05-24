@@ -31,8 +31,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useColors, Typography, Spacing } from '@/constants/theme';
+import { useDevMode } from '@/contexts/DevModeContext';
 import {
   deletePrivateKey,
   exportToJson as exportPassportDb,
@@ -49,6 +51,17 @@ export default function KeyManagementScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const { clear: clearTerms } = useTerms();
+  const router = useRouter();
+  const { devMode } = useDevMode();
+  // Dev-only screen. Exposes per-passport BJJ private keys (export, import,
+  // wipe) — anyone with the JSON export can vote as the bound identities.
+  // Production deep-links (`referendumcitoyen://key-management`) must not
+  // reach the screen body. Stack.Screen registration in _layout.tsx is
+  // already conditional on devMode, but Expo Router auto-registers every
+  // file in `app/`, so this in-component redirect is the actual barrier.
+  useEffect(() => {
+    if (!devMode) router.replace('/');
+  }, [devMode, router]);
 
   const [status, setStatus] = useState<string | null>(null);
   const [dbEntries, setDbEntries] = useState<PassportKeyEntry[]>([]);
@@ -171,6 +184,7 @@ export default function KeyManagementScreen() {
     );
   };
 
+  if (!devMode) return null;
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.section}>
