@@ -170,4 +170,4 @@ locales/                # i18n translations
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the [GNU General Public License v3.0](./LICENSE) — the same licence the rest of the project ships under (`package.json::license: "GPL-3.0"`).
