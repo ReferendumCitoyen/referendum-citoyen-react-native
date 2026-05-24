@@ -90,4 +90,4 @@ You can support with donations:
 
 ## License
 
-[MIT](./LICENSE)
+[GPL-3.0](./LICENSE)
