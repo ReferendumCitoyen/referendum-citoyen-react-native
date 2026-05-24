@@ -47,6 +47,8 @@ import {
   MAINNET_REGISTRATION2_ADDRESS,
 } from '@/utils/build-register-cert-calldata';
 import { RARIME_MAINNET_CONFIG } from '@/constants/rarime-config';
+import { JsonRpcProvider, Contract, keccak256, toUtf8Bytes, ZeroAddress } from 'ethers';
+import i18n from 'i18next';
 
 // ---------------------------------------------------------------------------
 // Cache. Built once per app boot (or once per cache invalidation, e.g. if
@@ -191,6 +193,51 @@ export interface RegisterCscaResult {
  * updating master_000316.pem AND the on-chain
  * `icaoMasterTreeMerkleRoot`).
  */
+/** Read `Registration2.certificateDispatchers(keccak256(name))` and throw a
+ * `[VOTE_INELIGIBLE]` error when the verifier address is zero. Each entry
+ * is set by an admin tx on the Rarimo team's side — until they deploy the
+ * verifier contract and call setDispatcher, the relayer can't construct a
+ * tx for this cert chain and will return HTTP 500. */
+async function assertDispatcherDeployed(
+  registration2Address: string,
+  dispatcherName: string,
+): Promise<void> {
+  const provider = new JsonRpcProvider(
+    RARIME_MAINNET_CONFIG.apiConfiguration.jsonRpcEvmUrl,
+  );
+  const contract = new Contract(
+    registration2Address,
+    ['function certificateDispatchers(bytes32) view returns (address)'],
+    provider,
+  );
+  const hash = keccak256(toUtf8Bytes(dispatcherName));
+  let verifier: string;
+  try {
+    verifier = await contract.certificateDispatchers(hash);
+  } catch (e: any) {
+    // Network blip on the pre-check shouldn't block the user — let the POST
+    // run and surface its own error.
+    console.warn(
+      `[csca-bootstrap] dispatcher pre-check failed (network?), skipping: ${e?.message ?? e}`,
+    );
+    return;
+  }
+  if (verifier === ZeroAddress) {
+    console.log(
+      `[csca-bootstrap] dispatcher "${dispatcherName}" not yet deployed on-chain`,
+    );
+    throw new Error(
+      '[VOTE_INELIGIBLE] ' +
+        i18n.t('voting.errors.dispatcherNotDeployed', {
+          defaultValue:
+            "Votre type de passeport n'est pas encore pris en charge par le contrat " +
+            "d'enregistrement Rarimo (autorité de certification ECDSA en attente de " +
+            "déploiement on-chain). Notre équipe suit ce blocage avec Rarimo.",
+        }),
+    );
+  }
+}
+
 export async function registerCscaForSlave(slave: ExtendedCertificate): Promise<RegisterCscaResult> {
   const { bySki, tree } = await ensureMastersCache();
 
@@ -201,8 +248,10 @@ export async function registerCscaForSlave(slave: ExtendedCertificate): Promise<
   const slaveAki = extractAuthorityKeyIdentifier(slaveDer);
   if (!slaveAki) {
     throw new Error(
-      "Votre certificat de passeport n'a pas d'AuthorityKeyIdentifier — " +
-      "impossible de déterminer le CSCA signataire.",
+      i18n.t('voting.errors.missingAki', {
+        defaultValue:
+          "Votre certificat de passeport n'a pas d'AuthorityKeyIdentifier — impossible de déterminer le CSCA signataire.",
+      }),
     );
   }
   const slaveAkiHex = Buffer.from(slaveAki).toString('hex');
@@ -210,9 +259,10 @@ export async function registerCscaForSlave(slave: ExtendedCertificate): Promise<
   const match = bySki.get(slaveAkiHex);
   if (!match) {
     throw new Error(
-      "Le certificat racine (CSCA) de votre passeport n'est pas dans la liste " +
-      "ICAO embarquée dans l'application. Demandez à la maintenance de " +
-      "mettre à jour master_000316.pem.",
+      i18n.t('voting.errors.cscaNotInBundle', {
+        defaultValue:
+          "Le certificat racine (CSCA) de votre passeport n'est pas dans la liste ICAO embarquée dans l'application. Demandez à la maintenance de mettre à jour la liste des certificats.",
+      }),
     );
   }
   console.log(`[csca-bootstrap] matched CSCA via SKI lookup: ski=${slaveAkiHex.slice(0, 16)}…`);
@@ -227,6 +277,15 @@ export async function registerCscaForSlave(slave: ExtendedCertificate): Promise<
     icaoMerkleProof: proof,
   });
   console.log(`[csca-bootstrap] calldata: dispatcherName=${dispatcherName} bytes=${(calldata.length - 2) / 2}`);
+
+  // Pre-check the on-chain dispatcher mapping. As of 2026-05-24 Rarimo has
+  // only deployed RSA verifier dispatchers on Mainnet — every C_ECDSA_*
+  // combination returns the zero address. POSTing to the relayer in that
+  // state burns ~10 s on a request that's guaranteed to revert and surfaces
+  // as a generic 500 to the user. Pre-check, fail fast with a VOTE_INELIGIBLE
+  // so Step 7's catch keeps the user on the verification screen with a
+  // specific message instead of cascading into Step 11's "not registered".
+  await assertDispatcherDeployed(destination, dispatcherName);
 
   const txHash = await postCalldataToRelayer(calldata, destination);
   console.log(`[csca-bootstrap] tx_hash: ${txHash}`);

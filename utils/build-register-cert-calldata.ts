@@ -41,7 +41,7 @@ import {
   id_ecdsaWithSHA512,
 } from '@peculiar/asn1-ecc';
 import { Certificate } from '@peculiar/asn1-x509';
-import { ethers , toBeArray } from 'ethers';
+import { ethers } from 'ethers';
 import { Buffer } from 'buffer';
 import type { ExtendedCertificate } from '@/utils/e-document/extended-cert';
 import { ECDSA_ALGO_PREFIX, Sod } from '@/utils/e-document/sod';
@@ -116,10 +116,22 @@ function slavePubKeyBits(slaveCert: Certificate): number {
     const unpadded = modBytes[0] === 0x00 ? modBytes.subarray(1) : modBytes;
     return unpadded.byteLength * 8;
   }
-  // ECDSA case — pub.px / pub.py are bigints (from @noble/curves).
-  const xBytes = toBeArray(pubKey.px);
-  const yBytes = toBeArray(pubKey.py);
-  return (xBytes.length + yBytes.length) * 8;
+  // ECDSA case — bit count is `2 * fieldBytes * 8` (the canonical curve size),
+  // NOT `(toBeArray(x).length + toBeArray(y).length) * 8`. `toBeArray` strips
+  // leading zero bytes (≈0.4% of EC keys), which would produce e.g. "_504"
+  // instead of "_512" in the dispatcher name and miss the on-chain verifier
+  // registration. Derive fieldBytes from the curve via the same path
+  // dispatcherName uses for the master cert.
+  const spki = slaveCert.tbsCertificate.subjectPublicKeyInfo;
+  if (!spki.algorithm.parameters) {
+    throw new Error('slavePubKeyBits: ECDSA SPKI missing curve parameters');
+  }
+  const ecParams = AsnConvert.parse(spki.algorithm.parameters, ECParameters);
+  const [, curve] = getPublicKeyFromEcParameters(
+    ecParams,
+    new Uint8Array(spki.subjectPublicKey),
+  );
+  return curve.CURVE.Fp.BYTES * 2 * 8;
 }
 
 function dispatcherName(slaveCert: Certificate, masterCert: Certificate): string {

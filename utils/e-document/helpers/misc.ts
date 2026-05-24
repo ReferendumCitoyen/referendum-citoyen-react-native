@@ -112,8 +112,11 @@ export function extractRawPubKey(certificate: Certificate): Uint8Array {
     return certPubKey[0] === 0x00 ? certPubKey.slice(1) : certPubKey
   }
 
-  // ECDSA public key is a point on the curve
-  const certPubKey = new Uint8Array([...toBeArray(pubKey.px), ...toBeArray(pubKey.py)])
+  // ECDSA public key is a point on the curve. Use the affine `.x` / `.y`
+  // getters — `.px` / `.py` are deprecated projective aliases that, on
+  // Hermes, return the unreduced projective representation (different bytes
+  // from the cert's affine coordinates).
+  const certPubKey = new Uint8Array([...toBeArray(pubKey.x), ...toBeArray(pubKey.y)])
 
   return certPubKey[0] === 0x00 ? certPubKey.slice(1) : certPubKey
 }
