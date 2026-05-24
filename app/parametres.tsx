@@ -24,7 +24,7 @@ const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) 
 
 export default function ParametresScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const colors = useColors();
   const styles = createStyles(colors);
@@ -70,11 +70,11 @@ export default function ParametresScreen() {
       return;
     }
     Alert.alert(
-      'Activer le réseau Mainnet ?',
-      "Mainnet enregistre votre identité et votre vote de manière permanente sur Rarimo Mainnet (chain 7368). À n'utiliser qu'en connaissance de cause.",
+      t('settings.mainnetAlertTitle'),
+      t('settings.mainnetAlertBody'),
       [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Continuer', style: 'destructive', onPress: () => setNetwork('mainnet') },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.continue'), style: 'destructive', onPress: () => setNetwork('mainnet') },
       ],
     );
   };
@@ -138,6 +138,29 @@ export default function ParametresScreen() {
                 <Text style={[styles.settingValue, { color: colors.secondary }]}>Hide Dev Tools</Text>
               </TouchableOpacity>
 
+              {/* Language picker. Lives in the dev menu so production users
+                  default to French; QA / English users flip via the Settings
+                  7-tap escape hatch. Reuses the existing language-select
+                  screen wired up at app/language-select.tsx. */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                activeOpacity={0.7}
+                onPress={() => router.push('/language-select')}
+              >
+                <Text style={styles.settingLabel}>{t('settings.language')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{
+                    fontFamily: Typography.fontFamily.medium,
+                    fontSize: Typography.fontSize.small,
+                    color: colors.text,
+                    opacity: 0.6,
+                  }}>
+                    {t(`languages.${i18n.language}`, { defaultValue: i18n.language?.toUpperCase() })}
+                  </Text>
+                  <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+                </View>
+              </TouchableOpacity>
+
               {/* Network selector (Mainnet / Testnet)
                   Visible only in dev mode. Mainnet writes real on-chain
                   state — see NetworkContext.tsx and the Alert in
@@ -184,8 +207,8 @@ export default function ParametresScreen() {
                     marginTop: 2,
                   }}>
                     {extraEnabled
-                      ? (extraIds.length > 0 ? `Affichés : #${extraIds.join(', #')}` : 'Activé (liste vide)')
-                      : 'Désactivé'}
+                      ? (extraIds.length > 0 ? t('settings.extrasShowing', { ids: extraIds.join(', #') }) : t('settings.extrasEnabledEmpty'))
+                      : t('settings.extrasDisabled')}
                   </Text>
                 </View>
                 <Switch

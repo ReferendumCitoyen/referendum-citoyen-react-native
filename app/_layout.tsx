@@ -192,7 +192,14 @@ function RootLayoutNav() {
           <Stack.Screen
             name="key-management"
             options={{
-              title: 'Sauvegarde / Restauration de clé',
+              title: t('keyManagement.title'),
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
+            name="language-select"
+            options={{
+              title: t('settings.language'),
               headerBackTitle: t('navigation.back'),
             }}
           />

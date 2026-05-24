@@ -38,6 +38,7 @@ import Step12Error from '@/components/voting-modal/Step12Error';
 import ManualMRZInput from '@/components/voting-modal/ManualMRZInput';
 import { createModalStyles } from '@/components/voting-modal/styles';
 import { useModalVideoPlayers } from '@/hooks/useModalVideoPlayers';
+import { markVoteJustCast } from '@/utils/post-vote-refresh';
 
 
 export default function VotingFlowScreen() {
@@ -522,6 +523,10 @@ export default function VotingFlowScreen() {
   const handleStep11Success = useCallback((txHash: string) => {
     setVoteTxId(txHash);
     setVoteSubmissionResult('success');
+    // Tell the home tab a vote landed so it knows to do an extra delayed
+    // refresh once tx propagation completes (the immediate focus-time
+    // refetch races ahead of L2 confirmation otherwise).
+    markVoteJustCast();
     setCurrentStep(12);
     Animated.timing(slideAnim, {
       toValue: -11 * containerWidth,

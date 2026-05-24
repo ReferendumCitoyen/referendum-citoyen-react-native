@@ -27,6 +27,7 @@
  */
 
 import { ethers } from 'ethers';
+import i18n from 'i18next';
 import {
   Network,
   MAINNET_REGISTRATION_CONTRACT_ADDRESS,
@@ -227,7 +228,9 @@ export async function submitToRegistrationRelayer(
     // relayer return a confusing 5xx.
     throw new Error(
       '[registerViaNoir] heavy registration is only wired for mainnet. ' +
-      'Switch the network in Settings → Réseau.',
+      i18n.t('voting.errors.switchToMainnet', {
+        defaultValue: 'Changez de réseau dans Paramètres → Réseau.',
+      }),
     );
   }
 
@@ -395,8 +398,11 @@ export async function generateHeavyNoirProof(
     // (b) Wrong leaf key (algorithm mismatch) — shouldn't happen for
     //     standard RSA passports.
     throw new Error(
-      "Le certificat racine de votre passeport n'est pas encore enregistré sur Mainnet. " +
-      "Réessayez plus tard ou contactez le support.",
+      '[CSCA_MISSING] ' +
+        i18n.t('voting.errors.cscaNotRegisteredOnMainnet', {
+          defaultValue:
+            "Le certificat racine de votre passeport n'est pas encore enregistré sur Mainnet. Réessayez plus tard ou contactez le support.",
+        }),
     );
   }
 
