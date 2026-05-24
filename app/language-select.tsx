@@ -25,9 +25,16 @@ export default function LanguageSelectScreen() {
   const styles = createStyles(colors);
   const currentLanguageCode = getCurrentLanguageCode();
 
-  const handleSelect = (langCode: string) => {
-    i18n.changeLanguage(langCode);
-    router.back();
+  const handleSelect = async (langCode: string) => {
+    // i18n.changeLanguage triggers a re-render of every consumer of
+    // `useTranslation()`, including the Stack.Screen options in _layout.tsx
+    // which rebuild this screen's header with the new locale. If we
+    // navigate back in the same tick, RNScreens on Android crashes with
+    // "ScreenStackFragment added into a non-stack container" because the
+    // mount transaction is still mid-flight. Yield one event-loop tick so
+    // React commits the re-render before we tear the screen down.
+    await i18n.changeLanguage(langCode);
+    setTimeout(() => router.back(), 0);
   };
 
   return (

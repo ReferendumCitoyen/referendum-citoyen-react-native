@@ -227,9 +227,11 @@ const Step7: React.FC<Step7Props> = ({
         // [VOTE_INELIGIBLE] prefix and surfaces this message verbatim.
         if (status === DocumentStatus.RegisteredWithOtherPk) {
           throw new Error(
-            "[VOTE_INELIGIBLE] Ce passeport est déjà enregistré sur Mainnet avec " +
-            "une autre clé privée. Pour voter avec ce passeport, restaurez la " +
-            "clé d'origine via Paramètres → Gestion des clés → Restaurer une clé.",
+            '[VOTE_INELIGIBLE] ' +
+              t('voting.errors.passportAlreadyBoundOtherKey', {
+                defaultValue:
+                  "Ce passeport est déjà enregistré sur Mainnet avec une autre clé privée. Pour voter avec ce passeport, restaurez la clé d'origine via Paramètres → Gestion des clés → Restaurer une clé.",
+              }),
           );
         }
 
@@ -303,7 +305,9 @@ const Step7: React.FC<Step7Props> = ({
               heavyProof = await generateHeavyNoirProof(eDoc, skIdentityHex);
             } catch (e: any) {
               const msg = e?.message ?? '';
-              const isMissingCsca = msg.includes("n'est pas encore enregistré sur Mainnet");
+              // Match by `[CSCA_MISSING]` sentinel, not the French body —
+              // the body is localised so a substring match would break in en.
+              const isMissingCsca = msg.startsWith('[CSCA_MISSING]');
               if (!isMissingCsca) throw e;
 
               console.log('[Step7][mainnet] CSCA missing — bootstrapping via registerCertificate');
@@ -435,7 +439,7 @@ const Step7: React.FC<Step7Props> = ({
           />
         )}
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {!errorMessage && hasStarted && (
             <ActivityIndicator size="small" color={colors.text} />
           )}

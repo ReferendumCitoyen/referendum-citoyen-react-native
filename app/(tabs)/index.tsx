@@ -18,6 +18,8 @@ import {
   bigintReplacer,
 } from '@/utils/proposal-cache';
 import { computeVoteResults, isFrenchCompatible, isPassportVotingTarget } from '@/utils/voteResults';
+import { consumePendingVote } from '@/utils/post-vote-refresh';
+import i18nModule from 'i18next';
 
 const VOTE_COUNT_THRESHOLD = 5;
 
@@ -117,17 +119,21 @@ const isActive = (p: ProposalInfo): boolean => {
 
 const formatTimeRemaining = (endTimestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
-  if (now >= endTimestamp) return 'Terminé';
-  return new Date(Number(endTimestamp) * 1000).toLocaleDateString('fr-FR', {
+  if (now >= endTimestamp) {
+    return i18nModule.t('home.badgeFinished', { defaultValue: 'Terminé' });
+  }
+  return new Date(Number(endTimestamp) * 1000).toLocaleDateString(i18nModule.language || 'fr-FR', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 };
 
 const formatTimeAgo = (timestamp: bigint): string => {
   const now = BigInt(Math.floor(Date.now() / 1000));
-  if (now < timestamp) return 'Bientôt';
+  if (now < timestamp) {
+    return i18nModule.t('home.badgeSoon', { defaultValue: 'Bientôt' });
+  }
   const localDate = new Date(Number(timestamp) * 1000);
-  return localDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return localDate.toLocaleDateString(i18nModule.language || 'fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 // --- VoteResults component (dynamic variants) ---
@@ -353,9 +359,9 @@ export default function AccueilScreen() {
       console.error('[Accueil] Failed to load proposals:', err);
       const msg = (err as Error).message?.toLowerCase() || '';
       if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
-        setLoadError('Erreur réseau — vérifiez votre connexion et tirez vers le bas pour réessayer.');
+        setLoadError(t('home.loadErrorNetwork'));
       } else {
-        setLoadError('Impossible de charger les propositions. Tirez vers le bas pour réessayer.');
+        setLoadError(t('home.loadErrorGeneric'));
       }
     } finally {
       setIsLoading(false);
@@ -430,7 +436,10 @@ export default function AccueilScreen() {
     })();
   }, []);
 
-  // Auto-refresh when screen regains focus (e.g. after voting)
+  // Auto-refresh when screen regains focus (e.g. after voting). Also fires
+  // an extra refresh ~4 s later when the user just voted, because the
+  // immediate refetch usually races ahead of the vote tx's L2 confirmation
+  // and the count would otherwise show pre-vote until the next manual pull.
   const isFirstMount = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -439,6 +448,10 @@ export default function AccueilScreen() {
         return;
       }
       fetchProposals(true);
+      if (consumePendingVote()) {
+        const t = setTimeout(() => fetchProposals(true), 4000);
+        return () => clearTimeout(t);
+      }
     }, [fetchProposals])
   );
 

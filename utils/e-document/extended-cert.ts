@@ -1,4 +1,5 @@
 import { time } from '@distributedlab/tools'
+import i18n from 'i18next'
 import { Hex } from '@iden3/js-crypto'
 // `findMasterCertificate` used to live in @lukachi/rn-csca. The Rust crate's
 // uniffi JNI binding crashes on RN 0.81 (NoSuchFieldError mHybridData →
@@ -22,6 +23,23 @@ import {
 } from './helpers/crypto'
 import { extractPubKey } from './helpers/misc'
 import { ECDSA_ALGO_PREFIX } from './sod'
+
+/** Zero-pad a bigint EC coordinate to the curve's field byte size. ethers'
+ * `toBeArray` strips leading zero bytes, but ASN.1-encoded EC points keep
+ * X and Y at exactly fieldBytes long — without this pad, ≈0.4% of ECDSA
+ * keys produce a 1-byte-short needle that misses the literal cert bytes. */
+function padCoordinate(value: bigint, fieldBytes: number): Uint8Array {
+  const arr = toBeArray(value)
+  if (arr.length === fieldBytes) return arr
+  if (arr.length > fieldBytes) {
+    throw new TypeError(
+      `EC coordinate exceeds field size (${arr.length} > ${fieldBytes})`,
+    )
+  }
+  const out = new Uint8Array(fieldBytes)
+  out.set(arr, fieldBytes - arr.length)
+  return out
+}
 
 export class ExtendedCertificate {
   constructor(public certificate: Certificate) {}
@@ -59,20 +77,66 @@ export class ExtendedCertificate {
         ECParameters,
       )
 
-      const [publicKey] = getPublicKeyFromEcParameters(
+      const [publicKey, namedCurve] = getPublicKeyFromEcParameters(
         ecParameters,
         new Uint8Array(this.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey),
       )
 
       if (!publicKey) throw new TypeError('Public key not found in TBS Certificate')
 
-      return (
-        rawTbsCertHex.indexOf(
-          Buffer.from(
-            new Uint8Array([...toBeArray(publicKey.px), ...toBeArray(publicKey.py)]),
-          ).toString('hex'),
-        ) / 2
-      )
+      // The TBS encodes the EC point as `04 || X-padded || Y-padded` inside
+      // the BIT STRING — X and Y are *always* exactly fieldBytes long, with
+      // leading zeros preserved. `toBeArray` on a bigint strips those leading
+      // zeros (≈0.4% of ECDSA keys hit this), so a raw `[px ++ py]` search
+      // misses the literal bytes and `indexOf` returns -1 → -1/2 = -0.5 →
+      // ethers ABI encode "underflow" downstream. Pad each coordinate to
+      // fieldBytes before concatenating so the needle matches the cert
+      // bytes exactly.
+      const fieldBytes = namedCurve.CURVE.Fp.BYTES
+      const needle = new Uint8Array([
+        ...padCoordinate(publicKey.x, fieldBytes),
+        ...padCoordinate(publicKey.y, fieldBytes),
+      ])
+      const idx = rawTbsCertHex.indexOf(Buffer.from(needle).toString('hex'))
+      if (idx < 0) {
+        // The cert may use compressed point encoding (`02/03 || X-padded`)
+        // — @noble's `Point.fromBytes` accepts it and decompresses Y on the
+        // fly, so `publicKey.y` is valid but its bytes are NOT in the TBS.
+        // The on-chain verifier slices out `[X || Y]` from signedAttributes
+        // at keyOffset, so a compressed cert can't be registered through
+        // the current Registration2 contract. Surface as VOTE_INELIGIBLE so
+        // Step 7's catch marks this fatal and the user gets a clear stop
+        // instead of a downstream "not registered" error at vote time.
+        const spki = new Uint8Array(
+          this.certificate.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey,
+        )
+        const spkiHead = spki[0]?.toString(16).padStart(2, '0') ?? '??'
+        const isCompressed = spki.length === 1 + fieldBytes && (spki[0] === 0x02 || spki[0] === 0x03)
+        if (isCompressed) {
+          const parityKey = spkiHead === '02' ? 'voting.errors.parityEven' : 'voting.errors.parityOdd'
+          throw new Error(
+            '[VOTE_INELIGIBLE] ' +
+              i18n.t('voting.errors.compressedPubKey', {
+                bits: namedCurve.CURVE.Fp.BYTES * 8,
+                parity: i18n.t(parityKey, { defaultValue: spkiHead === '02' ? 'paire' : 'impaire' }),
+                defaultValue: `Ce passeport utilise une clé publique compressée (${namedCurve.CURVE.Fp.BYTES * 8}-bit Y ${spkiHead === '02' ? 'paire' : 'impaire'}) que le contrat d'enregistrement on-chain ne supporte pas encore. Notre équipe travaille à ajouter cette compatibilité.`,
+              }),
+          )
+        }
+        // Non-compressed but still not found — a diagnostic path. Keep the
+        // technical tag in the message (in brackets) so we can still grep it
+        // from error reports, then append the localised user-facing summary.
+        const userMsg = i18n.t('voting.errors.unexpectedCertEncoding', {
+          spkiLen: spki.length,
+          spkiHead,
+          curveBits: namedCurve.CURVE.Fp.BYTES * 8,
+          defaultValue: `Le certificat de votre passeport utilise un encodage inattendu (SPKI : ${spki.length} octets, tête=0x${spkiHead}, courbe ${namedCurve.CURVE.Fp.BYTES * 8} bits). Merci de partager le JSON du passeport pour diagnostic.`,
+        })
+        throw new Error(
+          `[slaveCertPubKeyOffset] padded EC point (${needle.length} bytes) not found inside TBS certificate. ${userMsg}`,
+        )
+      }
+      return idx / 2
     }
 
     throw new TypeError(
@@ -177,7 +241,7 @@ export class ExtendedCertificate {
 
       if (!publicKey) throw new TypeError('Public key not found in TBS Certificate')
 
-      const rawPoint = new Uint8Array([...toBeArray(publicKey.px), ...toBeArray(publicKey.py)])
+      const rawPoint = new Uint8Array([...toBeArray(publicKey.x), ...toBeArray(publicKey.y)])
 
       // BigInt → hex is variable-length: the leading nibble drops when the
       // high byte's top 4 bits are zero. `Hex.decodeString` rejects odd-length
