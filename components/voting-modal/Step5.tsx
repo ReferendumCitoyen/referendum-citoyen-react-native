@@ -416,7 +416,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
                 color: colors.scanOverlayDim,
                 fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
                 alignSelf: 'flex-end',
-              }}>{isPassportFlow ? 'PASSEPORT' : 'CARTE D’IDENTITÉ'}</Text>
+              }}>{t(isPassportFlow ? 'voting.step5CardOverlay_passport' : 'voting.step5CardOverlay_idCard')}</Text>
               <View style={{
                 backgroundColor: scanProgress === 'success' ? colors.scanReticleSuccessInnerBg : colors.scanReticleInnerBg,
                 borderWidth: 1,

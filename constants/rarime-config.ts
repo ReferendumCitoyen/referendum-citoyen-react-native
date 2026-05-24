@@ -189,24 +189,32 @@ export async function withRetry<T>(
  * Formats an unknown error into a user-facing message.
  */
 export function formatRpcError(err: unknown): string {
+  // Lazy-require i18n so this file stays safe to import in test contexts
+  // where i18next isn't initialised. Each branch supplies a defaultValue
+  // so the result is still correct if the key is missing or i18n isn't up.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const i18nMod = require('i18next');
+  const i18n = i18nMod.default ?? i18nMod;
+  const t = (key: string, defaultValue: string) =>
+    typeof i18n?.t === 'function' ? i18n.t(key, { defaultValue }) : defaultValue;
   if (err instanceof Error) {
     const msg = err.message.toLowerCase();
     if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout')) {
-      return 'Erreur réseau — vérifiez votre connexion et réessayez.';
+      return t('voting.errors.network', 'Erreur réseau — vérifiez votre connexion et réessayez.');
     }
     if (msg.includes('already registered') || msg.includes('duplicate')) {
-      return 'Identité déjà enregistrée.';
+      return t('voting.errors.alreadyRegistered', 'Identité déjà enregistrée.');
     }
     if (msg.includes('already voted')) {
-      return 'Vous avez déjà voté pour cette proposition.';
+      return t('voting.errors.alreadyVoted', 'Vous avez déjà voté pour cette proposition.');
     }
     if (msg.includes('403') || msg.includes('forbidden')) {
-      return 'Accès refusé par le serveur. Réessayez plus tard.';
+      return t('voting.errors.forbidden', 'Accès refusé par le serveur. Réessayez plus tard.');
     }
     if (msg.includes('revert') || msg.includes('invalid_proof')) {
-      return 'La vérification a échoué. Veuillez rescanner votre carte et réessayer.';
+      return t('voting.errors.verificationFailed', 'La vérification a échoué. Veuillez rescanner votre carte et réessayer.');
     }
-    return 'Une erreur est survenue. Veuillez réessayer.';
+    return t('voting.errors.generic', 'Une erreur est survenue. Veuillez réessayer.');
   }
-  return 'Une erreur inattendue est survenue. Veuillez réessayer.';
+  return t('voting.errors.unexpected', 'Une erreur inattendue est survenue. Veuillez réessayer.');
 }

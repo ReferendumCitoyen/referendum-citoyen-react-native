@@ -4,7 +4,11 @@ import { ProjPointType } from '@noble/curves/abstract/weierstrass'
 import { ECParameters } from '@peculiar/asn1-ecc'
 import { toBigInt } from 'ethers'
 
-import { namedCurveFromOID, namedCurveFromParams } from '@/utils/curves'
+import {
+  namedCurveFromOID,
+  namedCurveFromSpecified,
+  UnsupportedCurveError,
+} from '@/utils/curves'
 
 /**
  * HashPacked computes the Poseidon hash of 5 elements.
@@ -97,26 +101,28 @@ export function hash512(key: Uint8Array): bigint {
   return keyHash
 }
 
-export function namedCurveFromParameters(parameters: ECParameters, subjectPublicKey: Uint8Array) {
-  const res = (() => {
-    if (parameters.namedCurve) {
-      return namedCurveFromOID(parameters.namedCurve)
-    }
-
-    if (!parameters.specifiedCurve?.fieldID.fieldType) {
-      throw new TypeError(
-        'namedCurveFromParameters: ECDSA public key does not have a specified curve fieldID',
-      )
-    }
-
-    return namedCurveFromOID(parameters.namedCurve ?? parameters.specifiedCurve?.fieldID.fieldType)
-  })()
-
-  if (!res) {
-    return namedCurveFromParams(subjectPublicKey, parameters)
+export function namedCurveFromParameters(parameters: ECParameters, _subjectPublicKey: Uint8Array) {
+  // Named-curve form: cert references the curve by OID. Common for FR, US,
+  // and most named-curve issuers.
+  if (parameters.namedCurve) {
+    const byOid = namedCurveFromOID(parameters.namedCurve)
+    if (byOid) return byOid
+    throw new UnsupportedCurveError(`OID ${parameters.namedCurve}`)
   }
 
-  return res
+  // specifiedCurve form: cert embeds the full domain parameters inline.
+  // ~149 / 857 CSCAs in our master list ship this way (CH, DE, LT, LV, CY,
+  // BE, HU, NZ, JP, GB, …). Fingerprint by the field prime.
+  if (parameters.specifiedCurve) {
+    const bySpec = namedCurveFromSpecified(parameters)
+    if (bySpec) return bySpec
+    const fieldType = parameters.specifiedCurve.fieldID?.fieldType ?? 'unknown'
+    throw new UnsupportedCurveError(`fieldType ${fieldType}, unrecognized prime`)
+  }
+
+  throw new TypeError(
+    'namedCurveFromParameters: ECDSA parameters missing both namedCurve and specifiedCurve',
+  )
 }
 
 export function getPublicKeyFromEcParameters(
