@@ -428,20 +428,28 @@ const Step7: React.FC<Step7Props> = ({
       <View style={stepSpecificStyles.step7Container}>
         <Text style={stepSpecificStyles.step7Title}>{t('voting.step7Title')}</Text>
 
-        {Platform.OS === 'android' ? (
-          <Image
-            source={require('@/assets/images/poster-verify.png')}
-            style={stepSpecificStyles.step7Image}
-            resizeMode="contain"
-          />
-        ) : (
-          <VideoView
-            style={stepSpecificStyles.step7Image}
-            player={player}
-            contentFit="contain"
-            nativeControls={false}
-            surfaceType="textureView"
-          />
+        {/* Hide the 225×225 poster while an error message is rendered.
+            slidingWrapper has `overflow: 'hidden'`, so a long VOTE_INELIGIBLE
+            message (the ECDSA-dispatcher / curve-unsupported / compressed-key
+            strings run 250–300 chars) was overflowing the bottom of the slide
+            and getting clipped. Collapsing the image gives the error text the
+            vertical budget it needs to fully render. */}
+        {!errorMessage && (
+          Platform.OS === 'android' ? (
+            <Image
+              source={require('@/assets/images/poster-verify.png')}
+              style={stepSpecificStyles.step7Image}
+              resizeMode="contain"
+            />
+          ) : (
+            <VideoView
+              style={stepSpecificStyles.step7Image}
+              player={player}
+              contentFit="contain"
+              nativeControls={false}
+              surfaceType="textureView"
+            />
+          )
         )}
 
         <View style={{ flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -453,7 +461,10 @@ const Step7: React.FC<Step7Props> = ({
           </Text>
         </View>
 
-        {nfcData?.personDetails && (
+        {/* Personal-details card hides when an error is showing — it's only
+            useful as positive feedback during the verification flow, not as
+            extra noise above an error explanation. */}
+        {!errorMessage && nfcData?.personDetails && (
           <View style={{ marginTop: 16, padding: 16, backgroundColor: colors.white, borderRadius: 8 }}>
             <Text style={{
               fontFamily: Typography.fontFamily.semibold,
