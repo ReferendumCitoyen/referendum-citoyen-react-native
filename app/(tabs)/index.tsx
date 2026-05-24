@@ -408,12 +408,17 @@ export default function AccueilScreen() {
     });
   }, []);
 
-  // Dump the BJJ keypair at app launch so the user can save it before any
-  // test run — the private key only lives in SecureStore, so wiping the app
-  // (or uninstalling) loses on-chain identity. Capture via `adb logcat | grep
-  // KEYPAIR`. Duplicates the dump in app/voting-flow.tsx, but fires earlier
-  // so it survives an NFC failure that never reaches Step 7.
+  // Dump the BJJ keypair at app launch so a developer can save it before
+  // any test run — the private key only lives in SecureStore, so wiping the
+  // app (or uninstalling) loses on-chain identity. Capture via `adb logcat |
+  // grep KEYPAIR`. Duplicates the dump in app/voting-flow.tsx (which fires
+  // later in the voting flow).
+  //
+  // SECURITY: gated behind __DEV__ so release builds never log the private
+  // key to logcat. Anyone with `adb logcat` access on an unlocked device
+  // could harvest the key and impersonate the user on-chain.
   useEffect(() => {
+    if (!__DEV__) return;
     (async () => {
       try {
         const { getOrCreatePrivateKey } = await import('@/utils/identity');
@@ -494,9 +499,11 @@ export default function AccueilScreen() {
   const activeProposals = useMemo(() => eligibleProposals.filter(isActive), [eligibleProposals]);
   const pastProposals = useMemo(() => eligibleProposals.filter(p => !isActive(p)), [eligibleProposals]);
   // [DBG] one-line dump per proposal so we can correlate the "I only see
-  // closed polls" UX with the actual filter math. Remove once the
-  // home-screen rendering issue is settled.
+  // closed polls" UX with the actual filter math. Dev-only — the loop
+  // fires 5+ lines per focus event per proposal and crowded out actual
+  // diagnostics in the 2000-entry ring buffer in production.
   useEffect(() => {
+    if (!__DEV__) return;
     if (eligibleProposals.length === 0) return;
     const now = BigInt(Math.floor(Date.now() / 1000));
     for (const p of eligibleProposals) {
