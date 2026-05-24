@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Linking, TextInput, Keyboard } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
+import { useTranslation } from 'react-i18next';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { FREEDOM_TOOL_CONFIG, EXPLORER_TX_BASE_URL } from '@/constants/rarime-config';
 import SettingsButton from '@/components/SettingsButton';
@@ -46,6 +47,7 @@ interface LookupResult {
 }
 
 export default function VerifierScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const [txHashInput, setTxHashInput] = useState('');
@@ -127,17 +129,17 @@ export default function VerifierScreen() {
         {/* Header */}
         <View style={styles.headerSection}>
           <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>Vérifier</Text>
+            <Text style={styles.headerTitle}>{t('verifier.title')}</Text>
             <SettingsButton />
           </View>
           <Text style={styles.headerDescription}>
-            Chaque vote est enregistré sur la blockchain et vérifiable publiquement. Aucun serveur central ne peut modifier les résultats.
+            {t('verifier.description')}
           </Text>
         </View>
 
         {/* Search */}
         <View style={styles.lookupCard}>
-          <Text style={styles.lookupLabel}>Rechercher un vote par numéro de série</Text>
+          <Text style={styles.lookupLabel}>{t('verifier.lookupLabel')}</Text>
           <View style={styles.lookupInputRow}>
             <TextInput
               style={styles.lookupInput}
@@ -163,17 +165,17 @@ export default function VerifierScreen() {
               {txLookupStatus === 'loading' ? (
                 <ActivityIndicator size="small" color={colors.buttonText} />
               ) : (
-                <Text style={styles.lookupButtonText}>Vérifier</Text>
+                <Text style={styles.lookupButtonText}>{t('verifier.cta')}</Text>
               )}
             </TouchableOpacity>
           </View>
 
           {txLookupStatus === 'not_found' && (
-            <Text style={styles.lookupResultError}>Numéro de série introuvable. Vérifiez et réessayez.</Text>
+            <Text style={styles.lookupResultError}>{t('verifier.notFound')}</Text>
           )}
 
           {txLookupStatus === 'error' && (
-            <Text style={styles.lookupResultError}>Erreur lors de la vérification. Réessayez.</Text>
+            <Text style={styles.lookupResultError}>{t('verifier.lookupError')}</Text>
           )}
         </View>
 
@@ -190,9 +192,9 @@ export default function VerifierScreen() {
               <View style={styles.voteConfirmation}>
                 <ShieldCheckIcon color={colors.successText} size={24} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.voteConfirmationTitle}>Vote vérifié</Text>
-                  <Text style={styles.voteConfirmationAnswer}>Ce vote a choisi : {votedFor}</Text>
-                  {voteDate && <Text style={styles.voteConfirmationDate}>Enregistré le {voteDate}</Text>}
+                  <Text style={styles.voteConfirmationTitle}>{t('verifier.voteVerified')}</Text>
+                  <Text style={styles.voteConfirmationAnswer}>{t('verifier.voteVerifiedAnswer', { vote: votedFor })}</Text>
+                  {voteDate && <Text style={styles.voteConfirmationDate}>{t('verifier.recordedOn', { date: voteDate })}</Text>}
                 </View>
               </View>
 
@@ -200,7 +202,7 @@ export default function VerifierScreen() {
               <View style={styles.pollSection}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.badge, active && styles.badgeActive]}>
-                    <Text style={styles.badgeText}>{active ? 'En cours' : 'Terminé'}</Text>
+                    <Text style={styles.badgeText}>{t(active ? 'home.badgeOngoing' : 'home.badgeFinished')}</Text>
                   </View>
                   <Text style={styles.pollId}>#{p.id}</Text>
                 </View>
@@ -213,11 +215,11 @@ export default function VerifierScreen() {
 
                 <View style={styles.statsRow}>
                   <View style={styles.stat}>
-                    <Text style={styles.statLabel}>Votes enregistrés</Text>
+                    <Text style={styles.statLabel}>{t('verifier.votesCount')}</Text>
                     <Text style={styles.statValue}>{total.toLocaleString()}</Text>
                   </View>
                   <View style={styles.stat}>
-                    <Text style={styles.statLabel}>Options</Text>
+                    <Text style={styles.statLabel}>{t('verifier.optionsCount')}</Text>
                     <Text style={styles.statValue}>{variants.length}</Text>
                   </View>
                 </View>
@@ -248,7 +250,7 @@ export default function VerifierScreen() {
                   activeOpacity={0.7}
                   onPress={() => Linking.openURL(`${EXPLORER_TX_BASE_URL}${txHash}`)}
                 >
-                  <Text style={styles.explorerText}>Voir la transaction sur la blockchain</Text>
+                  <Text style={styles.explorerText}>{t('verifier.viewTxOnChain')}</Text>
                   <ExternalLinkIcon color={colors.secondary} size={14} />
                 </TouchableOpacity>
               </View>

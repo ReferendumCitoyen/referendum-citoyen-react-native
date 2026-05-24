@@ -9,7 +9,10 @@ import {
 
 interface ErrorReportContextValue {
   pendingReport: PreparedReport | null;
-  reportError: (err: unknown, context?: ReportContext) => Promise<void>;
+  /** Prepare and stash the report (writes the temp file). Returns the
+   * prepared report so callers can immediately send it without waiting for
+   * the `pendingReport` state update. */
+  reportError: (err: unknown, context?: ReportContext) => Promise<PreparedReport | null>;
   sendPending: () => Promise<void>;
   clearReport: () => void;
   isExpected: (err: unknown) => boolean;
@@ -24,14 +27,16 @@ export function ErrorReportProvider({ children }: { children: React.ReactNode })
   const reportError = useCallback(async (err: unknown, context?: ReportContext) => {
     // Log the error so it ends up in the snapshot itself.
     console.error('[error-report]', err);
-    if (inFlight.current) return;
+    if (inFlight.current) return null;
     inFlight.current = true;
     try {
       const report = await prepareErrorReport(err, context);
       setPendingReport(report);
+      return report;
     } catch (e) {
       // Reporting must never crash the app.
       console.warn('[error-report] failed to prepare report', e);
+      return null;
     } finally {
       inFlight.current = false;
     }

@@ -1,8 +1,8 @@
 {
   "tabs": {
-    "comprendre": "Understand",
+    "comprendre": "Learn",
     "accueil": "Votes",
-    "parametres": "Settings"
+    "verifier": "Verify"
   },
   "languages": {
     "fr": "Français",
@@ -11,23 +11,24 @@
   "common": {
     "cancel": "Cancel",
     "retry": "Retry",
-    "analyze": "Start analysis",
-    "manualFill": "Fill manually",
+    "analyze": "Run analysis",
+    "manualFill": "Enter manually",
     "open": "Open",
     "select": "Select",
-    "backToHome": "Back to home",
+    "backToHome": "Back to home screen",
     "close": "Close",
     "backToScanner": "Back to scanner",
     "yes": "Yes",
     "no": "No",
-    "blank": "Blank"
+    "blank": "Blank",
+    "continue": "Continue"
   },
   "errorReport": {
     "button": "Send error report",
     "subject": "Error report",
-    "body": "Hello,\n\nThe app encountered an unexpected error. The attached file contains anonymised diagnostic information to help fix the issue.\n\nNo personal data (passport number, name, private key, etc.) is included in this report.\n\nThank you for your help.\n\n— Référendum Citoyen app, v{{version}} (build {{build}})",
+    "body": "Hello,\n\nThe app encountered an unexpected error. The attached file contains anonymised diagnostic information that will help fix the issue.\n\nNo personal data (passport number, name, private key, etc.) is included in this report.\n\nThank you for your help.\n\n— Référendum Citoyen app, v{{version}} (build {{build}})",
     "shareDialogTitle": "Send the report",
-    "fallbackTitle": "Something went wrong",
+    "fallbackTitle": "An error occurred",
     "fallbackMessage": "The app encountered an unexpected problem. You can send a report to help us fix it."
   },
   "navigation": {
@@ -40,80 +41,128 @@
   "settings": {
     "title": "Settings",
     "darkMode": "Dark mode",
-    "language": "Language",
-    "rpc": "RPC",
-    "smartContract": "Smart contract",
+    "privacyPolicy": "Privacy policy",
+    "termsAndConditions": "Terms and conditions",
+    "contact": "Contact us",
     "nfcTest": "NFC test",
     "diagnostics": "Diagnostics",
+    "language": "Language",
     "version": "Version {{version}} ({{build}})",
     "network": "Network",
     "networkMainnet": "Mainnet — chain 7368",
-    "networkTestnet": "Testnet — chain 7369"
+    "networkTestnet": "Testnet — chain 7369",
+    "mainnetAlertTitle": "Enable Mainnet network?",
+    "mainnetAlertBody": "Mainnet permanently records your identity and your vote on Rarimo Mainnet (chain 7368). Use it only if you fully understand the implications.",
+    "extrasShowing": "Showing: #{{ids}}",
+    "extrasEnabledEmpty": "Enabled (empty list)",
+    "extrasDisabled": "Disabled"
+  },
+  "keyManagement": {
+    "title": "Key backup / restore",
+    "wipeAllConfirmTitle": "Delete everything?",
+    "wipeAllConfirmBody": "Any identity already registered on the blockchain with these keys will no longer be usable from this app — make sure you have exported the passport database if you want to keep it.\n\nThis action cannot be undone. Continue?",
+    "wipeAllDone": "Data wiped. Restart the app — you'll need to re-accept the terms.",
+    "wipeAllCta": "Delete everything",
+    "wipeAllDescription": "The app will restart as a fresh install: you'll need to re-accept the terms and conditions, and any previously registered identity will be lost. This action cannot be undone.",
+    "dbDescription": "Each scanned passport is associated with a distinct BJJ key (one key per passport). Back up the database before uninstalling the app — without it, your on-chain identities will no longer be reusable.",
+    "dbRestoreHint": "Restore a backup: paste a previously exported JSON below.",
+    "dbImportReplace": "All currently registered passports will be removed and replaced by those in the file.",
+    "dbImportMerge": "Existing passports will be kept (never overwritten). Only new passports will be added.",
+    "wipeDbConfirmBody": "All (passport → BJJ key) associations will be removed. This does not delete the current \"active\" key. Make a backup first if needed.",
+    "wipeDbDone": "Passport database wiped.",
+    "wipeDbConfirmTitle": "Wipe the passport database?",
+    "dbSectionTitle": "Passport database ({{count}})",
+    "exportCopied": "Backup copied ({{count}} passport{{plural}}).",
+    "exportError": "Copy failed.",
+    "importEmptyTitle": "Empty",
+    "importEmptyBody": "Paste a JSON backup before importing.",
+    "importInvalidTitle": "Invalid format",
+    "importInvalidBody": "Unable to read the backup.",
+    "importDoneReplace": "Import (replace): {{added}} added, {{skipped}} skipped.",
+    "importDoneMerge": "Import (merge): {{added}} added, {{skipped}} skipped.",
+    "actionExport": "Export (JSON)",
+    "actionDelete": "Wipe",
+    "actionMerge": "Merge",
+    "actionReplaceAll": "Replace all",
+    "confirmReplaceTitle": "Replace the database?",
+    "confirmMergeTitle": "Merge into the database?",
+    "wipeAllSectionTitle": "Delete everything",
+    "wipeAllSectionDescription": "⚠️ Wipes the BJJ private key, the passport database and the accepted terms. The app will restart as a fresh install: you'll need to re-accept the terms and rescan your passport. Identities already registered on-chain with the wiped keys will no longer be usable from this app — export the passport database first if you want to keep it. This action cannot be undone.",
+    "wipeAllAlertBody": "This will wipe:\n\n  • The current BJJ private key\n  • All passport → key associations\n  • Your acceptance of the terms (you'll need to re-accept on restart)\n\nAny identity already registered on the blockchain with these keys will no longer be usable from this app — make sure you have exported the passport database if you want to keep it.\n\nThis action cannot be undone. Continue?",
+    "wipeAllError": "Error",
+    "wipeAllErrorBody": "Wipe failed.",
+    "genericError": "Error"
   },
   "home": {
     "yes": "Yes",
     "blank": "Blank",
     "no": "No",
     "ongoingVotes": "Ongoing votes",
-    "badgeOngoing": "Ongoing",
+    "badgeOngoing": "Voting open",
     "badgeSoon": "Soon",
-    "badgeFinished": "Finished",
+    "badgeFinished": "Ended",
     "votes": "Votes",
     "countingInProgress": "Counting in progress",
-    "endsIn": "Closes on",
+    "endsIn": "Ends on",
     "starts": "Starts",
     "ended": "Ended",
     "voteButton": "Vote",
-    "voteUnsupportedMultiQuestion": "Multi-question proposal — not supported",
-    "loading": "Loading proposals...",
+    "voteUnsupportedMultiQuestion": "Multi-choice ballot — not supported",
+    "resultsNow": "Current results",
+    "loading": "Loading proposals…",
     "error": "Error: {{message}}",
     "noProposals": "No proposals found",
     "preparingVotingData": "Preparing voting data… {{percent}}%",
     "showLess": "Show less",
-    "showMore": "Show more ({{count}})"
+    "showMore": "Show more ({{count}})",
+    "loadErrorNetwork": "Network error — check your connection and pull down to retry.",
+    "loadErrorGeneric": "Unable to load proposals. Pull down to retry."
   },
   "voting": {
     "title": "Voting process",
-    "step1Description": "Validate your age and nationality. Your data is encrypted and untraceable. You are 100% anonymous.",
-    "step1Privacy": "Your identity will not be stored: your personal data is impossible to trace back, and is deleted immediately after the vote.",
+    "step1Description": "Verify your age and nationality. Your data is encrypted and untraceable. You stay 100% anonymous.",
+    "step1Privacy": "Your identity will not be stored: your personal data is impossible to trace and is wiped immediately after voting.",
     "step2Title": "Verify your age and nationality locally on your device",
     "step3Title": "Anonymous vote",
-    "step3Description": "Once your data is verified and authentic, the app generates an anonymous token that allows you to vote.",
+    "step3Description": "Once your data is verified as authentic, the app produces an anonymous token that lets you vote.",
     "step4Start": "Start analysis",
-    "step5CameraPermission": "Camera permission is required",
+    "step5CameraPermission": "Permission required to access the camera",
     "step5CameraUnavailable": "Camera unavailable",
     "step5CardOverlay": "ID CARD",
-    "step5Scanning": "Searching for MRZ...",
-    "step5Partial": "MRZ partially detected...",
+    "step5CardOverlay_idCard": "ID CARD",
+    "step5CardOverlay_passport": "PASSPORT",
+    "step5Scanning": "Looking for the MRZ…",
+    "step5Partial": "MRZ partially detected…",
     "step5Success": "MRZ detected!",
-    "step5OcrUnavailable": "Text recognition doesn't seem to work on this device (Google services missing). Please use \"Manual entry\" below.",
-    "step5WrongCountry": "This vote is not open to your nationality ({{country}}).",
-    "step6MissingMrz": "MRZ data is missing. Scan MRZ first.",
-    "step6Init": "🔄 Initializing...",
-    "step6Authenticating": "🔐 Authenticating...",
-    "step6Reading": "📖 Reading data...",
-    "step6ActiveAuth": "✅ Active authentication...",
+    "step5Underage": "You must be at least 18 to vote.",
+    "step5WrongCountry": "This ballot is not open to your nationality ({{country}}).",
+    "step5OcrUnavailable": "Text recognition does not seem to work on this device (Google services missing). Use \"Enter manually\" below.",
+    "step6MissingMrz": "MRZ data missing. Scan the MRZ first.",
+    "step6Init": "🔄 Initialising…",
+    "step6Authenticating": "🔐 Authenticating…",
+    "step6Reading": "📖 Reading data…",
+    "step6ActiveAuth": "✅ Active authentication…",
     "step6ReadSuccess": "✅ Read successful!",
     "step6ReadError": "❌ Read error",
-    "step6InvalidMrz": "❌ Invalid MRZ data. Returning to scanner...",
-    "step6ErrorWithMessage": "❌ Error: {{message}}. Please retry.",
-    "step6Scanning": "Scan in progress...",
+    "step6InvalidMrz": "❌ Invalid MRZ data. Returning to scanner…",
+    "step6ErrorWithMessage": "❌ Error: {{message}}. Try again.",
+    "step6Scanning": "Scanning…",
     "step7Title": "Local verification",
     "step7Description": "Verifying your age and nationality locally on your device. Please wait…",
-    "step7Verifying": "Verifying...",
-    "step7CheckingStatus": "Checking status...",
-    "step7Registering": "Registering your identity...",
+    "step7Verifying": "Verifying…",
+    "step7CheckingStatus": "Checking status…",
+    "step7Registering": "Registering your identity…",
     "step7Verified": "Verification successful!",
     "step7MissingData": "Identity data missing. Please rescan your card.",
-    "step7WrongDocumentType": "Passport detected. Please use your national identity card (not a passport) to vote.",
+    "step7WrongDocumentType": "Passport detected. Please use your national ID card (not a passport) to vote.",
     "step7NameUnavailable": "Name unavailable",
     "step7BornOn": "Born on: {{date}}",
     "step7Nationality": "Nationality: {{value}}",
-    "step8Ready": "You are ready",
+    "step8Ready": "You're ready",
     "step8VoteNow": "Vote now",
     "step9Confirm": "Are you sure you want to vote: {{vote}}?",
     "step9VoteAction": "Vote {{vote}}",
-    "step9ErrorTitle": "This identity cannot be used",
+    "step9ErrorTitle": "This identifier cannot be used",
     "step10Confirm": "Are you sure you want to vote: {{vote}}?",
     "step10VoteAction": "Vote {{vote}}",
     "step10VoteYes": "Vote Yes",
@@ -121,158 +170,307 @@
     "step10VoteBlank": "Vote Blank",
     "step11Status": "{{countdown}} ({{status}})",
     "step11Success": "Success",
-    "step11Fail": "Fail",
-    "step12SuccessTitle": "Done! Your vote has been recorded.",
-    "step12SuccessDescription": "Your ID card data has been erased from this device.",
+    "step11Fail": "Failed",
+    "step12SuccessTitle": "Your vote has been recorded.",
+    "step12SuccessDescription": "Your ID card data has been wiped from this device.",
     "step12SuccessButton": "View results",
+    "step12VoteIdLabel": "Here is your vote's serial number:",
+    "step12VoteIdCopy": "Copy",
+    "step12VoteIdCopied": "Copied!",
+    "step12VoteIdKeep": "You can write it down somewhere. Go to the \"Verify\" tab, enter a vote's serial number (only you know it's yours) and you can confirm that your vote exists and matches what you chose.",
+    "step12Share": "Share",
+    "step12ShareMessage": "I just voted on Référendum Citoyen! My vote serial number: {{voteId}}",
     "step11VoteSubmitted": "Vote submitted!",
-    "step11Preparing": "Preparing...",
-    "step11GeneratingProof": "Generating ZK proof...",
-    "step11NetworkRetry": "Network error — retrying ({{attempt}}/{{max}})...",
-    "step11DownloadingData": "Downloading voting data... {{percent}}%",
-    "step11FinalizingData": "Finalizing voting data...",
-    "step11DownloadFailed": "Failed to download voting data. Check your connection and try again.",
+    "step11Preparing": "Preparing…",
+    "step11GeneratingProof": "Generating ZK proof…",
+    "step11NetworkRetry": "Network error — retrying ({{attempt}}/{{max}})…",
+    "step11DownloadingData": "Downloading voting data… {{percent}}%",
+    "step11FinalizingData": "Finalising voting data…",
+    "step11DownloadFailed": "Unable to download voting data. Check your connection and try again.",
     "step11VotingNotStarted": "Voting has not started yet.",
     "step11VotingEnded": "Voting has ended.",
-    "step11ProverIncompatible": "The Android proof was rejected by the contract (PAIRING_FAILED 0xd71fd263). Known upstream issue with the Rarimo Android SDK. Please report it.",
+    "step11ProverIncompatible": "The Android proof is rejected by the contract (PAIRING_FAILED 0xd71fd263). Known issue in the Rarime Android SDK. Please report the incident.",
     "step12ErrorTitle": "An error occurred.",
     "step12ErrorDescription": "Please try again.",
     "step6PassportDetected": "📄 Passport detected",
-    "step6UseIdCardInstead": "This step requires your ID card. Please hold your card against the phone.",
+    "step6UseIdCardInstead": "This step requires your ID card. Please hold your card to the phone.",
     "step6IdCardDetected": "🪪 ID card detected",
-    "step6UsePassportInstead": "This step requires your passport. Please hold your passport against the phone.",
-    "step2Description_idCard": "This app verifies data from the NFC chip inside your ID card. Data is neither transferred nor stored on any third-party server.",
-    "step2Description_passport": "This app verifies data from the NFC chip inside your passport. Data is neither transferred nor stored on any third-party server.",
+    "step6UsePassportInstead": "This step requires your passport. Please hold your passport to the phone.",
+    "step2Description_idCard": "This app verifies the data on the NFC chip inside your ID card. The data is not transferred to or stored on any third-party server.",
+    "step2Description_passport": "This app verifies the data on the NFC chip inside your passport. The data is not transferred to or stored on any third-party server.",
     "step4Title_idCard": "ID card analysis",
     "step4Title_passport": "Passport analysis",
-    "step4Description_idCard": "Hold your device over your ID card",
-    "step4Description_passport": "Hold your device over your passport",
-    "step5Title_idCard": "MRZ analysis",
-    "step5Title_passport": "MRZ analysis",
+    "step4Description_idCard": "Hold your device against your ID card",
+    "step4Description_passport": "Hold your device against your passport",
+    "step5Title_idCard": "Hold the back of your card up to the camera",
+    "step5Title_passport": "Hold the photo page of your passport up to the camera",
     "step5Positioning_idCard": "Position the back of the card",
-    "step5Positioning_passport": "Position the back of the passport",
-    "step6Title_idCard": "Reading your ID card chip",
-    "step6Title_passport": "Reading your passport chip",
-    "step6PresentCard_idCard": "📱 Bring your ID card to the phone",
-    "step6PresentCard_passport": "📱 Bring your passport to the phone",
-    "step6Now_idCard": "📱 Bring your card now...",
-    "step6Now_passport": "📱 Bring your passport now...",
-    "step9ErrorDescription_idCard": "The owner of this ID card has already voted or informed us they refuse to vote",
-    "step9ErrorDescription_passport": "The owner of this passport has already voted or informed us they refuse to vote",
-    "step11MissingData_idCard": "Error: please scan your ID card first.",
-    "step11MissingData_passport": "Error: please scan your passport first.",
-    "step6Instruction_idCard": "Place the chip of your ID card against the back of your phone, stay still and press Analyse. Keep the chip of your card against your phone during the analysis.",
-    "step6Instruction_passport": "Place the chip of your passport against the back of your phone, stay still and press Analyse. Keep the chip of your passport against your phone during the analysis.",
+    "step5Positioning_passport": "Position the passport photo page",
     "step5PassportDetected_idCard": "Wrong document — please scan a French ID card, not a passport.",
     "step5PassportDetected_passport": "Wrong document — please scan a French passport, not an ID card.",
-    "step1Title": "Validate the uniqueness of your vote (and that you're not a robot)"
+    "step5Expired_idCard": "This ID card is expired.",
+    "step5Expired_passport": "This passport is expired.",
+    "step6Title_idCard": "Reading the chip in your card",
+    "step6Title_passport": "Reading the chip in your passport",
+    "step6PresentCard_idCard": "📱 Hold your ID card to the phone",
+    "step6PresentCard_passport": "📱 Hold your passport to the phone",
+    "step6Now_idCard": "📱 Hold your card now…",
+    "step6Now_passport": "📱 Hold your passport now…",
+    "step6Instruction_idCard": "Hold the chip side of your ID card against the back of your phone, keep it still and press Analyse. Keep the chip pressed against the phone throughout the analysis.",
+    "step6Instruction_passport": "Hold the chip side of your passport against the back of your phone, keep it still and press Analyse. Keep the chip pressed against the phone throughout the analysis.",
+    "step9ErrorDescription_idCard": "The owner of this ID card has already voted or has told us they refuse to vote",
+    "step9ErrorDescription_passport": "The owner of this passport has already voted or has told us they refuse to vote",
+    "step11MissingData_idCard": "Error: please scan your ID card first.",
+    "step11MissingData_passport": "Error: please scan your passport first.",
+    "step1Title": "Confirm the uniqueness of your vote (and that you are not a robot)",
+    "errors": {
+      "curveUnsupported": "This passport uses a cryptographic curve not yet supported by the app ({{detail}}). Our team is working on adding compatibility.",
+      "compressedPubKey": "This passport uses a compressed public key ({{bits}}-bit Y {{parity}}) that the on-chain registration contract does not yet support. Our team is working on adding compatibility.",
+      "unexpectedCertEncoding": "Your passport certificate uses an unexpected encoding (SPKI: {{spkiLen}} bytes, head=0x{{spkiHead}}, {{curveBits}}-bit curve). Please share the passport JSON for diagnosis.",
+      "dispatcherNotDeployed": "Your passport type is not yet supported by Rarimo's registration contract (the ECDSA certification authority verifier is pending on-chain deployment). Our team is tracking this blocker with Rarimo.",
+      "passportAlreadyBoundOtherKey": "This passport is already registered on Mainnet with a different private key. To vote with this passport, restore the original key via Settings → Key management → Restore a key.",
+      "cscaNotInBundle": "Your passport's root certificate (CSCA) is not in the ICAO list bundled with the app. Please ask maintenance to update the certificate list.",
+      "missingAki": "Your passport certificate has no AuthorityKeyIdentifier — unable to determine the signing CSCA.",
+      "cscaNotRegisteredOnMainnet": "Your passport's root certificate is not yet registered on Mainnet. Try again later or contact support.",
+      "switchToMainnet": "Change the network in Settings → Network.",
+      "network": "Network error — check your connection and try again.",
+      "alreadyRegistered": "Identity already registered.",
+      "alreadyVoted": "You have already voted for this proposal.",
+      "forbidden": "Access denied by the server. Try again later.",
+      "verificationFailed": "Verification failed. Please rescan your card and try again.",
+      "generic": "An error occurred. Please try again.",
+      "unexpected": "An unexpected error occurred. Please try again.",
+      "parityEven": "even",
+      "parityOdd": "odd"
+    }
+  },
+  "verifier": {
+    "title": "Verify",
+    "description": "Every vote is recorded on the blockchain and publicly verifiable. No central server can modify the results.",
+    "lookupLabel": "Look up a vote by serial number",
+    "cta": "Verify",
+    "notFound": "Serial number not found. Check it and try again.",
+    "lookupError": "Verification error. Please try again.",
+    "voteVerified": "Vote verified",
+    "voteVerifiedAnswer": "This vote chose: {{vote}}",
+    "recordedOn": "Recorded on {{date}}",
+    "votesCount": "Recorded votes",
+    "optionsCount": "Options",
+    "viewTxOnChain": "View the transaction on the blockchain"
   },
   "nfcScan": {
     "title": "NFC scan",
-    "missingMrz": "MRZ data is missing",
-    "instruction": "Place your ID card against the back of your phone"
+    "missingMrz": "MRZ data missing",
+    "instruction": "Hold your ID card against the back of your phone"
   },
   "mrzManual": {
-    "title": "Manual MRZ input",
+    "title": "Manual MRZ entry",
     "documentNumber": "Document number",
     "birthDate": "Date of birth",
     "expiryDate": "Expiry date",
-    "documentPlaceholder": "Ex: AB123456",
-    "datePlaceholder": "DDMMYY",
-    "birthHint": "Format: Day Month Year (e.g. 150790 for 15/07/1990)",
-    "expiryHint": "Format: Day Month Year (e.g. 251229 for 25/12/2029)",
-    "submit": "Validate"
+    "documentPlaceholder": "e.g. AB123456",
+    "datePlaceholder": "DD/MM/YY",
+    "birthHint": "Format: Day / Month / Year (e.g. 15/07/90 for 15 July 1990)",
+    "expiryHint": "Format: Day / Month / Year (e.g. 25/12/29 for 25 December 2029)",
+    "birthInvalid": "Invalid date of birth.",
+    "birthUnderage": "You must be at least 18 to vote.",
+    "expiryInvalid": "Invalid expiry date.",
+    "expiryExpired": "This ID card is expired.",
+    "submit": "Submit",
+    "idCardOnly": "Only French ID cards are accepted. Passports are not supported."
   },
   "nfcTest": {
     "closeCamera": "✕ Close",
     "scanMrzInstructions": "Scan the 3 MRZ lines on the back of the ID card",
     "rarimeTestnet": "Rarime Testnet",
     "profileKey": "Profile Key:",
-    "loading": "Loading...",
-    "notRegistered": "⚪ Not Registered",
-    "registeredOwnKey": "✅ Registered (Your Key)",
-    "registeredOtherKey": "⚠️ Registered (Other Key)",
-    "checkingStatus": "Checking status on testnet...",
-    "registering": "Registering (~5s)...",
-    "registerIdentity": "Register Identity on Testnet",
+    "loading": "Loading…",
+    "notRegistered": "⚪ Not registered",
+    "registeredOwnKey": "✅ Registered (your key)",
+    "registeredOtherKey": "⚠️ Registered (different key)",
+    "checkingStatus": "Checking status on testnet…",
+    "registering": "Registering (~5s)…",
+    "registerIdentity": "Register identity on testnet",
     "txHash": "TX Hash:",
-    "resetPrivateKey": "🔄 Reset Private Key",
-    "mrzData": "MRZ data (passport back side)",
+    "resetPrivateKey": "🔄 Reset private key",
+    "mrzData": "MRZ data (back of passport)",
     "scanWithCamera": "📷 Scan with camera",
     "orManualInput": "or enter manually:",
     "documentNumberPlaceholder": "Document number (e.g. 12AB34567)",
-    "birthDatePlaceholder": "Birth date (YYMMDD)",
+    "birthDatePlaceholder": "Date of birth (YYMMDD)",
     "expiryDatePlaceholder": "Expiry date (YYMMDD)",
     "fullPassportRead": "Full passport read:",
-    "scanInProgress": "Scanning...",
+    "scanInProgress": "Scanning…",
     "edocumentModule": "📄 EDocument Module",
     "basicNfcTests": "Basic NFC tests:",
-    "scanNdefTag": "Scan NDEF Tag",
-    "scanIsoDepPassport": "Scan IsoDep (Passport)",
+    "scanNdefTag": "Scan NDEF tag",
+    "scanIsoDepPassport": "Scan IsoDep (passport)",
     "errorLabel": "Error:",
     "passportScannedSuccess": "✅ Passport scanned successfully",
     "lastName": "Last name:",
     "firstName": "First name:",
     "birthDate": "Date of birth:",
     "nationality": "Nationality:",
-    "documentNumber": "Document no.:",
+    "documentNumber": "Document №:",
     "expiryDate": "Expiry date:",
-    "passportDataInLogs": "Passport data available in logs",
+    "passportDataInLogs": "Passport data available in the logs",
     "viewRawData": "📋 View raw data (logs)",
-    "instruction": "Tap a button and bring an NFC tag close to your device.",
+    "instruction": "Press the button and hold an NFC tag close to your device.",
     "errors": {
       "cameraPermissionDenied": "Camera permission denied",
-      "missingPassportOrKey": "No passport scanned or private key not available",
+      "missingPassportOrKey": "No passport scanned or private key unavailable",
       "registrationFailed": "Registration failed: {{message}}",
       "unknown": "Unknown error",
       "fillAllMrzFields": "Please fill in all MRZ fields"
     },
     "status": {
-      "presentPassport": "📱 Hold your passport near the phone",
-      "authenticatingPassport": "🔐 Authenticating with passport...",
-      "readingPassportData": "📖 Reading passport data...",
+      "presentPassport": "📱 Hold your passport to the phone",
+      "authenticatingPassport": "🔐 Authenticating with the passport…",
+      "readingPassportData": "📖 Reading passport data…",
       "scanCompleted": "✅ Scan completed successfully!"
     }
   },
   "notFound": {
-    "title": "This screen does not exist.",
-    "goHome": "Go to home screen"
+    "title": "This screen doesn't exist.",
+    "goHome": "Back to home"
   },
   "comprendre": {
     "welcome": {
       "title": "Welcome!",
-      "text": "We invite all citizens to vote in referendums on current topics."
+      "text": "We are building an app that lets French citizens collectively express their political will through verifiable citizen referendums. When a large number of citizens take part in an authenticated vote, the result becomes a strong democratic expression, publicly verifiable, and politically hard to ignore."
     },
-    "accordions": [
+    "sections": [
       {
-        "title": "A unique, tamper-proof vote",
-        "content": "Voting is done by reading your ID card chip (not passport, to avoid double votes) locally on your phone to ensure:\n1. You are French and of legal age\n2. No one can vote twice"
+        "title": "The goal",
+        "intro": "",
+        "accordions": [
+          {
+            "title": "How is this different from a poll?",
+            "content": "A poll surveys a small sample of people to estimate an opinion. These verified citizen referendums let every citizen actually vote, only once, anonymously and verifiably. A poll gives an estimate. A citizen referendum gives a real result that everyone can check and that is politically hard to ignore."
+          },
+          {
+            "title": "How is this different from a petition?",
+            "content": "A petition expresses declarative support, without guaranteeing that each signer is a French adult citizen or that the same person only signs once, and it relies on a list controlled by its organisers, who set the wording and publish the result themselves. By contrast, this verified citizen referendum relies on ID-card authentication that guarantees 1 person = 1 vote, lets you vote for, against or blank, and makes the result verifiable by anyone via a public registry independent of the organisers. Where a petition measures a mobilisation aimed at a position, this mechanism enables a neutral and verifiable expression of an authenticated collective decision by citizens, giving it a democratic and political weight of an entirely different nature."
+          },
+          {
+            "title": "Is this an official referendum?",
+            "content": "No. It is a verified citizen referendum. Every voter can verify that their vote has been counted in the public online registry. But a referendum in which hundreds of thousands or millions of authenticated citizens take part becomes a major democratic fact."
+          }
+        ]
       },
       {
-        "title": "A guaranteed anonymous vote",
-        "content": "It is impossible to know who voted what because records are encrypted locally on your phone before being sent to a public ledger where there is no link between your name and your vote."
+        "title": "A unique and publicly verifiable vote",
+        "intro": "The right to vote is verified by reading the chip on your ID document directly on your phone. This check guarantees:\n1. that you are French and an adult\n2. that the same person can only vote once\n\nThis check is performed locally on your phone: no central identity file is created.",
+        "accordions": [
+          {
+            "title": "What do I need to vote?",
+            "content": "You need a passport, and a smartphone with the Référendum Citoyen app installed."
+          },
+          {
+            "title": "Why not the ID card?",
+            "content": "This is a technical, pragmatic and temporary choice. The voting technology does not work with a central electoral roll. It relies on an ID document to guarantee that one person votes only once, while staying anonymous. Today it is not possible to allow voting by passport AND by ID card at the same time without risking double votes from the same person. So a single base had to be chosen to start. We chose the biometric passport because there are many more compatible passports today than biometric ID cards actually usable. French biometric passports have existed for many years and are widely held. New biometric ID cards are much more recent and much less widespread."
+          },
+          {
+            "title": "Why not use FranceConnect?",
+            "content": "Because FranceConnect relies on a central identity file. Our system relies instead on a local check of the ID document with no central database linking identity and vote. FranceConnect is managed by the State; our system is independent of the government."
+          },
+          {
+            "title": "Can someone vote twice using two phones?",
+            "content": "No. The identity proof prevents duplicate voting rights."
+          },
+          {
+            "title": "Is there a possibility of double voting?",
+            "content": "The system prevents the same person from voting twice with the same ID document.\n\nUnder the current rollout of the new electronic ID documents, a person who reports their card or passport lost and obtains a new one could in theory vote twice. This case remains extremely rare today. In the long run we can make this risk disappear technically: once lost and reissued ID documents share a common identifier preventing any double use."
+          },
+          {
+            "title": "Going further",
+            "content": "Technical code link: https://github.com/rarimo/rarime-rn-sdk\n\nRarimo's project with existing votes: https://freedomtool.org/"
+          }
+        ]
+      },
+      {
+        "title": "A guaranteed-anonymous vote",
+        "intro": "We prove that you have the right to vote, not who you are. Your identity is checked only to confirm your right to vote. Then your identity is separated from your vote before it is sent. The vote sent to the tamper-proof, publicly visible registry contains no information that could link your identity to your vote. As a result, the counted ballot cannot be traced back to an ID document.\n\nIn technical terms, voting happens inside a smart contract on a chain (Rarimo's to begin with).",
+        "accordions": [
+          {
+            "title": "How do you guarantee \"1 person = 1 vote\" without knowing the identity?",
+            "content": "The ID document is read directly on the phone to verify that the person is French, an adult, and is exercising their right to vote only once. A cryptographic token proving the right to vote is then generated. This proof confirms that the person is entitled to vote without revealing their identity. No central file links identity to vote. The system lets you vote but does not know who you are."
+          },
+          {
+            "title": "Who can see my vote?",
+            "content": "Nobody. Your vote is anonymised before being sent."
+          },
+          {
+            "title": "Can the State know what I voted for?",
+            "content": "No. No central file links identity and vote. If an ID document is used after your vote, the system detects that it has already been used and prevents a second vote. Among the options when you cast a vote, an \"I refuse to vote\" option exists to publicly signal that no vote has been expressed with your ID document. This protects you."
+          }
+        ]
       },
       {
         "title": "A transparent vote",
-        "content": "All votes visible on-chain are verifiable, allowing everyone to verify the presence of their vote and the legitimacy of others. The ledger is public and transparent. It cannot be altered once data is recorded."
+        "intro": "Every vote receives a unique identifier publicly visible in the ballot's registry. This means:\n– every citizen can verify that their vote has been counted and matches their choice\n– anyone can verify the total number of votes",
+        "accordions": [
+          {
+            "title": "Can I check that my vote has been counted?",
+            "content": "Yes. Your vote has a unique identifier visible to everyone in the registry. This identifier lets every citizen check that their vote is recorded and counted in the total. Anyone can verify the result."
+          },
+          {
+            "title": "Can I check other people's votes?",
+            "content": "Yes. The total number of votes is public and verifiable. Results are visible in real time as they progress."
+          }
+        ]
       },
       {
-        "title": "Others can vote in your referendum",
-        "content": "The app allows multiple people to vote on the same referendum. You can create your own referendum and invite others to participate."
+        "title": "Others can vote on your phone",
+        "intro": "Several people can vote from the same phone. Each vote requires reading a different ID document. Once a vote is recorded, no information is kept on the phone.",
+        "accordions": [
+          {
+            "title": "Can the phone's owner see my vote?",
+            "content": "No. The vote is wiped from the phone after sending. The phone works like a polling station, not like a ballot."
+          },
+          {
+            "title": "Can you vote on behalf of someone else?",
+            "content": "No. The ID document is required. Using someone else's ID document is identity fraud and is a criminal offence."
+          }
+        ]
       },
       {
-        "title": "What happens after counting votes?",
-        "content": "There is no central computer collecting votes. Votes are recorded on thousands of computers. If the app is blocked or removed from app stores, it can be duplicated to continue voting."
+        "title": "A registry distributed across many computers and publicly verifiable",
+        "intro": "Votes are not stored on a single server. They are recorded in a registry distributed across many computers and public. This means that no single actor can change or remove the results without it being visible. The system relies on public verification of results rather than trust in a central authority.",
+        "accordions": [
+          {
+            "title": "Can a third party shut down the app?",
+            "content": "Even if the app disappears, the votes remain recorded in the openly distributed file, accessible independently of the app. The ballot cannot be interrupted during the voting period."
+          },
+          {
+            "title": "Can a third party delete the results?",
+            "content": "No. They are stored in an electronic ballot box accessible to everyone."
+          },
+          {
+            "title": "Can the results be rigged?",
+            "content": "The system is not based on trusting a central server, but on public verification of the results. The right to vote is verified locally on the phone, the vote is anonymised before being sent, then recorded in a public registry that anyone can consult. Any attempt to alter the result would be immediately visible, since anyone can check the number of votes recorded."
+          },
+          {
+            "title": "What happens if a flaw is discovered?",
+            "content": "The system relies on transparency rather than secrecy. The code is open source, so independent experts can review it at any time. If a flaw is identified, it can be fixed by the team behind the app publicly and quickly. This permanent-audit logic reinforces the security of the system rather than weakening it."
+          }
+        ]
+      },
+      {
+        "title": "Where does this come from?",
+        "intro": "Alexandre Jardin (writer, founder of the #LesGueux movement) is convinced by his son Robinson Jardin (formerly at NordVPN) of the potential of proven cryptographic technologies to enable direct democracy without waiting. They team up with Alexis Roussel (a thinker of Swiss digital democracy) who sets the specifications for this app and determines its architecture. The app relies in particular on technologies developed by the European Rarimo team, already used to organise secure citizen votes in politically sensitive contexts.",
+        "accordions": [
+          {
+            "title": "How is this system different from a regular blockchain?",
+            "content": "This system is not a plain blockchain. It combines a local read of the ID document, the generation of a cryptographic token proving the right to vote, and the recording of votes in a publicly verifiable registry, without a central identity database. This combination guarantees that a person can only vote once while keeping the vote anonymous and making the result verifiable by anyone."
+          }
+        ]
       }
-    ],
-    "origin": {
-      "title": "Where it comes from",
-      "content": "Alexandre Jardin (writer, founder of #LesGueux) was convinced by his son Robinson Jardin (ex-NordVPN, now Nym) of blockchain’s potential for direct democracy.\n\nThey partnered with Alexis Roussel (Swiss digital democracy advocate, co-founder of Nym), who defined the application requirements.\n\nOpen-source app\nLocal data processing - GDPR"
-    }
+    ]
   },
   "placeholderSteps": {
     "title": "Step {{step}}",
-    "content": "Content for step {{step}}",
+    "content": "Step {{step}} content",
     "continue": "Continue"
   }
 }

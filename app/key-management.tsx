@@ -42,8 +42,10 @@ import {
   type PassportKeyEntry,
 } from '@/utils/identity';
 import { useTerms } from '@/contexts/TermsContext';
+import { useTranslation } from 'react-i18next';
 
 export default function KeyManagementScreen() {
+  const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const { clear: clearTerms } = useTerms();
@@ -68,27 +70,34 @@ export default function KeyManagementScreen() {
     try {
       const json = await exportPassportDb();
       await Clipboard.setStringAsync(json);
-      setStatus(`Sauvegarde copiée (${dbEntries.length} passeport${dbEntries.length > 1 ? 's' : ''}).`);
+      setStatus(
+        t('keyManagement.exportCopied', {
+          count: dbEntries.length,
+          plural: dbEntries.length > 1 ? 's' : '',
+        }),
+      );
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message ?? 'Échec de la copie.');
+      Alert.alert(t('keyManagement.genericError'), e?.message ?? t('keyManagement.exportError'));
     }
   };
 
   const handleDbImport = (mode: 'merge' | 'replace') => {
     if (!dbImportPaste.trim()) {
-      Alert.alert('Vide', 'Collez une sauvegarde JSON avant d\'importer.');
+      Alert.alert(t('keyManagement.importEmptyTitle'), t('keyManagement.importEmptyBody'));
       return;
     }
-    const verb = mode === 'replace' ? 'Remplacer' : 'Fusionner';
-    const warning =
-      mode === 'replace'
-        ? 'Tous les passeports actuellement enregistrés seront supprimés et remplacés par ceux du fichier.'
-        : 'Les passeports déjà présents seront conservés (jamais écrasés). Seuls les nouveaux passeports seront ajoutés.';
+    const title = mode === 'replace'
+      ? t('keyManagement.confirmReplaceTitle')
+      : t('keyManagement.confirmMergeTitle');
+    const warning = mode === 'replace'
+      ? t('keyManagement.dbImportReplace')
+      : t('keyManagement.dbImportMerge');
+    const verb = mode === 'replace' ? t('keyManagement.actionReplaceAll') : t('keyManagement.actionMerge');
     Alert.alert(
-      `${verb} la base ?`,
+      title,
       warning,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
           text: verb,
           style: mode === 'replace' ? 'destructive' : 'default',
@@ -97,9 +106,16 @@ export default function KeyManagementScreen() {
               const r = await importPassportDb(dbImportPaste, mode);
               setDbImportPaste('');
               await refreshDb();
-              setStatus(`Import ${mode === 'replace' ? '(remplacement)' : '(fusion)'} : ${r.added} ajouté${r.added > 1 ? 's' : ''}, ${r.skipped} ignoré${r.skipped > 1 ? 's' : ''}.`);
+              setStatus(
+                t(mode === 'replace' ? 'keyManagement.importDoneReplace' : 'keyManagement.importDoneMerge', {
+                  added: r.added,
+                  addedPlural: r.added > 1 ? 's' : '',
+                  skipped: r.skipped,
+                  skippedPlural: r.skipped > 1 ? 's' : '',
+                }),
+              );
             } catch (e: any) {
-              Alert.alert('Format invalide', e?.message ?? 'Impossible de lire la sauvegarde.');
+              Alert.alert(t('keyManagement.importInvalidTitle'), e?.message ?? t('keyManagement.importInvalidBody'));
             }
           },
         },
@@ -109,17 +125,17 @@ export default function KeyManagementScreen() {
 
   const handleDbWipe = () => {
     Alert.alert(
-      'Effacer la base de passeports ?',
-      'Toutes les associations (passeport → clé BJJ) seront supprimées. Cela ne supprime pas la clé "active" actuelle. Faites une sauvegarde au préalable si nécessaire.',
+      t('keyManagement.wipeDbConfirmTitle'),
+      t('keyManagement.wipeDbConfirmBody'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Effacer',
+          text: t('keyManagement.actionDelete'),
           style: 'destructive',
           onPress: async () => {
             await wipePassportDb();
             await refreshDb();
-            setStatus('Base de passeports effacée.');
+            setStatus(t('keyManagement.wipeDbDone'));
           },
         },
       ],
@@ -132,17 +148,12 @@ export default function KeyManagementScreen() {
   // else, or has a corrupted state they can't otherwise recover from.
   const handleWipeAll = () => {
     Alert.alert(
-      'Tout supprimer ?',
-      "Cette action va effacer :\n\n" +
-      "  • La clé privée BJJ actuelle\n" +
-      "  • Toutes les associations passeport → clé\n" +
-      "  • L'acceptation des CGU (vous devrez les ré-accepter au redémarrage)\n\n" +
-      "Toute identité déjà enregistrée sur la blockchain avec ces clés ne pourra plus être utilisée depuis cette application — assurez-vous d'avoir exporté la base de passeports si vous voulez la conserver.\n\n" +
-      "Cette action est irréversible. Continuer ?",
+      t('keyManagement.wipeAllConfirmTitle'),
+      t('keyManagement.wipeAllAlertBody'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Tout supprimer',
+          text: t('keyManagement.wipeAllCta'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -150,9 +161,9 @@ export default function KeyManagementScreen() {
               await wipePassportDb();
               await clearTerms();
               await refreshDb();
-              setStatus("Données effacées. Redémarrez l'application — vous devrez ré-accepter les CGU.");
+              setStatus(t('keyManagement.wipeAllDone'));
             } catch (e: any) {
-              Alert.alert('Erreur', e?.message ?? "Échec de l'effacement.");
+              Alert.alert(t('keyManagement.wipeAllError'), e?.message ?? t('keyManagement.wipeAllErrorBody'));
             }
           },
         },
@@ -164,12 +175,10 @@ export default function KeyManagementScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          Base de passeports ({dbEntries.length})
+          {t('keyManagement.dbSectionTitle', { count: dbEntries.length })}
         </Text>
         <Text style={styles.helpText}>
-          {"Chaque passeport scanné est associé à une clé BJJ distincte (clé unique par passeport). " +
-           "Sauvegardez la base avant de désinstaller l'application — sans elle, vos identités " +
-           "on-chain seront inaccessibles."}
+          {t('keyManagement.dbDescription')}
         </Text>
 
         {dbEntries.length > 0 && (
@@ -188,19 +197,19 @@ export default function KeyManagementScreen() {
             onPress={handleDbExport}
             disabled={dbEntries.length === 0}
           >
-            <Text style={styles.buttonText}>Exporter (JSON)</Text>
+            <Text style={styles.buttonText}>{t('keyManagement.actionExport')}</Text>
           </Pressable>
           <Pressable
             style={[styles.button, dbEntries.length === 0 && styles.buttonDisabled]}
             onPress={handleDbWipe}
             disabled={dbEntries.length === 0}
           >
-            <Text style={styles.buttonText}>Effacer</Text>
+            <Text style={styles.buttonText}>{t('keyManagement.actionDelete')}</Text>
           </Pressable>
         </View>
 
         <Text style={[styles.helpText, { marginTop: 14 }]}>
-          {"Restaurer une sauvegarde : collez ci-dessous le JSON exporté précédemment."}
+          {t('keyManagement.dbRestoreHint')}
         </Text>
         <TextInput
           style={styles.input}
@@ -215,26 +224,21 @@ export default function KeyManagementScreen() {
         />
         <View style={styles.row}>
           <Pressable style={styles.button} onPress={() => handleDbImport('merge')}>
-            <Text style={styles.buttonText}>Fusionner</Text>
+            <Text style={styles.buttonText}>{t('keyManagement.actionMerge')}</Text>
           </Pressable>
           <Pressable style={styles.dangerButton} onPress={() => handleDbImport('replace')}>
-            <Text style={styles.dangerButtonText}>Remplacer tout</Text>
+            <Text style={styles.dangerButtonText}>{t('keyManagement.actionReplaceAll')}</Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tout supprimer</Text>
+        <Text style={styles.sectionTitle}>{t('keyManagement.wipeAllSectionTitle')}</Text>
         <Text style={styles.helpText}>
-          {"⚠️ Efface la clé privée BJJ, la base de passeports et l'acceptation des CGU. " +
-           "L'application redémarrera comme une installation neuve : vous devrez ré-accepter " +
-           "les CGU et rescanner votre passeport. Les identités déjà enregistrées on-chain " +
-           "avec les clés effacées ne pourront plus être utilisées depuis cette application — " +
-           "exportez la base de passeports d'abord si vous voulez la conserver. " +
-           "Action irréversible."}
+          {t('keyManagement.wipeAllSectionDescription')}
         </Text>
         <Pressable style={styles.dangerButton} onPress={handleWipeAll}>
-          <Text style={styles.dangerButtonText}>Tout supprimer</Text>
+          <Text style={styles.dangerButtonText}>{t('keyManagement.wipeAllCta')}</Text>
         </Pressable>
       </View>
 
