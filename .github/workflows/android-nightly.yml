@@ -23,6 +23,12 @@ on:
         type: choice
         options: [Debug, Release]
 
+# Default GITHUB_TOKEN scopes are read-write across most APIs on private
+# repos. Pin the workflow to read-only — the nightly only needs to read
+# source and upload artifacts. Jobs that need to write add the specific
+# permission they require.
+permissions: read-all
+
 concurrency:
   group: android-nightly-${{ github.ref }}
   cancel-in-progress: false
@@ -106,6 +112,15 @@ jobs:
           echo "path=$apk" >> "$GITHUB_OUTPUT"
           echo "name=referendum-citoyen-${lower}-$(date -u +%Y%m%d).apk" >> "$GITHUB_OUTPUT"
           ls -la "$apk"
+
+      # CLAUDE.md documents `scripts/ci/check-16k-alignment.sh` as the
+      # regression-catch mechanism for the six upstream-blocked libs that
+      # ship 4 KB-aligned. Without CI gating the allowlist is fiction —
+      # the next dep bump that adds a misaligned .so would land
+      # undetected until a Pixel 8+ user crashes on launch. The script
+      # exits non-zero on any new misalignment, so it fails the job.
+      - name: Check 16 KB page-size alignment
+        run: bash scripts/ci/check-16k-alignment.sh "${{ steps.apk.outputs.path }}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6

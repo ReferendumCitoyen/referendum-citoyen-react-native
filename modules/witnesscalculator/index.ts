@@ -4,12 +4,30 @@ import WitnesscalculatorModule from './src/WitnesscalculatorModule'
 // DownloadProgressData are now under /legacy. Without this, the module loads
 // but the FileSystem.* references resolve to undefined at runtime.
 import * as FileSystem from 'expo-file-system/legacy'
-// TODO: `react-native-zip-archive` isn't in package.json. The import works at
-// runtime only because it transitively ships with another dep — confirm and
-// either add it explicitly to dependencies or remove the import if `unzip`
-// is no longer called from this module.
-// eslint-disable-next-line import/no-unresolved
-import { unzip } from 'react-native-zip-archive'
+// `react-native-zip-archive` is NOT in package.json (verified 2026-05-24 —
+// not in deps, not in package-lock.json, not in node_modules). The
+// `unzip` call below is reachable only via the `ExternalCircomCircuitParams`
+// branch of `supportedCircomCircuits`, which is exported but currently
+// not consumed anywhere in app/components/utils — i.e. dead code today.
+// Keeping the import static would make Metro fail at bundle time. Lazy
+// `require` so the module loads cleanly, and surface a clear error if
+// the dead path is ever invoked without first re-adding the dep.
+function lazyUnzip(sourceUri: string, targetPath: string): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, import/no-unresolved
+    const mod = require('react-native-zip-archive')
+    return mod.unzip(sourceUri, targetPath)
+  } catch (e: any) {
+    return Promise.reject(
+      new Error(
+        '[witnesscalculator] ExternalCircomCircuitParams path requires ' +
+          '`react-native-zip-archive`. Add it to package.json: ' +
+          '`npm install --save react-native-zip-archive`. ' +
+          'Underlying error: ' + (e?.message ?? String(e)),
+      ),
+    )
+  }
+}
 
 export type CircomZKProof = {
   proof: ProofData
@@ -169,7 +187,7 @@ export class ExternalCircomCircuitParams extends CircomCircuitParams {
             throw new TypeError('Download failed: downloadResult is undefined')
           }
 
-          await unzip(downloadResult.uri, targetPath)
+          await lazyUnzip(downloadResult.uri, targetPath)
 
           const dat = await FileSystem.readAsStringAsync(datPath, {
             encoding: FileSystem.EncodingType.Base64,

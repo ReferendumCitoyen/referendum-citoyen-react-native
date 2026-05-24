@@ -224,7 +224,12 @@ async function readOnChainContext(args: {
   const proposalsState = new ethers.Contract(MAINNET_PROPOSALS_STATE_ADDRESS, PROPOSALS_STATE_ABI, provider);
 
   const proofIndex = poseidon2(passportInfoKey, identityKey);
-  console.log(`[mainnet-vote] proofIndex (SMT leaf) = ${toBytes32(proofIndex)}`);
+  // SECURITY: the proofIndex is a stable per-(passport, identity) hash —
+  // logging it in release would let logcat readers correlate the same
+  // user across proposals. Keep it for dev diagnostics only.
+  if (__DEV__) {
+    console.log(`[mainnet-vote] proofIndex (SMT leaf) = ${toBytes32(proofIndex)}`);
+  }
 
   // Fire the 4 reads in parallel — they're independent.
   const [smtProofRaw, passportInfoTuple, proposalConfig, proposalEventId, rootValidity] = await Promise.all([
@@ -343,8 +348,20 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
     : BigInt(args.profileKey);
   const proposalId = BigInt(args.proposalId);
 
-  console.log(`[mainnet-vote] starting cast — proposal=${proposalId}, citizenship="${args.citizenship}", voteIndices=[${args.voteIndices.join(',')}]`);
-  console.log(`[mainnet-vote] passportInfoKey=${toBytes32(passportInfoKey)} identityKey=${toBytes32(identityKey)}`);
+  // SECURITY: citizenship is a 3-letter country code and falls through the
+  // logger's PII redaction (too short for the digit-length filter, label
+  // not in PII_LABELS until 2026-05-24). Keep the full line dev-only and
+  // emit an abstract version in release so the error-report buffer doesn't
+  // hold the country.
+  if (__DEV__) {
+    console.log(`[mainnet-vote] starting cast — proposal=${proposalId}, citizenship="${args.citizenship}", voteIndices=[${args.voteIndices.join(',')}]`);
+    // passportInfoKey + identityKey together are the stable per-passport
+    // pseudonym used by every Rarimo contract. Logging them in release
+    // exposes cross-proposal correlation via logcat.
+    console.log(`[mainnet-vote] passportInfoKey=${toBytes32(passportInfoKey)} identityKey=${toBytes32(identityKey)}`);
+  } else {
+    console.log(`[mainnet-vote] starting cast — proposal=${proposalId}, voteIndices=[${args.voteIndices.join(',')}]`);
+  }
 
   const provider = new ethers.JsonRpcProvider(RARIME_MAINNET_CONFIG.apiConfiguration.jsonRpcEvmUrl);
   const ctx = await readOnChainContext({
@@ -380,12 +397,24 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
   const voteSmt = new ethers.Contract(proposalSmtAddress, REGISTRATION_SMT_ABI, provider);
   const usedProof = await voteSmt.getProof(voteNullifierBytes32);
   if (usedProof.existence) {
-    console.log(`[mainnet-vote] already voted: nullifier ${voteNullifierBytes32} exists in proposalSMT ${proposalSmtAddress}`);
+    // Nullifier is per-(BJJ key, proposal); logging it in release lets a
+    // logcat reader correlate the same user across proposals once the
+    // hash is captured. Keep the full bytes32 dev-only and the release
+    // log abstract.
+    if (__DEV__) {
+      console.log(`[mainnet-vote] already voted: nullifier ${voteNullifierBytes32} exists in proposalSMT ${proposalSmtAddress}`);
+    } else {
+      console.log(`[mainnet-vote] already voted (nullifier hit in proposalSMT)`);
+    }
     // Match the SDK's "User has already voted" wording so Step11.tsx's error
     // handler routes to the friendly already-voted screen.
     throw new Error('User has already voted');
   }
-  console.log(`[mainnet-vote] not voted yet: nullifier ${voteNullifierBytes32} absent in proposalSMT ${proposalSmtAddress}`);
+  if (__DEV__) {
+    console.log(`[mainnet-vote] not voted yet: nullifier ${voteNullifierBytes32} absent in proposalSMT ${proposalSmtAddress}`);
+  } else {
+    console.log(`[mainnet-vote] not voted yet (nullifier absent in proposalSMT)`);
+  }
 
   // Compute identityCreationTimestampUpperBound — mirrors the Android
   // VotingManager logic. If the user registered after the proposal start,
@@ -481,15 +510,19 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
   // _buildPublicSignals recomputed (which is what shows up in
   // InvalidZKProof(uint256[]) revert data when the call fails to estimate
   // gas). Any divergence here is the proof/contract pub-signals mismatch.
-  proof.pub_signals.forEach((v, i) => {
-    let asHex: string;
-    try {
-      asHex = '0x' + BigInt(v).toString(16);
-    } catch {
-      asHex = String(v);
-    }
-    console.log(`[mainnet-vote][pub] ${String(i).padStart(2)}: ${asHex}`);
-  });
+  // SECURITY: pub_signals contain the per-passport nullifier + identity
+  // commitments. Dev-only to avoid logcat correlation.
+  if (__DEV__) {
+    proof.pub_signals.forEach((v, i) => {
+      let asHex: string;
+      try {
+        asHex = '0x' + BigInt(v).toString(16);
+      } catch {
+        asHex = String(v);
+      }
+      console.log(`[mainnet-vote][pub] ${String(i).padStart(2)}: ${asHex}`);
+    });
+  }
 
   // When the proposal's citizenshipWhitelist is empty, the circuit's
   // citizenship reveal bit (selector[5]) is also OFF, so the circuit outputs
@@ -510,15 +543,18 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
     citizenship: effectiveCitizenship,
     isRegisteredAfterVoting,
   });
-  console.log(
-    `[mainnet-vote] vote calldata: dest=${destination} nullifier=${decoded.nullifier} ` +
-    `currentDate=${decoded.currentDate} registrationRoot=${decoded.registrationRoot}`,
-  );
-  // Full calldata hex — when the relayer rejects with "failed to estimate gas"
-  // we want the bytes so we can replay via eth_call and read the revert
-  // reason. Logging at info level so logcat picks it up without --pid filters
-  // dropping it.
-  console.log(`[mainnet-vote] full calldata=${calldata}`);
+  // SECURITY: `nullifier` + `registrationRoot` together let a logcat
+  // reader correlate this vote with future votes from the same user.
+  // Full calldata also embeds the nullifier in its bytes. Both dev-only.
+  if (__DEV__) {
+    console.log(
+      `[mainnet-vote] vote calldata: dest=${destination} nullifier=${decoded.nullifier} ` +
+      `currentDate=${decoded.currentDate} registrationRoot=${decoded.registrationRoot}`,
+    );
+    console.log(`[mainnet-vote] full calldata=${calldata}`);
+  } else {
+    console.log(`[mainnet-vote] vote calldata: dest=${destination} currentDate=${decoded.currentDate}`);
+  }
 
   const { txId } = await submitVote('mainnet', calldata, destination);
   const total = Date.now() - t0;

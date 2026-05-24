@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, StatusBar, Platform } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Stack, useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/constants/theme';
+import { useColors, useTheme } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
 import type { Rarime, RarimePassport, FreedomTool, ProposalInfo } from '@rarimo/rarime-rn-sdk';
 import {
@@ -46,6 +47,7 @@ export default function VotingFlowScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const colors = useColors();
+  const { theme } = useTheme();
   const { network } = useNetwork();
   const modalStyles = createModalStyles(colors);
   const insets = useSafeAreaInsets();
@@ -270,6 +272,15 @@ export default function VotingFlowScreen() {
       // Re-arm the per-passport key gate so the init useEffect waits for
       // the next NFC scan + DB lookup before constructing Rarime.
       setPassportKeyReady(false);
+      // Re-arm Step 7's verification-handled latch and clear the passport
+      // scan from the previous attempt. Without these resets, a user who
+      // exits + re-enters the flow (crash recovery, "try again",
+      // backgrounding during proof generation) hits the latch at line ~464
+      // and Step 7 silently no-ops; the stale passport also stays
+      // observable via `passportRef.current` until the next NFC scan
+      // overwrites it.
+      verificationHandledRef.current = false;
+      passportRef.current = null;
 
       // Reset animations
       slideAnim.setValue(0);
@@ -350,11 +361,22 @@ export default function VotingFlowScreen() {
           // but that's PII we don't want at rest. See
           // utils/passport-key-db.ts::PassportKeyEntry.
           const resolved = await getOrCreateKeyForPassport({ dg1, sod });
-          console.log(
-            `[FreedomTool][passport-key] hash=${resolved.passportHash.slice(0, 12)}… ` +
-            `key=${resolved.privateKey.slice(0, 8)}… isNew=${resolved.isNew} ` +
-            `migratedFromLegacy=${resolved.migratedFromLegacy}`,
-          );
+          // SECURITY: even truncated, the passport hash + key prefix
+          // together act as a stable per-user fingerprint in logcat.
+          // Keep the boolean flags in release (useful for triage) and
+          // gate the bytes behind __DEV__.
+          if (__DEV__) {
+            console.log(
+              `[FreedomTool][passport-key] hash=${resolved.passportHash.slice(0, 12)}… ` +
+              `key=${resolved.privateKey.slice(0, 8)}… isNew=${resolved.isNew} ` +
+              `migratedFromLegacy=${resolved.migratedFromLegacy}`,
+            );
+          } else {
+            console.log(
+              `[FreedomTool][passport-key] isNew=${resolved.isNew} ` +
+              `migratedFromLegacy=${resolved.migratedFromLegacy}`,
+            );
+          }
 
           // Pre-warm the CSCA bootstrap cache. Reading + treap-building
           // master_000316.pem (1.8 MB, 857 certs) takes ~1.5 s on the Volla
@@ -391,19 +413,28 @@ export default function VotingFlowScreen() {
         // Pull off-device with `adb pull
         // /storage/emulated/0/Android/data/com.referendumcitoyen.app/files/passport.json`
         // (or the documentDirectory from logs below).
-        const toHex = (u: Uint8Array) =>
-          Array.from(u).map(b => b.toString(16).padStart(2, '0')).join('');
-        const FS = await import('expo-file-system/legacy');
-        const payload: Record<string, string> = {
-          dg1: toHex(new Uint8Array(data.dg1Bytes)),
-          sod: toHex(new Uint8Array(data.sodBytes)),
-        };
-        if (data.dg15Bytes && data.dg15Bytes.length) payload.dg15 = toHex(new Uint8Array(data.dg15Bytes));
-        if (data.aaSignature && data.aaSignature.length) payload.aaSignature = toHex(new Uint8Array(data.aaSignature));
-        const path = (FS.documentDirectory ?? '') + 'passport.json';
-        await FS.writeAsStringAsync(path, JSON.stringify(payload));
-        console.log('[passport.json] written to', path);
-        console.log('[passport.json] bytes: dg1=' + payload.dg1.length / 2 + ' sod=' + payload.sod.length / 2 + ' dg15=' + ((payload.dg15?.length ?? 0) / 2) + ' aaSig=' + ((payload.aaSignature?.length ?? 0) / 2));
+        //
+        // SECURITY: gated behind __DEV__ so release builds never persist
+        // raw chip bytes (DG1 = MRZ biographic data, SOD = passive-auth
+        // signature, DG15 = AA public key, AA signature). The contents
+        // are highly identifying and would survive an app uninstall on
+        // Android (cleared) and iOS (cleared on uninstall, but copies via
+        // file-sharing intents persist).
+        if (__DEV__) {
+          const toHex = (u: Uint8Array) =>
+            Array.from(u).map(b => b.toString(16).padStart(2, '0')).join('');
+          const FS = await import('expo-file-system/legacy');
+          const payload: Record<string, string> = {
+            dg1: toHex(new Uint8Array(data.dg1Bytes)),
+            sod: toHex(new Uint8Array(data.sodBytes)),
+          };
+          if (data.dg15Bytes && data.dg15Bytes.length) payload.dg15 = toHex(new Uint8Array(data.dg15Bytes));
+          if (data.aaSignature && data.aaSignature.length) payload.aaSignature = toHex(new Uint8Array(data.aaSignature));
+          const path = (FS.documentDirectory ?? '') + 'passport.json';
+          await FS.writeAsStringAsync(path, JSON.stringify(payload));
+          console.log('[passport.json] written to', path);
+          console.log('[passport.json] bytes: dg1=' + payload.dg1.length / 2 + ' sod=' + payload.sod.length / 2 + ' dg15=' + ((payload.dg15?.length ?? 0) / 2) + ' aaSig=' + ((payload.aaSignature?.length ?? 0) / 2));
+        }
       } catch (err) {
         console.error('[FreedomTool] PASSPORT_CREATE_FAILED', err);
       }
@@ -468,10 +499,6 @@ export default function VotingFlowScreen() {
     setTimeout(() => handleNext(), 1500);
   }, [handleNext]);
 
-  const handleFatalVerificationError = useCallback(() => {
-    setTimeout(() => handleClose(), 4000);
-  }, [handleClose]);
-
   const handleVoteSuccess = useCallback(() => {
     setCurrentStep(9);
     Animated.timing(slideAnim, {
@@ -504,19 +531,32 @@ export default function VotingFlowScreen() {
       useNativeDriver: true,
     }).start();
     handleStepChange(11);
-  }, [selectedVote, slideAnim, containerWidth, handleStepChange]);
+  }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleClose = useCallback(() => {
-    // Stack trace so we can see WHICH caller closed the screen (the user
-    // reports the success page sometimes auto-dismisses; we want to find
-    // the path that isn't a manual button press).
-    console.log('[voting-flow] handleClose called. stack:\n' + new Error().stack);
+    // Dev-only stack trace: lets us see WHICH caller closed the screen
+    // (Step12 auto-advance vs explicit Fermer tap vs router-back gesture).
+    // Gated to release builds out of the error-report ring buffer — every
+    // close path was emitting a multi-line trace that crowded out actual
+    // diagnostics.
+    if (__DEV__) {
+      console.log('[voting-flow] handleClose called. stack:\n' + new Error().stack);
+    }
     pauseAll();
     router.back();
   }, [router, pauseAll]);
 
   const handleStep9Cancel = useCallback(() => {
     handleClose();
+  }, [handleClose]);
+
+  // Step 7 calls this when a *fatal* verification error fires — auto-close
+  // the modal after 4 s so the user doesn't get stranded on the error
+  // screen. Must live BELOW `handleClose` so the `[handleClose]` dep array
+  // doesn't read a TDZ binding (`const` references its own declaration
+  // line, not function-scope hoisted like `var`).
+  const handleFatalVerificationError = useCallback(() => {
+    setTimeout(() => handleClose(), 4000);
   }, [handleClose]);
 
   const [voteTxId, setVoteTxId] = useState<string | null>(null);
@@ -567,7 +607,7 @@ export default function VotingFlowScreen() {
         Platform.OS === 'ios' && { paddingBottom: insets.bottom },
       ]}
     >
-      <StatusBar barStyle="dark-content" />
+      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
 
       {/* iOS modal sheet: native header bar with Fermer in headerRight.
           Android skips this override entirely — keeps the headerless card
