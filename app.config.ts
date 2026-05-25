@@ -53,6 +53,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       edgeToEdgeEnabled: false,
       predictiveBackGestureEnabled: false,
       permissions: ['android.permission.NFC', 'android.permission.CAMERA'],
+      // Block permissions pulled in transitively by deps but never used
+      // by our code. Without these, the Play Store data-safety page and
+      // app-install permissions screen would falsely flag microphone +
+      // external-storage access (added by expo-av's audio surface even
+      // though we only use it for the splash/intro video). Each entry
+      // emits `<uses-permission … tools:node="remove"/>` in the merged
+      // AndroidManifest, so the runtime install doesn't request them.
+      blockedPermissions: [
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.MODIFY_AUDIO_SETTINGS',
+      ],
     },
     web: {
       bundler: 'metro',
@@ -72,6 +85,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // ~100 MB buffer which OOMs the default 256 MB Dalvik heap. See the
       // file for the full rationale.
       './plugins/withLargeHeap.js',
+      // Restricts Android build to arm64-v8a and emits per-ABI APK splits
+      // (no universal APK). The Rarimo prebuilts the vote / register
+      // flows depend on (libnoir_java.so, libRmoCalcs.so,
+      // libwitnesscalc_*.so) ship only as arm64-v8a — building for
+      // armv7 / x86 / x86_64 produces APKs that install but crash at
+      // Step 7 / Step 11. The direct-download .apk now lands at ~80 MB
+      // (was ~290 MB universal). Play Store path uses AAB; Play splits
+      // per ABI server-side.
+      './plugins/withAndroidAbiSplits.js',
       [
         './plugins/withNfc.plugin/build/index.js',
         {
@@ -120,6 +142,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             // RmoCalcs.aar (modules/witnesscalculator) declares minSdkVersion
             // 27. Bumping our floor to match. Needed for the Groth16 vote flow.
             minSdkVersion: 27,
+            // Google Play requires targetSdkVersion >= 35 (Android 15) for
+            // every app submitted or updated after 2025-08-31. compileSdk
+            // is bumped to match so the toolchain has the matching public
+            // APIs at compile time. No code changes needed at the floor
+            // level — Expo SDK 54 / RN 0.81 already officially support 35.
+            targetSdkVersion: 35,
+            compileSdkVersion: 35,
           },
         },
       ],
