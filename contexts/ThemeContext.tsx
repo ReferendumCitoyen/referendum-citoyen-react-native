@@ -177,7 +177,7 @@ export const DarkColors: ColorScheme = {
   scanReticleInnerBg: 'rgba(255, 255, 255, 0.1)',
   scanReticleSuccessInnerBg: 'rgba(52, 211, 153, 0.22)',
 
-  chartPalette: ['#60A5FA', '#F87171', '#4B5563', '#FBBF24', '#34D399'],
+  chartPalette: ['#60A5FA', '#F87171', '#FFFFFF', '#FBBF24', '#34D399'],
 };
 
 const THEME_STORAGE_KEY = '@app_theme';
