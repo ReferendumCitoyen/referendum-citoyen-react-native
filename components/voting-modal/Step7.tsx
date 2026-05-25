@@ -452,7 +452,7 @@ const Step7: React.FC<Step7Props> = ({
           )
         )}
 
-        <View style={{ flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <View style={{ width: '100%', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {!errorMessage && hasStarted && (
             <ActivityIndicator size="small" color={colors.text} />
           )}
