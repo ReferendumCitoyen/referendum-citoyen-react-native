@@ -599,12 +599,17 @@ export default function VotingFlowScreen() {
     <View
       style={[
         styles.container,
-        // iOS modal-sheet only: clear the home-indicator strip so the nav row
-        // (progress bars + arrow) doesn't sit flush against the bottom of the
-        // screen. Mirrors the `paddingBottom: insets.bottom` pattern from the
-        // old app/voting-screen.tsx (commit 3a0e3c1). Android is untouched —
-        // insets.bottom is applied as an inline style only on iOS.
-        Platform.OS === 'ios' && { paddingBottom: insets.bottom },
+        // Clear the system-nav strip so the bottom row (progress bars + arrow
+        // on steps 1–3, full-width pill on steps 4+) doesn't sit flush against
+        // the bottom of the screen. Needed on both platforms:
+        //   • iOS: home-indicator strip on Face-ID devices.
+        //   • Android: targetSdkVersion 35 forces edge-to-edge regardless of
+        //     `edgeToEdgeEnabled: false`, so the 3-button nav bar and gesture
+        //     pill now overlay app content instead of carving out space.
+        //     insets.bottom is the height the system reserves (≈48dp on
+        //     3-button, ≈24dp on 2-button, ≈16dp on full-gesture, 0 on devices
+        //     with hardware nav).
+        { paddingBottom: insets.bottom },
       ]}
     >
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
