@@ -614,37 +614,40 @@ export default function AccueilScreen() {
                 <Text style={styles.badgeText}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
               </View>
               {devMode && (
-                <>
-                  <TouchableOpacity
-                    style={styles.devBadge}
-                    activeOpacity={0.7}
-                    onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
-                  >
-                    <Text style={styles.devBadgeText}>#{p.id}</Text>
-                  </TouchableOpacity>
-                  <View style={styles.devInfoBadge}>
-                    <Text style={styles.devInfoText}>
-                      {/* Tag the doc type by voting contract, not selector.
-                          selector is a field-reveal bitmask shared by ID and
-                          passport proposals (e.g. 39457 appears on both). The
-                          authoritative signal is sendVoteContractAddress —
-                          BioPassportVoting → passport (PP), everything else
-                          (currently IDCardVoting `0x7d73…`) → ID. */}
-                      {isPassportVotingTarget(p) ? 'PP' : 'ID'}
-                      {p.criteria.citizenshipWhitelist.length > 0
-                        ? ' ' + p.criteria.citizenshipWhitelist.map((c: string) => {
-                            try {
-                              const hex = BigInt(c).toString(16);
-                              const bytes = [];
-                              for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substring(i, i + 2), 16));
-                              return String.fromCharCode(...bytes);
-                            } catch { return String(c); }
-                          }).join(',')
-                        : ' ALL'}
-                    </Text>
-                  </View>
-                </>
+                <TouchableOpacity
+                  style={styles.devBadge}
+                  activeOpacity={0.7}
+                  onPress={() => console.log(`\n=== PROPOSAL #${p.id} ===\n${JSON.stringify(p, bigintReplacer, 2)}\n=== END PROPOSAL #${p.id} ===\n`)}
+                >
+                  <Text style={styles.devBadgeText}>#{p.id}</Text>
+                </TouchableOpacity>
               )}
+              {/* Document-type + citizenship-whitelist tag. Visible to all
+                  users so they can tell at a glance whether a proposal
+                  accepts a passport or an ID card, and for which country.
+                  Tag the doc type by voting contract, not selector:
+                  selector is a field-reveal bitmask shared by ID and
+                  passport proposals (e.g. 39457 appears on both). The
+                  authoritative signal is sendVoteContractAddress —
+                  BioPassportVoting → passport, everything else (currently
+                  IDCardVoting `0x7d73…`) → ID card. */}
+              <View style={styles.docTagBadge}>
+                <Text style={styles.docTagText}>
+                  {isPassportVotingTarget(p)
+                    ? t('home.docTagPassport')
+                    : t('home.docTagIdCard')}
+                  {p.criteria.citizenshipWhitelist.length > 0
+                    ? ' ' + p.criteria.citizenshipWhitelist.map((c: string) => {
+                        try {
+                          const hex = BigInt(c).toString(16);
+                          const bytes = [];
+                          for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substring(i, i + 2), 16));
+                          return String.fromCharCode(...bytes);
+                        } catch { return String(c); }
+                      }).join(',')
+                    : ''}
+                </Text>
+              </View>
               <Text style={styles.startedAgo}>{formatTimeAgo(p.startTimestamp)}</Text>
             </View>
             <Text style={styles.voteTitle}>{p.title}</Text>
@@ -874,13 +877,13 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     fontSize: 11,
     color: colors.buttonText,
   },
-  devInfoBadge: {
+  docTagBadge: {
     paddingVertical: 2,
     paddingHorizontal: 6,
     backgroundColor: colors.secondary,
     borderRadius: 8,
   },
-  devInfoText: {
+  docTagText: {
     fontFamily: Typography.fontFamily.bold,
     fontSize: 10,
     color: colors.buttonText,
