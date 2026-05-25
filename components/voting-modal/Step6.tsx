@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Image, ScrollView, Alert, Linking, AppState } from 'react-native';
+import NfcManager from 'react-native-nfc-manager';
 import { VideoView } from 'expo-video';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -49,6 +50,13 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
   // gap before the NFC scan starts — prevents "Tag was lost" on the first APDU.
   const mountedAtRef = useRef<number>(Date.now());
   useEffect(() => { mountedAtRef.current = Date.now(); }, []);
+
+  // NFC-disabled auto-retry: when the user taps "Open NFC settings" in the
+  // dialog we surface below, we arm this ref. The AppState listener fires
+  // when the app foregrounds; if NFC is now on, it re-invokes the scan via
+  // the ref'd handler (kept fresh each render to avoid stale-closure bugs).
+  const retryAfterNfcRef = useRef(false);
+  const handleAnalyzePressRef = useRef<() => void>(() => {});
 
   // Listen to EDocument scan events
   useEffect(() => {
@@ -106,6 +114,30 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     };
   }, []);
 
+  // Keep the ref pointed at the latest closure so the AppState listener below
+  // doesn't capture a stale reference (props/state changes between mount and
+  // the time the user returns from Settings).
+  useEffect(() => {
+    handleAnalyzePressRef.current = handleAnalyzePress;
+  });
+
+  // Auto-retry the scan when the user enables NFC and returns to the app.
+  // Armed only after they tap "Open NFC settings" in the dialog above —
+  // background → foreground without going through that path is a no-op.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = AppState.addEventListener('change', async (next) => {
+      if (next !== 'active' || !retryAfterNfcRef.current) return;
+      const enabled = await NfcManager.isEnabled().catch(() => false);
+      if (!enabled) return;
+      retryAfterNfcRef.current = false;
+      // Small delay so the foreground transition completes before we start
+      // touching the NFC controller again.
+      setTimeout(() => { handleAnalyzePressRef.current(); }, 200);
+    });
+    return () => sub.remove();
+  }, []);
+
   const handleAnalyzePress = async () => {
     // Operational only — no PII. mrzData contains documentNumber + DOB
     // which are the BAC key inputs; logging them would leak both to
@@ -114,6 +146,46 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
     if (!mrzData) {
       setScanStatus(t('voting.step6MissingMrz'));
       return;
+    }
+
+    // Android-only: pre-check that NFC is enabled. The native scan path
+    // throws IllegalStateException with a French-only message when it's off,
+    // which surfaces as a cryptic Step6 error after the user already went
+    // through MRZ + camera. Catching it here lets us guide them to the
+    // system NFC toggle and auto-retry when they return.
+    if (Platform.OS === 'android') {
+      let isOff = false;
+      try {
+        await NfcManager.start();
+        isOff = !(await NfcManager.isEnabled());
+      } catch (e) {
+        // Couldn't determine state (e.g., no NFC hardware) — let the native
+        // module's own error path surface a clearer message downstream.
+        console.warn('[Step6] NFC pre-check failed:', e);
+      }
+      if (isOff) {
+        Alert.alert(
+          t('voting.step6NfcDisabledTitle'),
+          t('voting.step6NfcDisabledMessage'),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('voting.step6OpenNfcSettings'),
+              onPress: async () => {
+                retryAfterNfcRef.current = true;
+                try {
+                  await Linking.sendIntent('android.settings.NFC_SETTINGS');
+                } catch {
+                  // Fallback: open the app's own settings page. The user can
+                  // still navigate from there.
+                  await Linking.openSettings();
+                }
+              },
+            },
+          ],
+        );
+        return;
+      }
     }
 
     // Scan NFC on the same screen for both platforms
