@@ -60,11 +60,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // though we only use it for the splash/intro video). Each entry
       // emits `<uses-permission … tools:node="remove"/>` in the merged
       // AndroidManifest, so the runtime install doesn't request them.
+      // FOREGROUND_SERVICE_MEDIA_PLAYBACK: declared transitively by
+      // expo-video / expo-av but we never play media in the background
+      // (audio mode sets staysActiveInBackground: false in
+      // app/_layout.tsx; no playInBackground / allowsBackgroundPlayback
+      // flags anywhere). Blocking it avoids the Play Console "describe
+      // your use of this permission" prompt that otherwise requires a
+      // demonstration video.
       blockedPermissions: [
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.WRITE_EXTERNAL_STORAGE',
         'android.permission.RECORD_AUDIO',
         'android.permission.MODIFY_AUDIO_SETTINGS',
+        'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
       ],
     },
     web: {
