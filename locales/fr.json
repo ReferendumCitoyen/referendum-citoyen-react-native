@@ -121,7 +121,7 @@
   "voting": {
     "title": "Processus de vote",
     "step1Description": "Validez votre âge et votre nationalité. Vos données sont chiffrées et non traçables. Vous êtes 100% anonyme.",
-    "step1Privacy": "Votre identité ne sera pas stockée : vos données personnelles sont impossibles à retracer, et sont effacées immédiatement après le vote.",
+    "step1Privacy": "Votre identité ne sera pas conservée : vos données personnelles sont impossibles à retracer, et sont effacées immédiatement après le vote.",
     "step2Title": "Vérifiez votre âge et nationalité localement sur votre appareil",
     "step3Title": "Vote anonyme",
     "step3Description": "Une fois vos données vérifiées comme authentiques, l'application produit un jeton anonyme vous permettant de voter.",

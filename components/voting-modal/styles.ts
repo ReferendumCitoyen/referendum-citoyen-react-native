@@ -290,14 +290,14 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     fontSize: 10,
     fontWeight: '700',
-    color: colors.white,
+    color: colors.buttonText,
     letterSpacing: 0.5,
     opacity: 1,
   },
   step5InstructionText: {
     fontFamily: Typography.fontFamily.medium,
     fontSize: Typography.fontSize.body,
-    color: colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step5Button: {
@@ -492,7 +492,7 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     fontSize: 20,
     lineHeight: 26,
     letterSpacing: 0.4,
-    color: colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step9VoteOptionsContainer: {
@@ -512,7 +512,7 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     fontSize: 20,
     lineHeight: 26,
     letterSpacing: 0.4,
-    color: colors.white,
+    color: colors.buttonText,
     textAlign: 'center',
   },
   step9VoteCancelButtonFullWidth: {
