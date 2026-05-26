@@ -127,6 +127,20 @@ export default function ParametresScreen() {
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
           </TouchableOpacity>
 
+          {/* Key management — backup / restore the per-document BJJ private
+              keys (read-only access for ordinary users; the destructive
+              "Tout supprimer" reset inside the screen stays gated to dev
+              mode). Lives outside the devMode block so a user who needs to
+              restore a backup after reinstalling can actually find it. */}
+          <TouchableOpacity
+            style={styles.settingRow}
+            activeOpacity={0.7}
+            onPress={() => router.push('/key-management' as any)}
+          >
+            <Text style={styles.settingLabel}>{t('keyManagement.title')}</Text>
+            <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+          </TouchableOpacity>
+
           {devMode && (
             <>
               {/* Hide Dev Tools */}
@@ -261,18 +275,6 @@ export default function ParametresScreen() {
                   </Text>
                 )}
               </View>
-
-              {/* Key management — backup / restore the BJJ private key.
-                  Lives behind devMode because exposing a private key is a
-                  loaded action; ordinary users should never reach this. */}
-              <TouchableOpacity
-                style={styles.settingRow}
-                activeOpacity={0.7}
-                onPress={() => router.push('/key-management' as any)}
-              >
-                <Text style={styles.settingLabel}>Sauvegarde / Restauration de clé</Text>
-                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
-              </TouchableOpacity>
 
               {/* French ID Test Row */}
               <View style={styles.settingRow}>

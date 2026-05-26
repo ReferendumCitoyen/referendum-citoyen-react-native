@@ -1,38 +1,39 @@
 /**
- * Dev-only screen for the per-passport BJJ key DB and a "Tout supprimer"
- * destructive reset.
+ * User-facing screen for the per-document BJJ key DB ("Gestion des clés").
  *
- * Two sections:
+ * Sections:
  *
- *   1. Base de passeports — export the (passportHash → BJJ key) DB to
- *      JSON for backup, and import a previous backup (merge or replace).
- *      Without this, a user who reinstalls the app loses every
- *      previously-registered on-chain identity, because Mainnet's
- *      Registration2 contract binds each passport to a specific BJJ key
- *      and the chip cannot prove fresh ownership for a `revoke()` call.
+ *   1. Documents — export the (passportHash → BJJ key) DB to a JSON file
+ *      (system share sheet on iOS / Storage Access Framework on Android),
+ *      and import a previous backup (merge or replace, picked via the OS
+ *      document picker). Without this, a user who reinstalls the app
+ *      loses every previously-registered on-chain identity, because
+ *      Mainnet's Registration2 contract binds each document to a specific
+ *      BJJ key and the chip cannot prove fresh ownership for a `revoke()`
+ *      call. Accessible to all users.
  *
- *   2. Tout supprimer — wipes the active BJJ key, the passport DB, and
+ *   2. Tout supprimer — wipes the active BJJ key, the document DB, and
  *      the accepted CGU version so the launch gate re-fires. Effectively
  *      resets the app to a fresh-install state without touching the
  *      device package or AsyncStorage entries owned by other features
- *      (theme, network choice, language).
- *
- * Gated behind dev mode (7 taps on the version row in Settings); ordinary
- * users should never see this screen.
+ *      (theme, network choice, language). Gated behind dev mode (7 taps
+ *      on the version row in Settings) — too destructive for ordinary
+ *      users to be one tap away from.
  */
 
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { useDevMode } from '@/contexts/DevModeContext';
 import {
@@ -51,21 +52,16 @@ export default function KeyManagementScreen() {
   const colors = useColors();
   const styles = createStyles(colors);
   const { clear: clearTerms } = useTerms();
-  const router = useRouter();
   const { devMode } = useDevMode();
-  // Dev-only screen. Exposes per-passport BJJ private keys (export, import,
-  // wipe) — anyone with the JSON export can vote as the bound identities.
-  // Production deep-links (`referendumcitoyen://key-management`) must not
-  // reach the screen body. Stack.Screen registration in _layout.tsx is
-  // already conditional on devMode, but Expo Router auto-registers every
-  // file in `app/`, so this in-component redirect is the actual barrier.
-  useEffect(() => {
-    if (!devMode) router.replace('/');
-  }, [devMode, router]);
-
+  // Screen is accessible to ordinary users — they need backup / restore to
+  // survive an app reinstall without losing their on-chain identities. The
+  // destructive "Tout supprimer" section further down is still gated to
+  // devMode because it wipes the BJJ key, the document DB, and the
+  // accepted CGU acceptance in one click. Export / import / per-document
+  // list view is safe enough for general use; the export goes through the
+  // file picker / share sheet so material never lands in the clipboard.
   const [status, setStatus] = useState<string | null>(null);
   const [dbEntries, setDbEntries] = useState<PassportKeyEntry[]>([]);
-  const [dbImportPaste, setDbImportPaste] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -79,14 +75,53 @@ export default function KeyManagementScreen() {
     setDbEntries(await getAllPassportDbEntries());
   };
 
-  const handleDbExport = async () => {
+  // Build the JSON + filename once; reused by both export entry points
+  // (share-sheet and direct-save-to-phone).
+  const buildExportPayload = async () => {
+    const json = await exportPassportDb();
+    const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    return { json, filename: `referendum-citoyen-keys-${date}.json` };
+  };
+
+  // Share-sheet export: write JSON to a temp file and hand it to the system
+  // share sheet (Files, Drive, email, …). Replaces the previous
+  // Clipboard.setStringAsync path — clipboard exposes the keys to every app
+  // with clipboard-read access for ~15 s on Android 12+, which is a
+  // meaningful leak for vote-rights-bearing material. The file lives in
+  // cacheDirectory and the OS reaps it.
+  //
+  // On iOS this is the only export path — the share sheet's built-in
+  // "Save to Files" handles direct-save use cases. On Android it sits
+  // alongside `handleDbSaveToPhone` because Android's share sheet
+  // surfaces "Files" inconsistently (depends on installed apps).
+  const handleDbShare = async () => {
     try {
-      const json = await exportPassportDb();
-      await Clipboard.setStringAsync(json);
+      const { json, filename } = await buildExportPayload();
+      const uri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(uri, json, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert(
+          t('keyManagement.genericError'),
+          t('keyManagement.exportShareUnavailable', {
+            defaultValue: 'Le partage de fichiers n’est pas disponible sur cet appareil.',
+          }),
+        );
+        return;
+      }
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/json',
+        dialogTitle: t('keyManagement.exportShareTitle', {
+          defaultValue: 'Sauvegarder les clés des documents',
+        }),
+        UTI: 'public.json', // iOS-only hint
+      });
       setStatus(
-        t('keyManagement.exportCopied', {
+        t('keyManagement.exportShared', {
           count: dbEntries.length,
           plural: dbEntries.length > 1 ? 's' : '',
+          defaultValue: 'Fichier de sauvegarde généré ({{count}} document{{plural}}).',
         }),
       );
     } catch (e: any) {
@@ -94,65 +129,138 @@ export default function KeyManagementScreen() {
     }
   };
 
-  const handleDbImport = (mode: 'merge' | 'replace') => {
-    if (!dbImportPaste.trim()) {
-      Alert.alert(t('keyManagement.importEmptyTitle'), t('keyManagement.importEmptyBody'));
-      return;
+  // Direct-save export (Android only): use the Storage Access Framework so
+  // the user picks a destination folder (Downloads, Documents, an SD card,
+  // etc.) and the JSON lands there as a real file they can find in their
+  // file manager — independent of any other app being installed. iOS has
+  // no equivalent OS API; iOS users save through the share sheet's
+  // "Save to Files" entry instead, which is why this button is hidden on iOS.
+  const handleDbSaveToPhone = async () => {
+    if (Platform.OS !== 'android') {
+      // Defensive: button is Android-only in the JSX, but if a caller
+      // wires it up on iOS, fall through to the share sheet rather than
+      // silently no-op.
+      return handleDbShare();
     }
-    const title = mode === 'replace'
-      ? t('keyManagement.confirmReplaceTitle')
-      : t('keyManagement.confirmMergeTitle');
-    const warning = mode === 'replace'
-      ? t('keyManagement.dbImportReplace')
-      : t('keyManagement.dbImportMerge');
-    const verb = mode === 'replace' ? t('keyManagement.actionReplaceAll') : t('keyManagement.actionMerge');
+    try {
+      const permissions =
+        await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permissions.granted) {
+        // User cancelled the folder picker — silent, no error.
+        return;
+      }
+      const { json, filename } = await buildExportPayload();
+      const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permissions.directoryUri,
+        filename,
+        'application/json',
+      );
+      await FileSystem.writeAsStringAsync(fileUri, json, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      setStatus(
+        t('keyManagement.exportSaved', {
+          count: dbEntries.length,
+          plural: dbEntries.length > 1 ? 's' : '',
+          defaultValue: 'Fichier enregistré sur le téléphone ({{count}} document{{plural}}).',
+        }),
+      );
+    } catch (e: any) {
+      Alert.alert(t('keyManagement.genericError'), e?.message ?? t('keyManagement.exportError'));
+    }
+  };
+
+  // Import: open the OS document picker, read the chosen JSON file, then
+  // surface the existing merge/replace confirmation dialog. Replaces the
+  // multiline-paste TextInput. `copyToCacheDirectory: true` is necessary on
+  // Android — the raw `content://` URI from SAF isn't readable by
+  // FileSystem.readAsStringAsync; the picker copies it into our sandbox.
+  const handleDbImportFromFile = async () => {
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/plain', '*/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled) return;
+      const asset = picked.assets?.[0];
+      if (!asset?.uri) {
+        Alert.alert(
+          t('keyManagement.importInvalidTitle'),
+          t('keyManagement.importPickError', {
+            defaultValue: 'Impossible de lire le fichier sélectionné.',
+          }),
+        );
+        return;
+      }
+      const json = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const trimmed = json.trim();
+      if (!trimmed) {
+        Alert.alert(t('keyManagement.importEmptyTitle'), t('keyManagement.importEmptyBody'));
+        return;
+      }
+      promptImportMode(trimmed);
+    } catch (e: any) {
+      Alert.alert(
+        t('keyManagement.importInvalidTitle'),
+        e?.message ?? t('keyManagement.importInvalidBody'),
+      );
+    }
+  };
+
+  // Shared merge/replace confirmation. Called once we have JSON content,
+  // regardless of how it got there (file picker today; future paths could
+  // add scanning a QR backup etc).
+  const promptImportMode = (json: string) => {
     Alert.alert(
-      title,
-      warning,
+      t('keyManagement.importChooseModeTitle', {
+        defaultValue: 'Importer la sauvegarde ?',
+      }),
+      t('keyManagement.importChooseModeBody', {
+        defaultValue:
+          'Fusionner : conserve les passeports existants et ajoute ceux qui ne sont pas déjà présents.\n\nTout remplacer : efface tous les passeports actuels et les remplace par ceux du fichier.',
+      }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: verb,
-          style: mode === 'replace' ? 'destructive' : 'default',
-          onPress: async () => {
-            try {
-              const r = await importPassportDb(dbImportPaste, mode);
-              setDbImportPaste('');
-              await refreshDb();
-              setStatus(
-                t(mode === 'replace' ? 'keyManagement.importDoneReplace' : 'keyManagement.importDoneMerge', {
-                  added: r.added,
-                  addedPlural: r.added > 1 ? 's' : '',
-                  skipped: r.skipped,
-                  skippedPlural: r.skipped > 1 ? 's' : '',
-                }),
-              );
-            } catch (e: any) {
-              Alert.alert(t('keyManagement.importInvalidTitle'), e?.message ?? t('keyManagement.importInvalidBody'));
-            }
-          },
+          text: t('keyManagement.actionMerge'),
+          style: 'default',
+          onPress: () => doImport(json, 'merge'),
+        },
+        {
+          text: t('keyManagement.actionReplaceAll'),
+          style: 'destructive',
+          onPress: () => doImport(json, 'replace'),
         },
       ],
     );
   };
 
-  const handleDbWipe = () => {
-    Alert.alert(
-      t('keyManagement.wipeDbConfirmTitle'),
-      t('keyManagement.wipeDbConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('keyManagement.actionDelete'),
-          style: 'destructive',
-          onPress: async () => {
-            await wipePassportDb();
-            await refreshDb();
-            setStatus(t('keyManagement.wipeDbDone'));
+  const doImport = async (json: string, mode: 'merge' | 'replace') => {
+    try {
+      const r = await importPassportDb(json, mode);
+      await refreshDb();
+      setStatus(
+        t(
+          mode === 'replace'
+            ? 'keyManagement.importDoneReplace'
+            : 'keyManagement.importDoneMerge',
+          {
+            added: r.added,
+            addedPlural: r.added > 1 ? 's' : '',
+            skipped: r.skipped,
+            skippedPlural: r.skipped > 1 ? 's' : '',
           },
-        },
-      ],
-    );
+        ),
+      );
+    } catch (e: any) {
+      Alert.alert(
+        t('keyManagement.importInvalidTitle'),
+        e?.message ?? t('keyManagement.importInvalidBody'),
+      );
+    }
   };
 
   // "Tout supprimer" — destructive reset. Wipes the BJJ private key, the
@@ -184,7 +292,6 @@ export default function KeyManagementScreen() {
     );
   };
 
-  if (!devMode) return null;
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.section}>
@@ -198,63 +305,71 @@ export default function KeyManagementScreen() {
         {dbEntries.length > 0 && (
           <View style={[styles.keyBox, { gap: 6 }]}>
             {dbEntries.map((e) => (
-              <Text key={e.passportHash} style={styles.keyText} numberOfLines={1}>
-                <Text style={{ opacity: 0.55 }}>{e.passportHash.slice(0, 12)}…</Text>
+              <Text key={e.passportHash} style={styles.keyText}>
+                <Text style={{ opacity: 0.55 }}>{e.passportHash}</Text>
               </Text>
             ))}
           </View>
         )}
 
-        <View style={styles.row}>
+        {/* Save-to-phone path uses SAF — Android only. iOS users save via
+            the share sheet's built-in "Save to Files" entry, so we don't
+            render this button there. */}
+        {Platform.OS === 'android' && (
           <Pressable
-            style={[styles.button, dbEntries.length === 0 && styles.buttonDisabled]}
-            onPress={handleDbExport}
+            style={[styles.button, dbEntries.length === 0 && styles.buttonDisabled, { marginBottom: 10 }]}
+            onPress={handleDbSaveToPhone}
             disabled={dbEntries.length === 0}
           >
-            <Text style={styles.buttonText}>{t('keyManagement.actionExport')}</Text>
+            <Text style={styles.buttonText}>
+              {t('keyManagement.actionSaveToPhone', {
+                defaultValue: 'Enregistrer sur le téléphone',
+              })}
+            </Text>
           </Pressable>
-          <Pressable
-            style={[styles.button, dbEntries.length === 0 && styles.buttonDisabled]}
-            onPress={handleDbWipe}
-            disabled={dbEntries.length === 0}
-          >
-            <Text style={styles.buttonText}>{t('keyManagement.actionDelete')}</Text>
-          </Pressable>
-        </View>
+        )}
+
+        <Pressable
+          style={[styles.button, dbEntries.length === 0 && styles.buttonDisabled]}
+          onPress={handleDbShare}
+          disabled={dbEntries.length === 0}
+        >
+          <Text style={styles.buttonText}>
+            {t(Platform.OS === 'android' ? 'keyManagement.actionShare' : 'keyManagement.actionExport', {
+              defaultValue: Platform.OS === 'android' ? 'Partager…' : 'Exporter (fichier .json)',
+            })}
+          </Text>
+        </Pressable>
 
         <Text style={[styles.helpText, { marginTop: 14 }]}>
-          {t('keyManagement.dbRestoreHint')}
+          {t('keyManagement.dbRestoreHint', {
+            defaultValue:
+              'Pour restaurer une sauvegarde, importez le fichier .json que vous avez exporté précédemment. Le choix « Fusionner » / « Tout remplacer » s’affiche au moment de l’import.',
+          })}
         </Text>
-        <TextInput
-          style={styles.input}
-          value={dbImportPaste}
-          onChangeText={setDbImportPaste}
-          placeholder='{"version":1,"entries":[…]}'
-          placeholderTextColor={colors.text + '60'}
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          multiline
-        />
-        <View style={styles.row}>
-          <Pressable style={styles.button} onPress={() => handleDbImport('merge')}>
-            <Text style={styles.buttonText}>{t('keyManagement.actionMerge')}</Text>
-          </Pressable>
-          <Pressable style={styles.dangerButton} onPress={() => handleDbImport('replace')}>
-            <Text style={styles.dangerButtonText}>{t('keyManagement.actionReplaceAll')}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('keyManagement.wipeAllSectionTitle')}</Text>
-        <Text style={styles.helpText}>
-          {t('keyManagement.wipeAllSectionDescription')}
-        </Text>
-        <Pressable style={styles.dangerButton} onPress={handleWipeAll}>
-          <Text style={styles.dangerButtonText}>{t('keyManagement.wipeAllCta')}</Text>
+        <Pressable style={styles.button} onPress={handleDbImportFromFile}>
+          <Text style={styles.buttonText}>
+            {t('keyManagement.actionImportFile', { defaultValue: 'Importer un fichier…' })}
+          </Text>
         </Pressable>
       </View>
+
+      {/* Destructive global reset — wipes the BJJ key, the document DB, and
+          the CGU acceptance in one click. Gated to dev mode: ordinary users
+          shouldn't be one tap away from losing every registered identity.
+          Power users (with dev mode unlocked via 7 taps on the version row
+          in Settings) still get the escape hatch. */}
+      {devMode && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('keyManagement.wipeAllSectionTitle')}</Text>
+          <Text style={styles.helpText}>
+            {t('keyManagement.wipeAllSectionDescription')}
+          </Text>
+          <Pressable style={styles.dangerButton} onPress={handleWipeAll}>
+            <Text style={styles.dangerButtonText}>{t('keyManagement.wipeAllCta')}</Text>
+          </Pressable>
+        </View>
+      )}
 
       {status && (
         <View style={styles.statusBox}>
@@ -309,10 +424,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.text,
       opacity: 0.5,
     },
-    row: {
-      flexDirection: 'row',
-      gap: 10,
-    },
     button: {
       flex: 1,
       paddingVertical: 12,
@@ -327,17 +438,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontFamily: Typography.fontFamily.semibold,
       fontSize: Typography.fontSize.body,
       color: colors.buttonText,
-    },
-    input: {
-      backgroundColor: colors.background,
-      borderRadius: 6,
-      padding: 12,
-      minHeight: 80,
-      fontFamily: Typography.fontFamily.mono,
-      fontSize: 13,
-      color: colors.text,
-      marginBottom: 12,
-      textAlignVertical: 'top',
     },
     dangerButton: {
       paddingVertical: 12,
