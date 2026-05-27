@@ -32,8 +32,11 @@ const patch = Number(match[1]);
 console.log(`Publishing OTA_PATCH=${patch} to channel "${channel}"...`);
 
 const flag = message ? `--message ${JSON.stringify(message)}` : '';
-execSync(`eas update --channel ${channel} ${flag}`.trim(), {
-  stdio: 'inherit',
-  cwd: ROOT,
-});
+for (const platform of ['ios', 'android']) {
+  console.log(`  → ${platform}`);
+  execSync(`eas update --channel ${channel} --platform ${platform} ${flag}`.trim(), {
+    stdio: 'inherit',
+    cwd: ROOT,
+  });
+}
 console.log(`OTA #${patch} published on channel "${channel}".`);
