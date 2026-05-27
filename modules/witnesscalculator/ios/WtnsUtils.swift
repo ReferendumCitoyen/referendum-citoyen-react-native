@@ -66,6 +66,33 @@ class WtnsUtils {
     static public func calcWtnsAuth(_ descriptionFileData: Data, _ privateInputsJson: Data) throws -> Data {
         return try _calcWtnsAuth(descriptionFileData, privateInputsJson)
     }
+
+    /// Witness calculator for the `query_identity` Groth16 circuit used by
+    /// the Mainnet vote flow. The native binding lives in
+    /// `libs/libwitnesscalc_queryIdentity.a` (arm64-only, copied verbatim
+    /// from rarime-ios-app, same artefact already proven in inid-app's
+    /// preview build). Mirrors the Android `calcWtnsQueryIdentity` shape
+    /// exactly so the JS bridge (`utils/groth16-vote.ts`) needs no change.
+    static public func calcWtnsQueryIdentity(
+        _ descriptionFileData: Data,
+        _ privateInputsJson: Data
+    ) throws -> Data {
+        let wtnsSize = UnsafeMutablePointer<UInt>.allocate(capacity: Int(1));
+        wtnsSize.initialize(to: WITNESS_SIZE)
+        let wtnsBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(WITNESS_SIZE))
+        let errorBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(ERROR_SIZE))
+
+        let result = witnesscalc_queryIdentity(
+            (descriptionFileData as NSData).bytes, UInt(descriptionFileData.count),
+            (privateInputsJson as NSData).bytes,   UInt(privateInputsJson.count),
+            wtnsBuffer, wtnsSize,
+            errorBuffer, ERROR_SIZE
+        )
+
+        try handleWitnessError(result, errorBuffer, wtnsSize)
+
+        return Data(bytes: wtnsBuffer, count: Int(wtnsSize.pointee))
+    }
     
     static private func _calcWtnsAuth(
         _ descriptionFileData: Data,
