@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking, Alert, TextInput } from 'react-native';
 import * as Application from 'expo-application';
+import { useUpdates } from 'expo-updates';
+import { OTA_PATCH } from '@/constants/otaVersion';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
 import { Svg, Path } from 'react-native-svg';
@@ -30,6 +32,7 @@ export default function ParametresScreen() {
   const styles = createStyles(colors);
   const darkModeEnabled = theme === 'dark';
   const { devMode, setDevMode, handleVersionTap } = useDevMode();
+  const { currentlyRunning } = useUpdates();
   const { network, setNetwork } = useNetwork();
   const { extraEnabled, setExtraEnabled, extraIds, setExtraIds } = useExtraProposals();
 
@@ -322,11 +325,23 @@ export default function ParametresScreen() {
         {/* Version Text */}
         <TouchableOpacity style={styles.versionContainer} activeOpacity={1} onPress={handleVersionTap}>
           <Text style={styles.versionText}>
-            {t('settings.version', {
-              version: Application.nativeApplicationVersion || '1.0.0',
-              build: Application.nativeBuildVersion || '1',
-            })}
+            {`v${Application.nativeApplicationVersion || '1.0'}.${OTA_PATCH}${devMode ? ` (build ${Application.nativeBuildVersion || '1'})` : ''} · GPLv3`}
           </Text>
+          {devMode && (
+            <Text style={styles.versionText}>
+              {currentlyRunning.isEmbeddedLaunch
+                ? 'OTA: embedded (no update applied)'
+                : [
+                    `OTA id: ${currentlyRunning.updateId ?? '—'}`,
+                    currentlyRunning.createdAt
+                      ? `Date: ${currentlyRunning.createdAt.toISOString().replace('T', ' ').slice(0, 19)} UTC`
+                      : null,
+                    currentlyRunning.channel ? `Channel: ${currentlyRunning.channel}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join('\n')}
+            </Text>
+          )}
         </TouchableOpacity>
 
       </ScrollView>
