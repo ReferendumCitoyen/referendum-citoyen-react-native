@@ -160,7 +160,7 @@ describe('parseMRZDate', () => {
   });
 
   it("accepts the test card's birth date 941231 → 31 Dec 1994", () => {
-    const d = parseMRZDate('941231');
+    const d = parseMRZDate('941231', 'birth');
     expect(d).not.toBeNull();
     expect(d!.getFullYear()).toBe(1994);
     expect(d!.getMonth()).toBe(11);
@@ -168,15 +168,32 @@ describe('parseMRZDate', () => {
   });
 
   it("accepts the test card's expiry 330209 → 9 Feb 2033", () => {
-    const d = parseMRZDate('330209');
+    const d = parseMRZDate('330209', 'expiry');
     expect(d!.getFullYear()).toBe(2033);
     expect(d!.getMonth()).toBe(1);
     expect(d!.getDate()).toBe(9);
   });
 
-  it('treats AA < 50 as 20YY and AA >= 50 as 19YY', () => {
-    expect(parseMRZDate('490101')!.getFullYear()).toBe(2049);
-    expect(parseMRZDate('500101')!.getFullYear()).toBe(1950);
+  describe('century expansion rules', () => {
+    it("expiry: 49 → 2049, 50 → 1950 (fixed `>=50` cutoff)", () => {
+      expect(parseMRZDate('490101', 'expiry')!.getFullYear()).toBe(2049);
+      expect(parseMRZDate('500101', 'expiry')!.getFullYear()).toBe(1950);
+    });
+
+    it('birth: fixed `>35` cutoff (≤35 → 20YY, >35 → 19YY)', () => {
+      // The boundary
+      expect(parseMRZDate('350101', 'birth')!.getFullYear()).toBe(2035);
+      expect(parseMRZDate('360101', 'birth')!.getFullYear()).toBe(1936);
+      // The 80-year-old voter case that bit us (YY=44):
+      expect(parseMRZDate('441231', 'birth')!.getFullYear()).toBe(1944);
+      // Modern voters
+      expect(parseMRZDate('070101', 'birth')!.getFullYear()).toBe(2007);
+      expect(parseMRZDate('990101', 'birth')!.getFullYear()).toBe(1999);
+    });
+
+    it('birth mode is the default when no mode is passed', () => {
+      expect(parseMRZDate('441231')!.getFullYear()).toBe(1944);
+    });
   });
 
   it('accepts a Feb 29 leap year (240229 = 2024)', () => {

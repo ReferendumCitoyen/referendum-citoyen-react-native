@@ -51,8 +51,8 @@ const ManualMRZInput: React.FC<ManualMRZInputProps> = ({ isVisible, onClose, onS
   // it would be noisy to flag "invalid" mid-typing. The eligibility policy
   // (≥18, not expired) lives in utils/mrzDate so the same checks fire on the
   // camera-scan path in Step5.
-  const birthToken = birthDate.length === 6 ? checkBirthDate(parseFrenchDate(birthDate)) : null;
-  const expiryToken = expiryDate.length === 6 ? checkExpiryDate(parseFrenchDate(expiryDate)) : null;
+  const birthToken = birthDate.length === 6 ? checkBirthDate(parseFrenchDate(birthDate, 'birth')) : null;
+  const expiryToken = expiryDate.length === 6 ? checkExpiryDate(parseFrenchDate(expiryDate, 'expiry')) : null;
 
   // In dev mode, only the structural 'invalid' parse failure blocks
   // submission — 'underage' / 'expired' are downgraded to non-errors so

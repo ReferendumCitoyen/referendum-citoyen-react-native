@@ -194,8 +194,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     // expired passports; the circuit-level expiration check fires later
     // in Step 11 with a clearer error message). We still log the reason
     // so it's obvious in logcat which check was waived.
-    const birth = parseMRZDate(mrz.dateOfBirth);
-    const expiry = parseMRZDate(mrz.dateOfExpiry);
+    const birth = parseMRZDate(mrz.dateOfBirth, 'birth');
+    const expiry = parseMRZDate(mrz.dateOfExpiry, 'expiry');
     if (checkBirthDate(birth) === 'underage') {
       if (devMode) {
         console.log('[Step5][devMode] bypassing underage check');
