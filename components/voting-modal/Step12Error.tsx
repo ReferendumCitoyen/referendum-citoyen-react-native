@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
@@ -14,10 +14,14 @@ interface Step12ErrorProps {
   error?: unknown;
 }
 
-// On Android, voting-flow's slidingWrapper has flex: 0 so percentage heights
-// inside slides collapse. We need a real minHeight, otherwise the content is
-// laid out around y=0 and ends up mostly off-screen.
-const ANDROID_SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
+// voting-flow's slidingWrapper + slidingContainer have flex: 0 on iOS and
+// flex: 1 on Android (styles.ts), but in BOTH cases percentage heights on
+// children resolve unpredictably — Android collapses to 0, iOS resolves to
+// 0 because the parent has no defined height. Use a concrete minHeight on
+// both platforms instead of `height: '100%'` so step11/12 slides paint at
+// usable height (otherwise the LottieView animation, title text, and CTA
+// button all stack around y=0).
+const SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
 const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onLayout, errorReason, error }) => {
   const { t } = useTranslation();
@@ -27,10 +31,7 @@ const Step12Error: React.FC<Step12ErrorProps> = ({ containerWidth, onGoHome, onL
   return (
     <View
       style={[
-        { width: containerWidth },
-        Platform.OS === 'android'
-          ? { minHeight: ANDROID_SLIDE_MIN_HEIGHT }
-          : { height: '100%' },
+        { width: containerWidth, minHeight: SLIDE_MIN_HEIGHT },
       ]}
       onLayout={onLayout}
     >

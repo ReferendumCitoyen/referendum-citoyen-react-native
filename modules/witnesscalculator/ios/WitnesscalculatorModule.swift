@@ -25,5 +25,10 @@ public class WitnesscalculatorModule: Module {
             let result = try WtnsUtils.calcWtnsAuth(dat, inputs)
             return result
         }
+
+        AsyncFunction("calcWtnsQueryIdentity") { (dat: Data, inputs: Data) -> Data in
+            let result = try WtnsUtils.calcWtnsQueryIdentity(dat, inputs)
+            return result
+        }
     }
 }

@@ -425,7 +425,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       opacity: 0.5,
     },
     button: {
-      flex: 1,
+      flex: 3,
       paddingVertical: 12,
       borderRadius: 8,
       backgroundColor: colors.secondary,
@@ -440,6 +440,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       color: colors.buttonText,
     },
     dangerButton: {
+      flex: 2,
       paddingVertical: 12,
       borderRadius: 8,
       backgroundColor: '#c43b3b',
