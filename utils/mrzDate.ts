@@ -32,18 +32,54 @@ export const sanitizeDateInput = (raw: string): string =>
   raw.replace(/\D/g, '').slice(0, 6);
 
 /**
- * Parses 6 digits in JJMMAA into a real Date, with the standard MRZ century
- * convention (`AA < 50` → 20AA, otherwise 19AA). Returns null if the digits
- * don't make a valid calendar date (e.g. 31/02/95).
+ * Expand a 2-digit MRZ year into a 4-digit year for *birth dates*. Fixed
+ * cutoff at 35 (instead of the OLD `>=50`):
+ *   YY > 35 → 19YY   (covers 1936-1999, i.e. voters aged 27-90)
+ *   YY ≤ 35 → 20YY   (covers 2000-2035, i.e. voters born this century)
+ *
+ * Why 35: pushes the next boundary issue out to ~2036 (when someone born
+ * in 1936 would still be alive at 100; vanishingly rare voter pool).
+ * The OLD `>=50` rule mapped YY=44 to 2044, so Step7's display read
+ * "Né(e) le: 31/12/2044" for an 80yo voter — that's what we're fixing.
+ *
+ * For *expiry* dates use `expandMrzExpiryYear` (a different cutoff
+ * because passports look forward, not backward).
  */
-export const parseFrenchDate = (jjmmaa: string): Date | null => {
+export const expandMrzBirthYear = (yy: number): number =>
+  yy > 35 ? 1900 + yy : 2000 + yy;
+
+/**
+ * Expand a 2-digit MRZ year for *expiry dates* using the fixed `>=50` cutoff.
+ * Modern passports were only issued post-2000 with ≤10yr validity, so every
+ * realistic expiry is 2000-2049. The rule starts breaking ~2049 (an expiry
+ * of "55" would mean 2055, but the rule would say 1955) — future-us problem.
+ */
+export const expandMrzExpiryYear = (yy: number): number =>
+  yy >= 50 ? 1900 + yy : 2000 + yy;
+
+/**
+ * Parses 6 digits in JJMMAA into a real Date. Returns null if the digits
+ * don't make a valid calendar date (e.g. 31/02/95).
+ *
+ * The `mode` parameter selects the century-expansion rule:
+ *   - `'birth'` (default): ICAO sliding-window, dates always resolve to ≤ today
+ *   - `'expiry'`: fixed `>=50` → 19YY cutoff (good through ~2049)
+ *
+ * Pre-existing callers that omit `mode` get the birth rule because that's
+ * the most-likely-to-bite default; expiry callers must opt in explicitly.
+ */
+export const parseFrenchDate = (
+  jjmmaa: string,
+  mode: 'birth' | 'expiry' = 'birth',
+): Date | null => {
   if (jjmmaa.length !== 6 || !/^\d{6}$/.test(jjmmaa)) return null;
   const jj = parseInt(jjmmaa.slice(0, 2), 10);
   const mm = parseInt(jjmmaa.slice(2, 4), 10);
   const aa = parseInt(jjmmaa.slice(4, 6), 10);
   if (mm < 1 || mm > 12) return null;
   if (jj < 1 || jj > 31) return null;
-  const fullYear = aa < 50 ? 2000 + aa : 1900 + aa;
+  const fullYear =
+    mode === 'birth' ? expandMrzBirthYear(aa) : expandMrzExpiryYear(aa);
   const date = new Date(fullYear, mm - 1, jj);
   // Round-trip check: catches things like 31/02 → 03/03 because Date
   // silently overflows.
@@ -74,17 +110,24 @@ export const isExpired = (expiryDate: Date, now: Date = new Date()): boolean => 
 
 /**
  * Parses 6 digits in YYMMDD (the order the `mrz` library exposes via
- * `result.fields.birthDate` / `expirationDate`). Same century convention as
- * `parseFrenchDate`: AA < 50 → 20AA, otherwise 19AA.
+ * `result.fields.birthDate` / `expirationDate`). Mode selects the century
+ * rule — see `parseFrenchDate` for the explanation.
+ *
+ * Default `'birth'`: sliding-window so 2-digit years never resolve to the
+ * future. Pass `'expiry'` for date-of-expiry callers (fixed `>=50` cutoff).
  */
-export const parseMRZDate = (yymmdd: string): Date | null => {
+export const parseMRZDate = (
+  yymmdd: string,
+  mode: 'birth' | 'expiry' = 'birth',
+): Date | null => {
   if (yymmdd.length !== 6 || !/^\d{6}$/.test(yymmdd)) return null;
   const aa = parseInt(yymmdd.slice(0, 2), 10);
   const mm = parseInt(yymmdd.slice(2, 4), 10);
   const jj = parseInt(yymmdd.slice(4, 6), 10);
   if (mm < 1 || mm > 12) return null;
   if (jj < 1 || jj > 31) return null;
-  const fullYear = aa < 50 ? 2000 + aa : 1900 + aa;
+  const fullYear =
+    mode === 'birth' ? expandMrzBirthYear(aa) : expandMrzExpiryYear(aa);
   const date = new Date(fullYear, mm - 1, jj);
   if (
     date.getFullYear() !== fullYear ||
