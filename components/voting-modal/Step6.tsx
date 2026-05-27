@@ -7,6 +7,13 @@ import { useColors, Typography } from '@/constants/theme';
 import { getRandomValues } from 'expo-crypto';
 import { useTranslation } from 'react-i18next';
 import { useDevMode } from '@/contexts/DevModeContext';
+import { loadDevExamplePassportData } from '@/utils/dev-example-passport';
+
+// Dev shortcut: pretend the NFC scan succeeded by handing the parent the
+// PassportData built from example-passport.json (gitignored). Loads at
+// module scope so a missing fixture returns null once and the gated UI
+// hides itself.
+const DEV_EXAMPLE_PASSPORT_DATA = loadDevExamplePassportData();
 
 interface Step6Props {
   containerWidth: number;
@@ -468,6 +475,28 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
               {isScanning ? t('voting.step6Scanning') : showRetry ? t('common.retry') : t('common.analyze')}
             </Text>
           </TouchableOpacity>
+          {devMode && DEV_EXAMPLE_PASSPORT_DATA && !isScanning && (
+            <TouchableOpacity
+              style={{
+                marginTop: 12,
+                paddingVertical: 14,
+                borderRadius: 8,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: colors.errorText,
+              }}
+              activeOpacity={0.8}
+              onPress={() => onNFCSuccess?.(DEV_EXAMPLE_PASSPORT_DATA)}
+            >
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '600',
+                color: colors.errorText,
+              }}>
+                Dev : skip NFC (use example passport) →
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>

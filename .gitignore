@@ -102,3 +102,8 @@ CLAUDE.md
 # a local-tarball install can bypass the supply-chain controls of the
 # registry path.
 *.tgz
+
+# Local dev-only passport fixtures (PII inside — never commit). Created by
+# the dev passport-dump path in voting-flow.tsx (writes a passport.json to
+# documentDirectory) and pulled to the host machine for QA replay.
+example-passport.json

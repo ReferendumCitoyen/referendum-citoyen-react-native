@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, LayoutChangeEvent, Share, Platform, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, LayoutChangeEvent, Share, Dimensions } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import LottieView from 'lottie-react-native';
 import { createModalStyles, createStepSpecificStyles } from './styles';
@@ -13,9 +13,11 @@ interface Step12SuccessProps {
   onLayout?: (event: LayoutChangeEvent) => void;
 }
 
-// On Android, voting-flow's slidingWrapper has flex: 0 so percentage heights
-// inside slides collapse.
-const ANDROID_SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
+// voting-flow's sliding container chain has no defined height on iOS
+// (flex: undefined in styles.ts) and effectively flex: 0 on Android via the
+// row layout, so percentage heights on slides collapse. Use a concrete
+// minHeight on both platforms.
+const SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
 const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdentifier, onViewResults, onLayout }) => {
   const { t } = useTranslation();
@@ -43,10 +45,7 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdent
   return (
     <View
       style={[
-        { width: containerWidth },
-        Platform.OS === 'android'
-          ? { minHeight: ANDROID_SLIDE_MIN_HEIGHT }
-          : { height: '100%' },
+        { width: containerWidth, minHeight: SLIDE_MIN_HEIGHT },
       ]}
       onLayout={onLayout}
     >
