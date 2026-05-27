@@ -1,14 +1,13 @@
 #!/usr/bin/env node
-// Bump constants/otaVersion.ts and publish an OTA via `eas update`.
+// Publish an OTA update via `eas update`.
+// Bump OTA_PATCH in constants/otaVersion.ts manually before running this.
 //
 // Usage: node scripts/publish-ota.mjs <channel> [message]
 //   channel: e.g. "preview" or "production"
 //   message: optional human-readable note shown on the EAS dashboard
-//
-// On failure, the OTA_PATCH file is restored so the counter doesn't drift.
 
 import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,31 +21,22 @@ if (!channel) {
 }
 const message = messageParts.join(' ').trim();
 
-const original = readFileSync(FILE, 'utf8');
-const match = original.match(/export const OTA_PATCH = (\d+);/);
+const content = readFileSync(FILE, 'utf8');
+const match = content.match(/export const OTA_PATCH = (\d+);/);
 if (!match) {
   console.error(`Could not find "export const OTA_PATCH = N;" in ${FILE}`);
   process.exit(1);
 }
-const next = Number(match[1]) + 1;
-const bumped = original.replace(
-  /export const OTA_PATCH = \d+;/,
-  `export const OTA_PATCH = ${next};`,
-);
-writeFileSync(FILE, bumped);
+const patch = Number(match[1]);
 
-console.log(`Bumped OTA_PATCH -> ${next}. Publishing to channel "${channel}"...`);
+console.log(`Publishing OTA_PATCH=${patch} to channel "${channel}"...`);
 
-try {
-  const flag = message ? `--message ${JSON.stringify(message)}` : '';
-  execSync(`eas update --channel ${channel} ${flag}`.trim(), {
+const flag = message ? `--message ${JSON.stringify(message)}` : '';
+for (const platform of ['ios', 'android']) {
+  console.log(`  → ${platform}`);
+  execSync(`eas update --channel ${channel} --platform ${platform} ${flag}`.trim(), {
     stdio: 'inherit',
     cwd: ROOT,
   });
-  console.log(`OTA #${next} published on channel "${channel}".`);
-  console.log('Remember to commit constants/otaVersion.ts.');
-} catch {
-  console.error('eas update failed; reverting OTA_PATCH.');
-  writeFileSync(FILE, original);
-  process.exit(1);
 }
+console.log(`OTA #${patch} published on channel "${channel}".`);

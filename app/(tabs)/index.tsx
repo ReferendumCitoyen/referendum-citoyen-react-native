@@ -292,9 +292,15 @@ export default function AccueilScreen() {
   // when the dev toggle is on — used to keep older verified scrutins
   // reachable for QA without exposing them to regular users.
   const HARDCODED_PROPOSAL_IDS = ['49'];
-  const effectiveIds = extraEnabled
-    ? [...HARDCODED_PROPOSAL_IDS, ...extraIds]
-    : HARDCODED_PROPOSAL_IDS;
+  // Proposals only surfaced when dev mode is on. #25 is the open TD3
+  // mainnet scrutin the QA team uses for end-to-end vote tests (the
+  // production #49 is TD1).
+  const DEV_ONLY_PROPOSAL_IDS = ['25'];
+  const effectiveIds = [
+    ...HARDCODED_PROPOSAL_IDS,
+    ...(devMode ? DEV_ONLY_PROPOSAL_IDS : []),
+    ...(extraEnabled ? extraIds : []),
+  ];
 
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
@@ -367,9 +373,9 @@ export default function AccueilScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-    // Re-fetch when the effective ID list changes (toggle flips, or the
-    // user edits the extras list in Settings).
-  }, [getFreedomTool, network, ftConfig, extraEnabled, extraIds]);
+    // Re-fetch when the effective ID list changes (devMode flips, the
+    // extras toggle flips, or the user edits the extras list in Settings).
+  }, [getFreedomTool, network, ftConfig, devMode, extraEnabled, extraIds]);
 
   const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;

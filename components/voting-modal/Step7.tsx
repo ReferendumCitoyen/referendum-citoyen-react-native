@@ -18,6 +18,7 @@ import {
   type HeavyNoirProof,
 } from '@/utils/register-via-noir';
 import { EPassport } from '@/utils/e-document/e-document';
+import { expandMrzBirthYear } from '@/utils/mrzDate';
 
 interface NFCPersonDetails {
   firstName?: string;
@@ -32,15 +33,18 @@ interface NFCPersonDetails {
   documentNumber?: string;
 }
 
-// MRZ date is YYMMDD. ICAO 9303 century rule: YY >= 50 → 19xx, else 20xx.
+// Display helper for the MRZ *birth date* (the only field this is used for —
+// `nfcData.personDetails.birthDate` at line ~484). Uses the ICAO sliding-
+// window rule via `expandMrzBirthYear` so YY=44 today resolves to 1944 (the
+// 80yo voter case) instead of 2044 (the old fixed `>=50` cutoff was wrong
+// for any pre-1950 birth and produced "Né(e) le: 31/12/2044").
 // Returns French JJ/MM/AAAA, or 'N/A' for missing/malformed input.
 function formatMrzDateFr(yymmdd?: string | null): string {
   if (!yymmdd || yymmdd.length !== 6 || !/^\d{6}$/.test(yymmdd)) return 'N/A';
-  const yy = yymmdd.slice(0, 2);
+  const yy = parseInt(yymmdd.slice(0, 2), 10);
   const mm = yymmdd.slice(2, 4);
   const dd = yymmdd.slice(4, 6);
-  const century = parseInt(yy, 10) >= 50 ? '19' : '20';
-  return `${dd}/${mm}/${century}${yy}`;
+  return `${dd}/${mm}/${expandMrzBirthYear(yy)}`;
 }
 
 interface NFCData {

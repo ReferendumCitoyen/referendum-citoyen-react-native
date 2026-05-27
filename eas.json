@@ -57,7 +57,7 @@
     }
   },
   "submit": {
-    "_comment": "WARNING: the `appleId` below is the personal email of the App Store Connect account holder, baked into git history. If account ownership changes, rotate everywhere this email appears in history (audit pass 2026-05-24 flagged this as H-2). Consider moving to `$EXPO_APPLE_ID` env + `eas submit --apple-id $EXPO_APPLE_ID` in CI before the next ownership change.",
+    // "_comment": "WARNING: the `appleId` below is the personal email of the App Store Connect account holder, baked into git history. If account ownership changes, rotate everywhere this email appears in history (audit pass 2026-05-24 flagged this as H-2). Consider moving to `$EXPO_APPLE_ID` env + `eas submit --apple-id $EXPO_APPLE_ID` in CI before the next ownership change.",
     "testflight": {
       "ios": {
         "appleId": "gnourobi@hotmail.fr"

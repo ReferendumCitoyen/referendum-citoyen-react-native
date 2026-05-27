@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, LayoutChangeEvent } from 'react-native';
+import { View, Text, LayoutChangeEvent, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
@@ -10,6 +10,12 @@ import { Buffer } from 'buffer';
 import { ensureCircuitsReady } from '@/utils/circuit-preload';
 import { castMainnetVote } from '@/utils/mainnet-vote-flow';
 import { getOrCreatePrivateKey } from '@/utils/identity';
+
+// voting-flow's sliding container chain has no defined height on iOS
+// (flex: undefined in styles.ts) so `height: '100%'` on a slide collapses
+// to 0 — the LottieView spinner and status text end up stacked around y=0.
+// Use a concrete minHeight on both platforms instead.
+const SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
 interface Step11Props {
   containerWidth: number;
@@ -314,7 +320,7 @@ const Step11: React.FC<Step11Props> = ({
   }, [hasStarted, canSubmitReal, freedomTool, rarime, passport, proposalInfo, answerIndex, onSuccess, onError]);
 
   return (
-    <View style={[{ width: containerWidth, height: '100%' }]} onLayout={onLayout}>
+    <View style={[{ width: containerWidth, minHeight: SLIDE_MIN_HEIGHT }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step11Container}>
         <LottieView
           source={require('@/assets/animations/loading.json')}

@@ -1,11 +1,18 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Linking, TextInput, Keyboard } from 'react-native';
 import { Svg, Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useColors, Typography, Spacing } from '@/constants/theme';
-import { FREEDOM_TOOL_CONFIG, EXPLORER_TX_BASE_URL } from '@/constants/rarime-config';
+import { getFreedomToolConfig, getExplorerTxBaseUrl, type Network } from '@/constants/rarime-config';
+import { useNetwork } from '@/contexts/NetworkContext';
 import SettingsButton from '@/components/SettingsButton';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
+
+// Function selector for the BioPassportVoting `vote(...)` wrapper on Mainnet
+// (TD3 Groth16 path). Computed from the ABI in utils/vote-calldata.ts:60-67;
+// matches the selector logged by Step11 when castMainnetVote succeeds.
+// Anything else is assumed to be the TD1 Noir path (executeTD1Noir).
+const BIO_PASSPORT_VOTE_SELECTOR = '0x11181976';
 
 const ShieldCheckIcon = ({ color, size = 20 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -44,24 +51,112 @@ interface LookupResult {
   answerIndex: number;
   txHash: string;
   voteDate: string | null;
+  /** Which network the tx was actually found on — drives the explorer link
+   * below (rarimo mainnet scan vs qtestnet scan). Shared vote hashes can
+   * arrive from either network, so the verifier tries both and reports
+   * which one matched. */
+  network: Network;
+}
+
+/** Decode the proposalId + answerIndex out of a vote tx, branching by
+ * function selector. Two distinct calldata shapes ship in production:
+ *
+ *   - `0x11181976` → BioPassportVoting.vote(...) on Mainnet (TD3 Groth16
+ *     path; see utils/vote-calldata.ts:59-68 for the ABI source of truth).
+ *   - Anything else → executeTD1Noir(bytes32, uint256, bytes, bytes) which
+ *     wraps a (proposalId, uint256[] votes, userData) payload in bytes[2].
+ *     Covers TD1 votes on both networks + TD3 testnet.
+ */
+function decodeVoteCalldata(
+  txData: string,
+  abiCoder: { decode(types: string[], data: string): unknown[] },
+): { proposalId: string; answerIndex: number } | null {
+  const selector = txData.slice(0, 10).toLowerCase();
+  const body = '0x' + txData.slice(10);
+
+  if (selector === BIO_PASSPORT_VOTE_SELECTOR) {
+    // vote(bytes32 root, uint256 currentDate, uint256 proposalId,
+    //      uint256[] vote_, (uint256,uint256,uint256) userData,
+    //      (uint256[2], uint256[2][2], uint256[2]) zkPoints)
+    const decoded = abiCoder.decode(
+      [
+        'bytes32',
+        'uint256',
+        'uint256',
+        'uint256[]',
+        'tuple(uint256,uint256,uint256)',
+        'tuple(uint256[2],uint256[2][2],uint256[2])',
+      ],
+      body,
+    );
+    const proposalId = (decoded[2] as bigint).toString();
+    const votesMask = decoded[3] as bigint[];
+    const answerIndex = Math.log2(Number(votesMask[0]));
+    return { proposalId, answerIndex };
+  }
+
+  // TD1 Noir path
+  const outer = abiCoder.decode(['bytes32', 'uint256', 'bytes', 'bytes'], body);
+  const payload = abiCoder.decode(
+    ['uint256', 'uint256[]', 'tuple(uint256,uint256,uint256)'],
+    outer[2] as string,
+  );
+  const proposalId = (payload[0] as bigint).toString();
+  const votesMask = payload[1] as bigint[];
+  const answerIndex = Math.log2(Number(votesMask[0]));
+  return { proposalId, answerIndex };
 }
 
 export default function VerifierScreen() {
   const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
+  const { network } = useNetwork();
   const [txHashInput, setTxHashInput] = useState('');
   const [txLookupStatus, setTxLookupStatus] = useState<'idle' | 'loading' | 'success' | 'not_found' | 'error'>('idle');
   const [lookupResult, setLookupResult] = useState<LookupResult | null>(null);
 
-  const ftRef = useRef<any>(null);
+  /** Try a single network: fetch the tx, decode its calldata, resolve the
+   * proposal. Returns null if the tx isn't on that network; throws if it
+   * exists but parsing fails. */
+  const tryLookupOnNetwork = useCallback(async (
+    hash: string,
+    net: Network,
+  ): Promise<LookupResult | null> => {
+    const cfg = getFreedomToolConfig(net);
+    const { JsonRpcProvider, AbiCoder } = await import('ethers');
+    const provider = new JsonRpcProvider(cfg.api.votingRpcUrl);
+    const tx = await provider.getTransaction(hash);
+    if (!tx) return null;
 
-  const getFreedomTool = useCallback(async () => {
-    if (!ftRef.current) {
-      const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
-      ftRef.current = new FreedomTool(FREEDOM_TOOL_CONFIG);
+    const abiCoder = AbiCoder.defaultAbiCoder();
+    const decoded = decodeVoteCalldata(tx.data, abiCoder);
+    if (!decoded) return null;
+    const { proposalId, answerIndex } = decoded;
+
+    // Block timestamp
+    let voteDate: string | null = null;
+    const receipt = await provider.getTransactionReceipt(hash);
+    if (receipt?.blockNumber) {
+      const block = await provider.getBlock(receipt.blockNumber);
+      if (block?.timestamp) {
+        voteDate = new Date(block.timestamp * 1000).toLocaleString('fr-FR', {
+          dateStyle: 'long',
+          timeStyle: 'short',
+          timeZone: 'Europe/Paris',
+        });
+      }
     }
-    return ftRef.current;
+
+    // Proposal metadata (title, variants, results). FreedomTool is cheap to
+    // instantiate per call — no caching needed since we're network-aware.
+    const { FreedomTool } = await import('@rarimo/rarime-rn-sdk');
+    const ft = new FreedomTool(cfg);
+    const proposal = await ft.getProposalInfo(proposalId);
+    const variants = proposal.questions[0]?.variants ?? [];
+    const votedFor = variants[answerIndex] ?? `Option ${answerIndex + 1}`;
+
+    return { proposal, votedFor, answerIndex, txHash: hash, voteDate, network: net };
   }, []);
 
   const lookupVoteTx = useCallback(async () => {
@@ -70,58 +165,25 @@ export default function VerifierScreen() {
     Keyboard.dismiss();
     setTxLookupStatus('loading');
     setLookupResult(null);
+
+    // Use the user's active network — for prod users that's always Mainnet
+    // (the network toggle in parametres.tsx:133 is gated behind devMode,
+    // and DEFAULT_NETWORK is mainnet). Dev users who flip to Testnet are
+    // intentionally looking at Testnet votes and we shouldn't silently
+    // route them to Mainnet.
     try {
-      const { JsonRpcProvider, AbiCoder } = await import('ethers');
-      const provider = new JsonRpcProvider(FREEDOM_TOOL_CONFIG.api.votingRpcUrl);
-      const tx = await provider.getTransaction(hash);
-      if (!tx) {
+      const result = await tryLookupOnNetwork(hash, network);
+      if (result) {
+        setLookupResult(result);
+        setTxLookupStatus('success');
+      } else {
         setTxLookupStatus('not_found');
-        return;
       }
-
-      // Decode executeTD1Noir(bytes32, uint256, bytes, bytes)
-      const abiCoder = AbiCoder.defaultAbiCoder();
-      const decoded = abiCoder.decode(
-        ['bytes32', 'uint256', 'bytes', 'bytes'],
-        '0x' + tx.data.slice(10)
-      );
-
-      // Decode userPayload: (uint256 proposalId, uint256[] votes, (uint256,uint256,uint256))
-      const payloadDecoded = abiCoder.decode(
-        ['uint256', 'uint256[]', 'tuple(uint256,uint256,uint256)'],
-        decoded[2]
-      );
-      const proposalId = payloadDecoded[0].toString();
-      const votesMask = payloadDecoded[1];
-      const answerIndex = Math.log2(Number(votesMask[0]));
-
-      // Get block timestamp
-      let voteDate: string | null = null;
-      const receipt = await provider.getTransactionReceipt(hash);
-      if (receipt?.blockNumber) {
-        const block = await provider.getBlock(receipt.blockNumber);
-        if (block?.timestamp) {
-          voteDate = new Date(block.timestamp * 1000).toLocaleString('fr-FR', {
-            dateStyle: 'long',
-            timeStyle: 'short',
-            timeZone: 'Europe/Paris',
-          });
-        }
-      }
-
-      // Look up proposal to get full info
-      const ft = await getFreedomTool();
-      const proposal = await ft.getProposalInfo(proposalId);
-      const variants = proposal.questions[0]?.variants ?? [];
-      const votedFor = variants[answerIndex] ?? `Option ${answerIndex + 1}`;
-
-      setLookupResult({ proposal, votedFor, answerIndex, txHash: hash, voteDate });
-      setTxLookupStatus('success');
     } catch (err) {
-      console.error('[Vérifier] TX lookup error:', err);
+      console.error(`[Vérifier] ${network} lookup error:`, err);
       setTxLookupStatus('error');
     }
-  }, [txHashInput, getFreedomTool]);
+  }, [txHashInput, network, tryLookupOnNetwork]);
 
   return (
     <View style={styles.screenContainer}>
@@ -244,11 +306,13 @@ export default function VerifierScreen() {
                   </View>
                 )}
 
-                {/* Blockchain link */}
+                {/* Blockchain link — point at the explorer for the network
+                    where the tx actually landed (mainnet vs testnet have
+                    different block explorers). */}
                 <TouchableOpacity
                   style={styles.explorerLink}
                   activeOpacity={0.7}
-                  onPress={() => Linking.openURL(`${EXPLORER_TX_BASE_URL}${txHash}`)}
+                  onPress={() => Linking.openURL(`${getExplorerTxBaseUrl(lookupResult.network)}${txHash}`)}
                 >
                   <Text style={styles.explorerText}>{t('verifier.viewTxOnChain')}</Text>
                   <ExternalLinkIcon color={colors.secondary} size={14} />

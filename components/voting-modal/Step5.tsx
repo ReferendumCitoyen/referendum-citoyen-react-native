@@ -11,6 +11,9 @@ import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { extractMrz, extractMrzTd1 } from '@/utils/mrz-rarimo';
 import { isCitizenshipAllowed } from '@/utils/voteResults';
+import { loadDevExampleMrz } from '@/utils/dev-example-passport';
+
+const DEV_EXAMPLE_MRZ = loadDevExampleMrz();
 
 interface Step5Props {
   containerWidth: number;
@@ -191,8 +194,8 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     // expired passports; the circuit-level expiration check fires later
     // in Step 11 with a clearer error message). We still log the reason
     // so it's obvious in logcat which check was waived.
-    const birth = parseMRZDate(mrz.dateOfBirth);
-    const expiry = parseMRZDate(mrz.dateOfExpiry);
+    const birth = parseMRZDate(mrz.dateOfBirth, 'birth');
+    const expiry = parseMRZDate(mrz.dateOfExpiry, 'expiry');
     if (checkBirthDate(birth) === 'underage') {
       if (devMode) {
         console.log('[Step5][devMode] bypassing underage check');
@@ -493,6 +496,29 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         >
           <Text style={stepSpecificStyles.step5ButtonText}>{t('common.manualFill')}</Text>
         </TouchableOpacity>
+        {devMode && DEV_EXAMPLE_MRZ && (
+          <TouchableOpacity
+            style={{
+              marginHorizontal: 24,
+              marginBottom: 16,
+              paddingVertical: 14,
+              borderRadius: 8,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: colors.errorText,
+            }}
+            activeOpacity={0.8}
+            onPress={() => onMRZScanned?.(DEV_EXAMPLE_MRZ)}
+          >
+            <Text style={{
+              fontSize: 14,
+              fontWeight: '600',
+              color: colors.errorText,
+            }}>
+              Dev : use example passport →
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
