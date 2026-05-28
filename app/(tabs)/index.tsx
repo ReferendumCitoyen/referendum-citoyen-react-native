@@ -287,15 +287,15 @@ export default function AccueilScreen() {
   }, [getFreedomTool]);
 
   // Main allowlist of proposal IDs to display on the home screen.
-  //   #49 — the production scrutin for this release.
+  //   #50 — the production scrutin for this release.
   // Extras (the editable list in ExtraProposalsContext) are concatenated
   // when the dev toggle is on — used to keep older verified scrutins
   // reachable for QA without exposing them to regular users.
-  const HARDCODED_PROPOSAL_IDS = ['49'];
+  const HARDCODED_PROPOSAL_IDS = ['50'];
   // Proposals only surfaced when dev mode is on. #25 is the open TD3
   // mainnet scrutin the QA team uses for end-to-end vote tests (the
-  // production #49 is TD1).
-  const DEV_ONLY_PROPOSAL_IDS = ['25'];
+  // production #50 is TD1).
+  const DEV_ONLY_PROPOSAL_IDS = ['25,47,48'];
   const effectiveIds = [
     ...HARDCODED_PROPOSAL_IDS,
     ...(devMode ? DEV_ONLY_PROPOSAL_IDS : []),
