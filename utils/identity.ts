@@ -8,15 +8,72 @@ import {
   type PassportKeyEntry,
 } from '@/utils/passport-key-db';
 
+// ---------------------------------------------------------------------------
+// BJJ private-key validity
+// ---------------------------------------------------------------------------
+//
+// The vote circuit's BabyPbk constrains the private key via circomlib's
+// `Num2Bits(253)`, which only decomposes scalars in [0, 2^253). The SDK's
+// `RarimeUtils.generateBJJPrivateKey()` samples uniformly from the BabyJub
+// base field [0, p) where p ≈ 2^254 — so ~34 % of fresh keys land in the
+// dead zone [2^253, p) and trip an assert ~280 ms into witnesscalc. The
+// failing constraint surfaces with the misleading name "timestampUpperbound"
+// (the alphabetically-last loaded signal — same wording as the unrelated
+// registered-after-proposal-start timing bug), so this is invisible in
+// release reports without explicit detection.
+//
+// Mitigation: rejection-sample at GENERATION time so every freshly-minted
+// key is in range. WARN at load time so we can detect any already-persisted
+// bad key — but DON'T silently regenerate stored keys, because that would
+// orphan the on-chain identity bound to them, and French passports lack
+// DG15/AA which means `Registration2.revoke()` is blocked: the affected
+// user is unrecoverable on that document and can only vote with a different
+// document going forward.
+
+const SK_MAX_EXCLUSIVE = 1n << 253n;
+
+function isUsableSk(hex: string): boolean {
+  try {
+    return BigInt('0x' + hex.replace(/^0x/, '')) < SK_MAX_EXCLUSIVE;
+  } catch {
+    return false;
+  }
+}
+
+async function generateValidBJJPrivateKey(): Promise<string> {
+  const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
+  // Expected attempts ≈ 1.5 (success rate ≈ 66 % per draw). The 100-cap is
+  // purely defensive — the chance of needing more than 100 is ~10⁻⁵².
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const hex = RarimeUtils.generateBJJPrivateKey();
+    if (isUsableSk(hex)) return hex;
+  }
+  throw new Error(
+    '[identity] babyJub.F.random kept returning values >= 2^253 after 100 attempts — RNG is broken',
+  );
+}
+
+function warnIfBadSk(hex: string, context: string): void {
+  if (!isUsableSk(hex)) {
+    console.warn(
+      `[identity] stored BJJ sk (${context}) is >= 2^253 — vote circuit will assert. ` +
+        `This document's on-chain identity is unrecoverable (French passports lack AA → revoke() blocked); ` +
+        `the user can only vote with a different document.`,
+    );
+  }
+}
+
 // Returns the user's BJJ private key from SecureStore, generating + persisting
 // a new one on first run. Uses a dynamic import so callers don't pay the
 // rarime-rn-sdk load cost just to read an existing key.
 export async function getOrCreatePrivateKey(): Promise<string> {
   const existing = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
-  if (existing) return existing;
+  if (existing) {
+    warnIfBadSk(existing, 'legacy single-key slot');
+    return existing;
+  }
 
-  const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
-  const generated = RarimeUtils.generateBJJPrivateKey();
+  const generated = await generateValidBJJPrivateKey();
   await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, generated);
   return generated;
 }
@@ -41,8 +98,11 @@ export async function readPrivateKey(): Promise<string | null> {
  * `RarimeConfiguration.userConfiguration.userPrivateKey`.
  *
  * Throws if the input is not a valid hex string of the expected length.
- * Does NOT validate the BJJ subgroup membership — the SDK's Rarime
- * constructor will throw later if the value is outside the field.
+ * Logs a warning (but does NOT reject) if the key is in the witnesscalc
+ * dead zone (>= 2^253). Restoring a known-bad key is sometimes the only
+ * way for an affected user to move their on-chain identity to a new
+ * device — blocking it would break that recovery path. The downstream
+ * vote attempt will surface the issue clearly.
  */
 export async function setPrivateKey(hex: string): Promise<void> {
   const stripped = hex.trim().toLowerCase().replace(/^0x/, '');
@@ -51,6 +111,7 @@ export async function setPrivateKey(hex: string): Promise<void> {
       `Invalid private key — expected 64 hex characters, got ${stripped.length}`,
     );
   }
+  warnIfBadSk(stripped, 'restored backup');
   await SecureStore.setItemAsync(PRIVATE_KEY_STORAGE_KEY, stripped);
 }
 
@@ -105,6 +166,7 @@ export async function getOrCreateKeyForPassport(args: {
 
   const existing = await lookupKeyForPassport(passportHash);
   if (existing) {
+    warnIfBadSk(existing.privateKey, `passport ${passportHash.slice(0, 8)}…`);
     // CRITICAL: sync the legacy single-key slot to this passport's key,
     // even on a cache hit. Downstream call sites (Rarime SDK init in
     // voting-flow.tsx, mainnet-vote-flow.ts, register-via-noir.ts) all
@@ -133,11 +195,16 @@ export async function getOrCreateKeyForPassport(args: {
   let privateKey: string;
   let migratedFromLegacy = false;
   if (legacy && dbIsEmpty) {
+    // Migration path: a pre-existing legacy key is adopted for the first
+    // scanned passport. If the legacy key is in the dead zone, the adoption
+    // can't avoid that — silently regenerating would orphan whatever
+    // on-chain registration the user already made with this legacy key.
+    // Warn so the bad key shows up in release reports as a clean signal.
+    warnIfBadSk(legacy, 'legacy single-key slot adopted on first passport');
     privateKey = legacy;
     migratedFromLegacy = true;
   } else {
-    const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
-    privateKey = RarimeUtils.generateBJJPrivateKey();
+    privateKey = await generateValidBJJPrivateKey();
   }
 
   await addPassportKey({ passportHash, privateKey });
