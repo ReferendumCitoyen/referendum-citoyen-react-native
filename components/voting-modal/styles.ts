@@ -167,6 +167,36 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     width: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.ballotImageSize,
     height: Platform.OS === 'android' ? ANDROID_SLIDE_IMAGE : Spacing.modal.ballotImageSize,
   },
+  // iOS-only "intro video" phase rendered on top of Step 4 before the
+  // user reaches the existing "Démarrer l'analyse" content. The video
+  // fills the available vertical space; the skip button sits below it,
+  // hugging the bottom of the modal sheet.
+  stepIntroContainer: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: colors.cardBackground,
+    justifyContent: 'space-between',
+  },
+  stepIntroVideo: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: colors.cardBackground,
+  },
+  stepIntroSkipButton: {
+    paddingVertical: 16,
+    marginHorizontal: 24,
+    marginBottom: 24,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+  },
+  stepIntroSkipButtonText: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.button,
+    lineHeight: Typography.lineHeight.button,
+    letterSpacing: Typography.letterSpacing.button,
+    color: colors.buttonText,
+    textAlign: 'center',
+  },
   step4Container: {
     padding: Spacing.modal.step4Padding,
     paddingBottom: 40,
@@ -187,15 +217,6 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     letterSpacing: Typography.letterSpacing.settingRow,
     color: colors.text,
     textAlign: 'center',
-    width: '100%',
-  },
-  step4Description: {
-    fontFamily: Typography.fontFamily.medium,
-    fontWeight: Typography.fontWeight.medium,
-    fontSize: Typography.fontSize.body,
-    lineHeight: Typography.lineHeight.body,
-    letterSpacing: Typography.letterSpacing.body,
-    color: colors.text,
     width: '100%',
   },
   step4Video: {
