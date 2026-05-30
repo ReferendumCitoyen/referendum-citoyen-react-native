@@ -87,6 +87,12 @@ import {
   submitVote,
   MAINNET_BIO_PASSPORT_VOTING_ADDRESS,
 } from '@/utils/vote-calldata';
+// Single source of truth for the MRZ 2-digit-year cutoff. Birth dates use
+// the `>35` rule (people born 1936-2035), expiry dates use the legacy `>=50`
+// cutoff. Do NOT reintroduce a local `yy >= 70` (or any other) rule here —
+// that was the bug that turned a YY=65 fixture into "naissance le 2065-…"
+// in the diagnostic error message.
+import { expandMrzBirthYear, expandMrzExpiryYear } from '@/utils/mrzDate';
 
 // ---------------------------------------------------------------------------
 // Contract ABIs (the minimal slices we need). Decoded from BlockScout
@@ -417,10 +423,27 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
   }
 
   // Compute identityCreationTimestampUpperBound — mirrors the Android
-  // VotingManager logic. If the user registered after the proposal start,
-  // bound shifts to identityInfo.issueTimestamp + 1; otherwise it's the
-  // proposal's upper bound minus ROOT_VALIDITY (the lookback that lets the
-  // SMT root stay valid for a window).
+  // VotingManager logic. Two cases:
+  //
+  //   (a) Registered BEFORE proposal start (issueTimestamp <= rules.upper):
+  //       timestampUpperbound = rules.upper - ROOT_VALIDITY
+  //       identityCounterUpperbound = UINT32_MAX (no per-passport cap)
+  //
+  //   (b) Registered AFTER proposal start (issueTimestamp > rules.upper):
+  //       timestampUpperbound = issueTimestamp + 1
+  //       identityCounterUpperbound = rules.identityCounterUpperBound
+  //
+  // History: OTA #4 briefly switched (b) to UINT64_MAX - 1 to mirror the
+  // Rarime JS SDK's Freedomtool.buildQueryProofParams (Freedomtool.js:206-211).
+  // That SDK targets a Noir circuit; OUR app runs Circom + Groth16 + witnesscalc
+  // (assets/circuits/query_identity.dat + Groth16 zkey). The Noir sentinel
+  // is rejected by our Circom circuit — witnesscalc fires "Error loading
+  // signal timestampUpperbound / assert failed" on the first signal load.
+  // Empirically `issueTimestamp + 1n` is the value that works for our
+  // circuit (proven by a successful Mainnet vote on commit d676dd5 using
+  // this exact value). Reverted in this commit. The corresponding
+  // identityCreationTimestamp in the vote calldata (utils/vote-calldata.ts)
+  // is reverted to read pub_signals[15] for the same reason.
   let identityCreationTimestampUpperBound =
     ctx.proposalRules.identityCreationTimestampUpperBound - ctx.rootValidity;
   let identityCounterUpperBound = (1n << 32n) - 1n; // UINT32_MAX, the IDENTITY_LIMIT default
@@ -590,16 +613,21 @@ function decodeYymmdd(b: bigint): string | null {
   return out;
 }
 
-/** Convert YYMMDD → YYYY-MM-DD using ICAO 9303's standard document-date
- * convention: YY < 50 → 20YY, otherwise 19YY. Same rule used by
- * `utils/mrzDate.ts::parseMRZDate`. The previous threshold of `>= 70` was
- * wrong for any birth year in 1950..1969 — a voter born 1965-04-14 was
- * being formatted as "2065-04-14" in `diagnoseIneligibility`'s age-rule
- * message, which mis-blamed Bug 2 (malformed BJJ key) as an age
- * ineligibility two reports in a row before the cause was identified. */
-function yymmddToFullDate(yymmdd: string): string {
+/** Convert YYMMDD → YYYY-MM-DD for diagnostic error-message display only.
+ * Delegates century expansion to the shared helpers in utils/mrzDate.ts so
+ * there is exactly one place that decides "YY=65 is 1965, not 2065". The
+ * caller passes the date's semantic role ('birth' | 'expiry') because the
+ * two contexts use different ICAO cutoffs (see expandMrzBirthYear /
+ * expandMrzExpiryYear).
+ *
+ * History: a previous local `yy >= 70` rule formatted a voter born
+ * 1965-04-14 as "2065-04-14" in `diagnoseIneligibility`'s age-rule message,
+ * which mis-blamed Bug 2 (malformed BJJ key) as an age ineligibility two
+ * reports in a row before the cause was identified. Do NOT reintroduce a
+ * local cutoff here — route through the shared helpers. */
+function yymmddToFullDate(yymmdd: string, mode: 'birth' | 'expiry'): string {
   const yy = parseInt(yymmdd.slice(0, 2), 10);
-  const yyyy = yy < 50 ? 2000 + yy : 1900 + yy;
+  const yyyy = mode === 'birth' ? expandMrzBirthYear(yy) : expandMrzExpiryYear(yy);
   return `${yyyy}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
 }
 
@@ -679,8 +707,8 @@ function diagnoseIneligibility(args: {
   if (bit(12)) {
     const lb = decodeYymmdd(args.expirationDateLowerBound);
     if (lb && dates.expiryYymmdd) {
-      const passportExp = yymmddToFullDate(dates.expiryYymmdd);
-      const minExp = yymmddToFullDate(lb);
+      const passportExp = yymmddToFullDate(dates.expiryYymmdd, 'expiry');
+      const minExp = yymmddToFullDate(lb, 'expiry');
       if (passportExp < minExp) {
         return (
           `Votre passeport est expiré pour ce scrutin. ` +
@@ -696,8 +724,8 @@ function diagnoseIneligibility(args: {
   if (bit(14)) {
     const lb = decodeYymmdd(args.birthDateLowerbound);
     if (lb && dates.birthYymmdd) {
-      const passportBirth = yymmddToFullDate(dates.birthYymmdd);
-      const minBirth = yymmddToFullDate(lb);
+      const passportBirth = yymmddToFullDate(dates.birthYymmdd, 'birth');
+      const minBirth = yymmddToFullDate(lb, 'birth');
       if (passportBirth < minBirth) {
         return (
           `Votre date de naissance est antérieure à la limite de ce scrutin ` +
@@ -711,8 +739,8 @@ function diagnoseIneligibility(args: {
   if (bit(15)) {
     const ub = decodeYymmdd(args.birthDateUpperbound);
     if (ub && dates.birthYymmdd) {
-      const passportBirth = yymmddToFullDate(dates.birthYymmdd);
-      const maxBirth = yymmddToFullDate(ub);
+      const passportBirth = yymmddToFullDate(dates.birthYymmdd, 'birth');
+      const maxBirth = yymmddToFullDate(ub, 'birth');
       if (passportBirth >= maxBirth) {
         return (
           `Vous n'êtes pas éligible à ce scrutin selon la règle d'âge ` +
