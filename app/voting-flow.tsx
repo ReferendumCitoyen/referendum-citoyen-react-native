@@ -94,7 +94,7 @@ export default function VotingFlowScreen() {
   const progressOpacity3 = useRef(new Animated.Value(0.25)).current;
 
   const { players, handleStepChange, pauseAll } = useModalVideoPlayers();
-  const { player1, player2, player3, player4, player5 } = players;
+  const { player1, player2, player3, player4, player5, playerIntro } = players;
 
   // If the user switches network from Settings while the voting-flow screen
   // is still mounted (rare — would require backing out to Settings and back),
@@ -688,7 +688,7 @@ export default function VotingFlowScreen() {
                 show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s1'),
                 show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s2'),
                 show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} /> : spacer('s3'),
-                show(3) ? <Step4 key="s4" player={player1} containerWidth={containerWidth} onStartAnalysis={handleNext} isPassportFlow={isPassportFlow} /> : spacer('s4'),
+                show(3) ? <Step4 key="s4" player={player1} introPlayer={playerIntro} containerWidth={containerWidth} onStartAnalysis={handleNext} isPassportFlow={isPassportFlow} /> : spacer('s4'),
                 show(4) ? (
                   <Step5
                     key="s5"
