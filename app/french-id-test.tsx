@@ -747,31 +747,49 @@ export default function FrenchIDTestScreen() {
       await ft.verify(proposalInfo, passport, rarime);
       console.log("[FreedomTool] Verify passed");
 
-      // Debug: log passport data before proof generation
+      // Debug: log passport data before proof generation.
+      //
+      // SECURITY: every console.log below dumps identity-correlating data —
+      // DG1 hex (full MRZ), PassportKey hash, MRZ JSON, on-chain
+      // passportInfo (passportHash + issueTimestamp + identityKey),
+      // QueryProofParams (includes proofIndex). The screen is dev-mode
+      // gated at runtime, but the call sites still ship in the release
+      // bundle and would execute if anyone reached the screen. Wrapping
+      // the whole block in `if (__DEV__)` lets Metro dead-code-eliminate
+      // it at build time so it's not even present in release bundles.
+      // PassportInfo + queryProofParams are still fetched in the
+      // production code path because downstream code needs them — only
+      // the LOGGING is gated.
       console.log("[FreedomTool] DG1 length:", passport.dataGroup1.length, "(expected: 95)");
-      console.log("[FreedomTool] DG1 hex:", Buffer.from(passport.dataGroup1).toString("hex"));
-      try {
-        console.log("[FreedomTool] PassportKey:", passport.getPassportKey().toString(16));
-      } catch (e) { console.warn("[FreedomTool] PassportKey error:", e); }
-      try {
-        const mrzData = passport.getMRZData();
-        console.log("[FreedomTool] MRZ data:", JSON.stringify(mrzData));
-      } catch (e) { console.warn("[FreedomTool] MRZ parse error:", e); }
+      if (__DEV__) {
+        console.log("[FreedomTool] DG1 hex:", Buffer.from(passport.dataGroup1).toString("hex"));
+        try {
+          console.log("[FreedomTool] PassportKey:", passport.getPassportKey().toString(16));
+        } catch (e) { console.warn("[FreedomTool] PassportKey error:", e); }
+        try {
+          const mrzData = passport.getMRZData();
+          console.log("[FreedomTool] MRZ data:", JSON.stringify(mrzData));
+        } catch (e) { console.warn("[FreedomTool] MRZ parse error:", e); }
+      }
 
       const passportInfo = await rarime.getPassportInfo(passport);
       console.log("[FreedomTool] PassportInfo fetched");
-      console.log("[FreedomTool] On-chain passportInfo:", JSON.stringify(passportInfo, (_, v) =>
-        typeof v === 'bigint' ? v.toString() : v
-      ));
+      if (__DEV__) {
+        console.log("[FreedomTool] On-chain passportInfo:", JSON.stringify(passportInfo, (_, v) =>
+          typeof v === 'bigint' ? v.toString() : v
+        ));
+      }
 
       const queryProofParams = await ft.buildQueryProofParams(
         [selectedAnswer], proposalInfo, passportInfo
       );
       console.log("[FreedomTool] QueryProofParams built");
-      console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
-      console.log("[FreedomTool] criteria.timestampUpperbound:", proposalInfo.criteria.timestampUpperbound.toString());
-      console.log("[FreedomTool] passportInfo[1][1] (issueTimestamp):", passportInfo[1][1].toString());
-      console.log("[FreedomTool] issueTimestamp > timestampUpperbound?", passportInfo[1][1] > proposalInfo.criteria.timestampUpperbound);
+      if (__DEV__) {
+        console.log("[FreedomTool] QueryProofParams:", JSON.stringify(queryProofParams));
+        console.log("[FreedomTool] criteria.timestampUpperbound:", proposalInfo.criteria.timestampUpperbound.toString());
+        console.log("[FreedomTool] passportInfo[1][1] (issueTimestamp):", passportInfo[1][1].toString());
+        console.log("[FreedomTool] issueTimestamp > timestampUpperbound?", passportInfo[1][1] > proposalInfo.criteria.timestampUpperbound);
+      }
 
       // Snapshot SMT root BEFORE proof generation to detect race condition
       const smtRootBefore = await (rarime as any).getSMTProof(passport);
@@ -787,10 +805,18 @@ export default function FrenchIDTestScreen() {
         throw proofErr;
       }
       console.log("[FreedomTool] ZK proof generated");
-      console.log("[FreedomTool] ALL pub_signals:", JSON.stringify(queryProof.pub_signals));
+      if (__DEV__) {
+        // SECURITY: pub_signals carry the nullifier + citizenship + identity
+        // creation timestamp — per-event identity-correlating. Pub_signals[5]
+        // is the citizenship 3-letter code; pub_signals[14] reveals current
+        // date. Keeping the COUNT (operational) outside the gate so we still
+        // know if the circuit emitted the expected number of signals in
+        // release-mode triage.
+        console.log("[FreedomTool] ALL pub_signals:", JSON.stringify(queryProof.pub_signals));
+        console.log("[FreedomTool] pub_signals[5] (TD1 citizenship):", queryProof.pub_signals[5]);
+        console.log("[FreedomTool] pub_signals[14] (currentDate passed to contract):", queryProof.pub_signals[14]);
+      }
       console.log("[FreedomTool] pub_signals count:", queryProof.pub_signals.length);
-      console.log("[FreedomTool] pub_signals[5] (TD1 citizenship):", queryProof.pub_signals[5]);
-      console.log("[FreedomTool] pub_signals[14] (currentDate passed to contract):", queryProof.pub_signals[14]);
 
       // Check if root changed during proof generation
       const smtRootAfter = await (rarime as any).getSMTProof(passport);
