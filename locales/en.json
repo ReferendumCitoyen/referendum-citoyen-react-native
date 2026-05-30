@@ -187,7 +187,7 @@
     "step11Success": "Success",
     "step11Fail": "Failed",
     "step12SuccessTitle": "Your vote has been recorded.",
-    "step12SuccessDescription": "Your ID card data has been wiped from this device.",
+    "step12SuccessDescription": "Your passport data has been wiped from this device.",
     "step12SuccessButton": "View results",
     "step12VoteIdLabel": "Here is your vote's serial number:",
     "step12VoteIdCopy": "Copy",
@@ -276,7 +276,7 @@
   "nfcScan": {
     "title": "NFC scan",
     "missingMrz": "MRZ data missing",
-    "instruction": "Hold your ID card against the back of your phone"
+    "instruction": "Hold your passport against the back of your phone"
   },
   "mrzManual": {
     "title": "Manual MRZ entry",
@@ -290,9 +290,9 @@
     "birthInvalid": "Invalid date of birth.",
     "birthUnderage": "You must be at least 18 to vote.",
     "expiryInvalid": "Invalid expiry date.",
-    "expiryExpired": "This ID card is expired.",
+    "expiryExpired": "This passport is expired.",
     "submit": "Submit",
-    "idCardOnly": "Only French ID cards are accepted. Passports are not supported."
+    "idCardOnly": "Only French passports are accepted. ID cards are not supported."
   },
   "nfcTest": {
     "closeCamera": "✕ Close",
