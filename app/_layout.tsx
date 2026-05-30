@@ -214,6 +214,13 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen
+            name="export-passport"
+            options={{
+              title: 'Export passeport (dev)',
+              headerBackTitle: t('navigation.back'),
+            }}
+          />
+          <Stack.Screen
             name="language-select"
             options={{
               title: t('settings.language'),

@@ -279,6 +279,19 @@ export default function ParametresScreen() {
                 )}
               </View>
 
+              {/* Export passeport — scans NFC and lets the user share the
+                  resulting JSON (same format as example-passport / dev
+                  fixture). Used for A/B testing the same passport bytes in
+                  inid-app's referendum-debug screen. */}
+              <TouchableOpacity
+                style={styles.settingRow}
+                activeOpacity={0.7}
+                onPress={() => router.push('/export-passport' as any)}
+              >
+                <Text style={styles.settingLabel}>Export passeport (dev)</Text>
+                <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />
+              </TouchableOpacity>
+
               {/* French ID Test Row */}
               <View style={styles.settingRow}>
                 <Text style={styles.settingLabel}>Test Carte d&apos;identité</Text>
