@@ -499,6 +499,7 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
         expirationDateLowerBound: ctx.proposalRules.expirationDateLowerBound,
         birthDateLowerbound: ctx.proposalRules.birthDateLowerbound,
         birthDateUpperbound: ctx.proposalRules.birthDateUpperbound,
+        skIdentity: inputs.skIdentity as string,
       });
       if (reason) throw new Error(`[VOTE_INELIGIBLE] ${reason}`);
     }
@@ -589,11 +590,16 @@ function decodeYymmdd(b: bigint): string | null {
   return out;
 }
 
-/** Convert YYMMDD → YYYY-MM-DD. ICAO MRZ convention: YY ≥ 70 → 19YY, else 20YY.
- * Same threshold the on-chain `DateDecoder` uses with `currentDate`. */
+/** Convert YYMMDD → YYYY-MM-DD using ICAO 9303's standard document-date
+ * convention: YY < 50 → 20YY, otherwise 19YY. Same rule used by
+ * `utils/mrzDate.ts::parseMRZDate`. The previous threshold of `>= 70` was
+ * wrong for any birth year in 1950..1969 — a voter born 1965-04-14 was
+ * being formatted as "2065-04-14" in `diagnoseIneligibility`'s age-rule
+ * message, which mis-blamed Bug 2 (malformed BJJ key) as an age
+ * ineligibility two reports in a row before the cause was identified. */
 function yymmddToFullDate(yymmdd: string): string {
   const yy = parseInt(yymmdd.slice(0, 2), 10);
-  const yyyy = yy >= 70 ? 1900 + yy : 2000 + yy;
+  const yyyy = yy < 50 ? 2000 + yy : 1900 + yy;
   return `${yyyy}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
 }
 
@@ -622,7 +628,48 @@ function diagnoseIneligibility(args: {
   expirationDateLowerBound: bigint;
   birthDateLowerbound: bigint;
   birthDateUpperbound: bigint;
+  /** Decimal string of the BJJ private key the proof was built with. Used
+   * to detect Bug 2 (malformed sk that falls outside the vote circuit's
+   * Num2Bits(253) decomposition range). Must be checked BEFORE the age
+   * heuristics — Bug 2 produces the same misleading
+   * "Error loading signal timestampUpperbound" surface error as a date
+   * constraint, but the user-facing remediation is completely different. */
+  skIdentity: string;
 }): string | null {
+  // ── Bug 2: malformed BJJ private key (sk >= 2^253) ─────────────────────
+  // The vote circuit's BabyPbk decomposes skIdentity via circomlib's
+  // `Num2Bits(253)`, which only accepts scalars in [0, 2^253). Older
+  // SDK-generated keys (`@iden3/js-crypto`'s `babyJub.F.random()`) sampled
+  // from the base field [0, p ≈ 2^254) with no subgroup reduction; ~34%
+  // landed in the dead zone and tripped the assert ~280 ms into
+  // witnesscalc. Witnesscalc reports the alphabetically-last loaded signal
+  // (`timestampUpperbound`) as the error name — same surface error as a
+  // genuine date-bound mismatch, which is why this used to be mis-blamed
+  // on the age rule with a century-bug-induced "naissance le 2065-04-14"
+  // message. The user's recourse is different too: no document or
+  // proposal change rescues a key that's already on-chain; only switching
+  // to a different document works.
+  //
+  // Generation of new keys is now safe — `utils/identity.ts`'s
+  // `generateValidBJJPrivateKey()` rejection-samples until sk < 2^253 —
+  // but identities already registered on-chain with a bad sk remain
+  // unrecoverable on French passports (no DG15 → no AA → `revoke()`
+  // blocked).
+  try {
+    if (BigInt(args.skIdentity) >= (1n << 253n)) {
+      return (
+        `Ce passeport est lié à une identité on-chain dont la clé privée ` +
+        `n'est pas valide pour le circuit de vote (clé hors plage). Cette ` +
+        `identité ne peut pas être réinitialisée pour un passeport français ` +
+        `(absence d'authentification active / DG15). Veuillez voter avec un ` +
+        `autre document.`
+      );
+    }
+  } catch {
+    // skIdentity isn't a valid decimal — not the case this branch guards.
+    // Fall through to the standard date-based heuristics below.
+  }
+
   const sel = args.selector;
   const bit = (i: number) => ((sel >> BigInt(i)) & 1n) === 1n;
   const dates = extractMrzDates(args.dg1);
