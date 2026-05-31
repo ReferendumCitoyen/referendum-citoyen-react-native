@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       backgroundColor: '#ffffff',
     },
     ios: {
-      supportsTablet: true,
+      supportsTablet: false,
       bundleIdentifier: 'fr.referendum.citoyen',
       deploymentTarget: '16.0',
       infoPlist: {
