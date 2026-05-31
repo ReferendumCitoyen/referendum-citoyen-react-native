@@ -1,7 +1,7 @@
 // Externally-hosted pages linked from the app. Centralised so domain or
 // path changes are a one-line edit.
 export const LEGAL_URLS = {
-  privacyPolicy: 'https://referendumcitoyen.fr/politique-de-confidentialite',
+  privacyPolicy: 'https://referendumcitoyen.fr/politique-confidentialite',
   termsAndConditions: 'https://referendumcitoyen.fr/conditions-generales',
 } as const;
 
