@@ -26,7 +26,13 @@
     "update:production": "node ./scripts/publish-ota.mjs production",
     "postinstall": "patch-package",
     "eas-build-post-install": "node ./scripts/strip-bitcode.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "log:eas": "node ./scripts/update-eas-log.mjs",
+    "postbuild:ios:testflight": "node ./scripts/update-eas-log.mjs",
+    "postbuild:ios:production": "node ./scripts/update-eas-log.mjs",
+    "postbuild:android:production": "node ./scripts/update-eas-log.mjs",
+    "postupdate:preview": "node ./scripts/update-eas-log.mjs",
+    "postupdate:production": "node ./scripts/update-eas-log.mjs"
   },
   "dependencies": {
     "@distributedlab/tools": "^1.0.0-rc.17",
