@@ -167,6 +167,7 @@
     "step7Verifying": "Vérification en cours...",
     "step7CheckingStatus": "Vérification du statut...",
     "step7Registering": "Enregistrement de votre identité...",
+    "step7Confirming": "Confirmation sur la blockchain...",
     "step7Verified": "Vérification réussie !",
     "step7MissingData": "Données d'identité manquantes. Veuillez rescanner votre carte.",
     "step7WrongDocumentType": "Passeport détecté. Veuillez utiliser votre carte nationale d'identité (pas un passeport) pour voter.",
