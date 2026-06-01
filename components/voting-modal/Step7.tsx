@@ -404,6 +404,43 @@ const Step7: React.FC<Step7Props> = ({
             );
             console.log(`[Step7][${network}] light register submitted (${isTd3 ? 'TD3' : 'TD1'})`);
           }
+
+          // Wait for the registration tx to be mined + indexed in the
+          // RegistrationSMT before declaring success. The relayer ACKs the
+          // moment the tx is broadcast, NOT when it lands on-chain. Rarimo
+          // L2 blocks every ~5 s and SMT indexing trails by a block or two.
+          // Without this poll, `mainnet-vote-flow.readOnChainContext`'s
+          // pre-flight `regSmt.getProof(proofIndex)` races the chain and
+          // throws "not yet registered" ~10–15 s into the vote step — a
+          // confusing dead-end for what was actually a successful
+          // registration. Mirrors the CSCA-bootstrap poll above.
+          if (network === 'mainnet') {
+            console.log('[Step7][mainnet] waiting for registration to land in SMT…');
+            setStatusText(t('voting.step7Confirming'));
+            const POLL_INTERVAL_MS = 2_000;
+            const POLL_TIMEOUT_MS = 60_000;
+            const tConfirmStart = Date.now();
+            let confirmed = false;
+            while (Date.now() - tConfirmStart < POLL_TIMEOUT_MS) {
+              try {
+                const smtProof = await rarime.getSMTProof(passport);
+                if (smtProof.existence) {
+                  confirmed = true;
+                  console.log(`[Step7][mainnet] SMT confirmed in ${Date.now() - tConfirmStart}ms`);
+                  break;
+                }
+              } catch (e: any) {
+                console.log('[Step7][mainnet] SMT poll err:', e?.message ?? e);
+              }
+              await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+            }
+            if (!confirmed) {
+              throw new Error(
+                `[Step7] Registration confirmation timed out after ${Math.round((Date.now() - tConfirmStart) / 1000)}s. ` +
+                  'Please retry the vote in a moment.',
+              );
+            }
+          }
         }
 
         hasCalledCallback.current = true;
