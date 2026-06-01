@@ -252,6 +252,34 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       });
       console.log('[Step6] Scan result received, keys:', Object.keys(result as any));
 
+      // Doc-type post-scan check. The NFC layer's wrong-doc heuristic above
+      // catches the case where the chip rejects the wrong protocol (e.g.
+      // PACE-IM error → ID card on passport flow). But if the chip *succeeds*
+      // and returns a DG1 of the unexpected length — which happens when the
+      // user manually entered an ID-card MRZ on a passport-only proposal, or
+      // held the wrong document with valid MRZ — that heuristic doesn't fire.
+      // Catch it here against the actual DG1 size: TD3 passport = 93 bytes,
+      // TD1 ID card = 95 bytes. Without this gate the proof gets built off the
+      // wrong DG1, then the relayer's gas estimate reverts ~30 s later with a
+      // generic "Execution reverted" — confusing for the user and unrecoverable
+      // because the identity is now bound to the wrong on-chain contract.
+      const dg1Len = (result as { dg1Bytes?: Uint8Array }).dg1Bytes?.length ?? 0;
+      const actualIsPassport = dg1Len === 93;
+      const actualIsIdCard = dg1Len === 95;
+      const docMismatch =
+        (isPassportFlow && actualIsIdCard) ||
+        (!isPassportFlow && actualIsPassport);
+      if (docMismatch) {
+        console.warn(
+          `[Step6] doc-type mismatch: flow=${isPassportFlow ? 'passport' : 'idCard'} but chip dg1Len=${dg1Len}`,
+        );
+        setPassportDetected(true);
+        setScanStatus('');
+        setIsScanning(false);
+        setShowRetry(true);
+        return;
+      }
+
       setScanStatus(t('voting.step6ReadSuccess'));
       setIsScanning(false);
       setShowRetry(false);
@@ -395,6 +423,33 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
             }}>
               {t(isPassportFlow ? 'voting.step6UsePassportInstead' : 'voting.step6UseIdCardInstead')}
             </Text>
+            {onGoBack && (
+              <TouchableOpacity
+                style={{
+                  marginTop: 12,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  backgroundColor: '#92400E',
+                  alignItems: 'center',
+                }}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setPassportDetected(false);
+                  setShowRetry(false);
+                  setScanStatus('');
+                  onGoBack();
+                }}
+              >
+                <Text style={{
+                  fontFamily: Typography.fontFamily.semibold,
+                  fontSize: 14,
+                  color: '#FFFFFF',
+                }}>
+                  {t('voting.step6RestartWithCorrectDoc')}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -465,16 +520,25 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         )}
 
         <View style={stepSpecificStyles.step6ButtonContainer}>
-          <TouchableOpacity
-            style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
-            activeOpacity={0.8}
-            onPress={() => { setShowRetry(false); setPassportDetected(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
-            disabled={isScanning}
-          >
-            <Text style={stepSpecificStyles.step6ButtonText}>
-              {isScanning ? t('voting.step6Scanning') : showRetry ? t('common.retry') : t('common.analyze')}
-            </Text>
-          </TouchableOpacity>
+          {/* Hide the analyze/retry button when a doc-type mismatch is
+              detected — retrying the NFC scan with the same MRZ would just
+              hit InvalidMRZKey or re-scan the same wrong chip. The only
+              valid action is the "Recommencer avec le bon document" button
+              inside the warning banner above, which routes back to MRZ
+              entry so the user can input the proper data for the right
+              document type. */}
+          {!passportDetected && (
+            <TouchableOpacity
+              style={[stepSpecificStyles.step6Button, isScanning && { opacity: 0.5 }]}
+              activeOpacity={0.8}
+              onPress={() => { setShowRetry(false); setPassportDetected(false); setDebugError(null); setScanStep(0); setScanStatus(''); handleAnalyzePress(); }}
+              disabled={isScanning}
+            >
+              <Text style={stepSpecificStyles.step6ButtonText}>
+                {isScanning ? t('voting.step6Scanning') : showRetry ? t('common.retry') : t('common.analyze')}
+              </Text>
+            </TouchableOpacity>
+          )}
           {devMode && DEV_EXAMPLE_PASSPORT_DATA && !isScanning && (
             <TouchableOpacity
               style={{
