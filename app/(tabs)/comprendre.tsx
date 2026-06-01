@@ -1,17 +1,22 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Text } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, useWindowDimensions } from 'react-native';
 import { VideoView } from 'expo-video';
 import Accordion from '@/components/Accordion';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { useComprendreVideo } from '@/contexts/VideoContext';
 import { useTranslation } from 'react-i18next';
 import SettingsButton from '@/components/SettingsButton';
+import { CAP_BIG } from '@/utils/font-scale-cap';
 
 export default function ComprendreScreen() {
   const { t } = useTranslation();
   const colors = useColors();
   const styles = createStyles(colors);
   const player = useComprendreVideo();
+  // Scale the character animation in step with the welcome text so they grow
+  // together — never below the design size, never past CAP_BIG.
+  const { fontScale } = useWindowDimensions();
+  const welcomeMediaScale = Math.min(Math.max(fontScale, 1), CAP_BIG);
   const sectionsRaw = t('comprendre.sections', { returnObjects: true });
   const sections = Array.isArray(sectionsRaw)
     ? (sectionsRaw as {
@@ -90,14 +95,20 @@ export default function ComprendreScreen() {
           </View>
           <View style={styles.welcomeContainer}>
             <VideoView
-              style={styles.characterVideo}
+              style={[
+                styles.characterVideo,
+                {
+                  width: Spacing.video.characterWidth * welcomeMediaScale,
+                  height: Spacing.video.characterHeight * welcomeMediaScale,
+                },
+              ]}
               player={player}
               contentFit="cover"
               nativeControls={false}
               surfaceType="textureView"
             />
             <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeText}>
+              <Text style={styles.welcomeText} maxFontSizeMultiplier={CAP_BIG}>
                 {t('comprendre.welcome.text')}
               </Text>
             </View>

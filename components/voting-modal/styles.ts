@@ -175,11 +175,18 @@ export const createStepSpecificStyles = (colors: ReturnType<typeof useColors>) =
     flex: 1,
     width: '100%',
     backgroundColor: colors.cardBackground,
-    justifyContent: 'space-between',
+    // Stack the video + "Passer" near the top so the button sits right under
+    // the video. A small paddingTop leaves breathing room under the header
+    // (was 'space-between', which left a large letterbox gap between the video
+    // and the bottom-pinned button).
+    justifyContent: 'flex-start',
+    paddingTop: 24,
   },
   stepIntroVideo: {
-    flex: 1,
     width: '100%',
+    // Intro asset is square (480×476); match the box aspect so contentFit
+    // 'contain' fills it with no letterbox gap above/below the video.
+    aspectRatio: 1,
     backgroundColor: colors.cardBackground,
   },
   stepIntroSkipButton: {

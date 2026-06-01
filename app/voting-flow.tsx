@@ -67,6 +67,10 @@ export default function VotingFlowScreen() {
   const [passportKeyReady, setPassportKeyReady] = useState(false);
   const [isManualInputVisible, setIsManualInputVisible] = useState(false);
   const [containerWidth, setContainerWidth] = useState(Dimensions.get('window').width);
+  // Height available for the slide area (measured from topSection). Steps 1–3
+  // cap their ScrollView at this on iOS so content stays its natural size and
+  // only scrolls once it overflows.
+  const [slideAreaHeight, setSlideAreaHeight] = useState<number | undefined>(undefined);
   const [selectedVote, setSelectedVote] = useState<number>(0);
 
   // Rarime / FreedomTool state
@@ -629,7 +633,7 @@ export default function VotingFlowScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('common.close')}
               >
-                <Text style={{ fontSize: 17, color: colors.secondary }}>
+                <Text allowFontScaling={false} style={{ fontSize: 17, color: colors.secondary }}>
                   {t('common.close')}
                 </Text>
               </TouchableOpacity>
@@ -638,7 +642,10 @@ export default function VotingFlowScreen() {
         />
       )}
 
-      <View style={styles.topSection}>
+      <View
+        style={styles.topSection}
+        onLayout={(e) => setSlideAreaHeight(e.nativeEvent.layout.height)}
+      >
         {/* Safe area spacer — only Android needs this; iOS modal renders the
             native nav bar above the screen content area so insets.top is
             already 0 below the header. */}
@@ -665,12 +672,20 @@ export default function VotingFlowScreen() {
             currentStep < 4 && {
               backgroundColor: Platform.OS === 'ios' ? colors.cardBackground : colors.background,
             },
+            // Step 4 only: height-bound the slide to the sheet (not the taller
+            // Step 5 camera mounted alongside it) so the intro video's "Passer"
+            // button stays on-screen. Steps 1–3 and 5+ keep content-sized layout.
+            currentStep === 4 && { flex: 1 },
           ]}
           onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
         >
           <Animated.View
             style={[
               modalStyles.slidingContainer,
+              // Match slidingWrapper: fill height on step 4 only so its slide
+              // stretches vertically and the intro "Passer" button stays
+              // on-screen.
+              currentStep === 4 && { flex: 1 },
               { transform: [{ translateX: slideAnim }] },
             ]}
           >
@@ -685,9 +700,9 @@ export default function VotingFlowScreen() {
                 <View key={key} style={{ width: containerWidth }} />
               );
               return [
-                show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s1'),
-                show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s2'),
-                show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} /> : spacer('s3'),
+                show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} isPassportFlow={isPassportFlow} /> : spacer('s1'),
+                show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} isPassportFlow={isPassportFlow} /> : spacer('s2'),
+                show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} /> : spacer('s3'),
                 show(3) ? <Step4 key="s4" player={player1} introPlayer={playerIntro} containerWidth={containerWidth} onStartAnalysis={handleNext} isPassportFlow={isPassportFlow} /> : spacer('s4'),
                 show(4) ? (
                   <Step5

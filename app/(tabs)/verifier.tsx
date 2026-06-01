@@ -264,7 +264,7 @@ export default function VerifierScreen() {
               <View style={styles.pollSection}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.badge, active && styles.badgeActive]}>
-                    <Text style={styles.badgeText}>{t(active ? 'home.badgeOngoing' : 'home.badgeFinished')}</Text>
+                    <Text style={styles.badgeText} allowFontScaling={false}>{t(active ? 'home.badgeOngoing' : 'home.badgeFinished')}</Text>
                   </View>
                   <Text style={styles.pollId}>#{p.id}</Text>
                 </View>
