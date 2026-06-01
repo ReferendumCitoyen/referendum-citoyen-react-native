@@ -211,6 +211,7 @@
     "step6UseIdCardInstead": "This step requires your ID card. Please hold your card to the phone.",
     "step6IdCardDetected": "🪪 ID card detected",
     "step6UsePassportInstead": "This step requires your passport. Please hold your passport to the phone.",
+    "step6RestartWithCorrectDoc": "Start over with the correct document",
     "step2Description_idCard": "This app verifies the data on the NFC chip inside your ID card. The data is not transferred to or stored on any third-party server.",
     "step2Description_passport": "This app verifies the data on the NFC chip inside your passport. The data is not transferred to or stored on any third-party server.",
     "step4Title_idCard": "ID card analysis",

@@ -211,6 +211,7 @@
     "step6UseIdCardInstead": "Cette étape nécessite votre carte d'identité. Veuillez approcher votre carte du téléphone.",
     "step6IdCardDetected": "🪪 Carte d'identité détectée",
     "step6UsePassportInstead": "Cette étape nécessite votre passeport. Veuillez approcher votre passeport du téléphone.",
+    "step6RestartWithCorrectDoc": "Recommencer avec le bon document",
     "step2Description_idCard": "Cette application vérifie les données sur la puce NFC à l'intérieur de votre Carte d'identité. Les données ne sont pas transférées ni conservées sur un serveur tiers.",
     "step2Description_passport": "Cette application vérifie les données sur la puce NFC à l'intérieur de votre Passeport. Les données ne sont pas transférées ni conservées sur un serveur tiers.",
     "step4Title_idCard": "Analyse de la Carte d'Identité",
