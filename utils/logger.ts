@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as Application from 'expo-application';
+import { getAppVersion } from './appVersion';
 
 // Best-effort PII redaction. Applied at insert time so the in-memory buffer
 // itself never holds personally identifiable information. Not a security
@@ -165,7 +166,10 @@ export function stopSweep(): void {
 
 export function formatSessionHeader(network: string | null): string {
   const lines = [
-    `App     : ${Application.nativeApplicationVersion ?? '?'} (build ${Application.nativeBuildVersion ?? '?'})`,
+    // Use getAppVersion() so the running OTA patch is included (e.g. "1.0.4"),
+    // not just the baked-in native version. Native build number is kept as a
+    // tiebreaker — two OTAs with the same patch could ship on different binaries.
+    `App     : ${getAppVersion()} (build ${Application.nativeBuildVersion ?? '?'})`,
     `Platform: ${Platform.OS} ${Platform.Version}`,
     `Locale  : ${typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().locale : '?'}`,
     `Network : ${network ?? '?'}`,

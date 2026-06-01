@@ -18,6 +18,7 @@
     "backToHome": "Retour à l'écran d'accueil",
     "close": "Fermer",
     "backToScanner": "Retour au scanner",
+    "skip": "Passer",
     "yes": "Oui",
     "no": "Non",
     "blank": "Blanc",
@@ -186,7 +187,7 @@
     "step11Success": "Succès",
     "step11Fail": "Échec",
     "step12SuccessTitle": "Votre vote a bien été validé.",
-    "step12SuccessDescription": "Les données de votre Carte d'Identité ont été effacées de cet appareil.",
+    "step12SuccessDescription": "Les données de votre passeport ont été effacées de cet appareil.",
     "step12SuccessButton": "Voir les résultats",
     "step12VoteIdLabel": "Voici le numéro de série de votre vote :",
     "step12VoteIdCopy": "Copier",
@@ -275,7 +276,7 @@
   "nfcScan": {
     "title": "Lecture NFC",
     "missingMrz": "Données MRZ manquantes",
-    "instruction": "Placez votre carte d'identité contre l'arrière de votre téléphone"
+    "instruction": "Placez votre passeport contre l'arrière de votre téléphone"
   },
   "mrzManual": {
     "title": "Saisie manuelle MRZ",
@@ -289,9 +290,9 @@
     "birthInvalid": "Date de naissance invalide.",
     "birthUnderage": "Vous devez avoir au moins 18 ans pour voter.",
     "expiryInvalid": "Date d'expiration invalide.",
-    "expiryExpired": "Cette carte d'identité est expirée.",
+    "expiryExpired": "Ce passeport est expiré.",
     "submit": "Valider",
-    "idCardOnly": "Seules les cartes d'identité françaises sont acceptées. Les passeports ne sont pas pris en charge."
+    "idCardOnly": "Seuls les passeports français sont acceptés. Les cartes d'identité ne sont pas prises en charge."
   },
   "nfcTest": {
     "closeCamera": "✕ Fermer",

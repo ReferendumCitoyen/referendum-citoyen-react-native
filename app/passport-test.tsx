@@ -1,5 +1,6 @@
 import { Colors, Spacing, Typography } from "@/constants/theme";
 import { useDevMode } from "@/contexts/DevModeContext";
+import { expandMrzBirthYear, expandMrzExpiryYear } from "@/utils/mrzDate";
 import { useRouter, Stack } from "expo-router";
 import React, { useEffect } from "react";
 import {
@@ -32,15 +33,10 @@ const formatMRZDate = (mrzDate: string | null, isExpiry: boolean = false): strin
   const yy = parseInt(mrzDate.substring(0, 2), 10);
   const mm = mrzDate.substring(2, 4);
   const dd = mrzDate.substring(4, 6);
-
-  let yyyy: number;
-  if (isExpiry) {
-    // Expiration dates are always in 2000s (passports don't expire 100+ years ago)
-    yyyy = 2000 + yy;
-  } else {
-    // Birth dates: 00-30 = 2000s, 31-99 = 1900s
-    yyyy = yy <= 30 ? 2000 + yy : 1900 + yy;
-  }
+  // Single source of truth lives in utils/mrzDate.ts. Don't reintroduce a
+  // local cutoff (this file previously had `yy <= 30` for birth and a
+  // no-cutoff `2000+yy` for expiry — both diverged from production rules).
+  const yyyy = isExpiry ? expandMrzExpiryYear(yy) : expandMrzBirthYear(yy);
   return `${dd}/${mm}/${yyyy}`;
 };
 
@@ -661,7 +657,17 @@ export default function PassportTestScreen() {
       console.log("[FreedomTool] Verify passed");
 
       console.log("[FreedomTool] DG1 length:", passport.dataGroup1.length);
-      console.log("[FreedomTool] DG1 hex:", Buffer.from(passport.dataGroup1).toString("hex"));
+      // SECURITY: DG1 hex is the full Machine Readable Zone — name, DOB, doc
+      // number, nationality. The 186-char hex is too long for the
+      // \b[a-fA-F0-9]{64}\b redaction in utils/logger.ts:38, so it lands
+      // verbatim in the in-memory ring buffer and any user-shared error
+      // report. Gated by __DEV__ so Metro dead-code-eliminates this in
+      // release bundles (the screen itself is dev-mode gated at runtime
+      // for navigation, but that doesn't strip the call site from the
+      // shipped JS).
+      if (__DEV__) {
+        console.log("[FreedomTool] DG1 hex:", Buffer.from(passport.dataGroup1).toString("hex"));
+      }
 
       const passportInfo = await rarime.getPassportInfo(passport);
       console.log("[FreedomTool] PassportInfo fetched");
@@ -1596,7 +1602,16 @@ export default function PassportTestScreen() {
 
               <TouchableOpacity
                 style={styles.viewRawButton}
-                onPress={() => console.log("Full data:", JSON.stringify(tagData, null, 2))}
+                onPress={() => {
+                  // SECURITY: tagData carries personDetails + DG byte arrays
+                  // — full passport PII. __DEV__-gated so the call site is
+                  // dead-code-eliminated in release bundles; the button
+                  // remains visible but becomes a no-op in production
+                  // (the screen itself is only reachable via dev mode).
+                  if (__DEV__) {
+                    console.log("Full data:", JSON.stringify(tagData, null, 2));
+                  }
+                }}
               >
                 <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
               </TouchableOpacity>
