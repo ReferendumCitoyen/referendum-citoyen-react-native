@@ -8,8 +8,8 @@ import { useTranslation } from 'react-i18next';
 
 interface Step4Props {
   player: any;
-  // iOS-only intro clip that plays *before* the "Démarrer l'analyse"
-  // content. Optional so the test renders + Android path stay green.
+  // Intro clip that plays *before* the "Démarrer l'analyse" content.
+  // Optional so the test renders stay green.
   introPlayer?: any;
   containerWidth: number;
   onStartAnalysis?: () => void;
@@ -25,10 +25,10 @@ const Step4: React.FC<Step4Props> = ({ player, introPlayer, containerWidth, onSt
   const stepSpecificStyles = createStepSpecificStyles(colors);
   const { hasPermission, requestPermission } = useCameraPermission();
 
-  // iOS-only intro phase. Voters who've gone through the flow before can tap
-  // "Passer" to skip straight to the analysis CTA. Android skips the intro
-  // entirely (the intro video asset is iOS only — see useModalVideoPlayers).
-  const [showIntro, setShowIntro] = useState(Platform.OS === 'ios');
+  // Intro phase. Voters who've gone through the flow before can tap "Passer"
+  // to skip straight to the analysis CTA. Plays on both platforms — the
+  // Android branch uses a re-muxed MP4 (see useModalVideoPlayers).
+  const [showIntro, setShowIntro] = useState(true);
 
   const handleStartAnalysis = async () => {
     console.log('🔘 Step4: Start analysis pressed, hasPermission:', hasPermission);

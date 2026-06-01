@@ -77,14 +77,14 @@ export function useModalVideoPlayers() {
   );
 
   // Intro video — full-bleed clip that plays *above* the Step 4 "Démarrer
-  // l'analyse" content as an iOS-only teaching screen. Android falls back to
-  // the working video 2 asset since the intro screen is only rendered on iOS
-  // (Android skips the intro phase entirely) but expo-video still requires a
-  // valid source at hook-time.
+  // l'analyse" content as a teaching screen. Same source for both platforms;
+  // Android uses a re-muxed .mp4 (H.264 Baseline, faststart) so Media3
+  // ExoPlayer takes the standard MP4 extractor path and hardware-decodes via
+  // MediaCodec on every device.
   const playerIntro = useVideoPlayer(
     Platform.select({
       ios: require('@/assets/videos/intro-passport-flow.mov'),
-      android: require('@/assets/videos/kling_20250904_Image_to_Video_A_playful__4900_0_android.mp4'),
+      android: require('@/assets/videos/intro-passport-flow.mp4'),
     })!,
     player => {
       player.loop = true;
