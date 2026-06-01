@@ -87,6 +87,12 @@ import {
   submitVote,
   MAINNET_BIO_PASSPORT_VOTING_ADDRESS,
 } from '@/utils/vote-calldata';
+// Single source of truth for the MRZ 2-digit-year cutoff. Birth dates use
+// the `>35` rule (people born 1936-2035), expiry dates use the legacy `>=50`
+// cutoff. Do NOT reintroduce a local `yy >= 70` (or any other) rule here —
+// that was the bug that turned a YY=65 fixture into "naissance le 2065-…"
+// in the diagnostic error message.
+import { expandMrzBirthYear, expandMrzExpiryYear } from '@/utils/mrzDate';
 
 // ---------------------------------------------------------------------------
 // Contract ABIs (the minimal slices we need). Decoded from BlockScout
@@ -417,10 +423,27 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
   }
 
   // Compute identityCreationTimestampUpperBound — mirrors the Android
-  // VotingManager logic. If the user registered after the proposal start,
-  // bound shifts to identityInfo.issueTimestamp + 1; otherwise it's the
-  // proposal's upper bound minus ROOT_VALIDITY (the lookback that lets the
-  // SMT root stay valid for a window).
+  // VotingManager logic. Two cases:
+  //
+  //   (a) Registered BEFORE proposal start (issueTimestamp <= rules.upper):
+  //       timestampUpperbound = rules.upper - ROOT_VALIDITY
+  //       identityCounterUpperbound = UINT32_MAX (no per-passport cap)
+  //
+  //   (b) Registered AFTER proposal start (issueTimestamp > rules.upper):
+  //       timestampUpperbound = issueTimestamp + 1
+  //       identityCounterUpperbound = rules.identityCounterUpperBound
+  //
+  // History: OTA #4 briefly switched (b) to UINT64_MAX - 1 to mirror the
+  // Rarime JS SDK's Freedomtool.buildQueryProofParams (Freedomtool.js:206-211).
+  // That SDK targets a Noir circuit; OUR app runs Circom + Groth16 + witnesscalc
+  // (assets/circuits/query_identity.dat + Groth16 zkey). The Noir sentinel
+  // is rejected by our Circom circuit — witnesscalc fires "Error loading
+  // signal timestampUpperbound / assert failed" on the first signal load.
+  // Empirically `issueTimestamp + 1n` is the value that works for our
+  // circuit (proven by a successful Mainnet vote on commit d676dd5 using
+  // this exact value). Reverted in this commit. The corresponding
+  // identityCreationTimestamp in the vote calldata (utils/vote-calldata.ts)
+  // is reverted to read pub_signals[15] for the same reason.
   let identityCreationTimestampUpperBound =
     ctx.proposalRules.identityCreationTimestampUpperBound - ctx.rootValidity;
   let identityCounterUpperBound = (1n << 32n) - 1n; // UINT32_MAX, the IDENTITY_LIMIT default
@@ -499,6 +522,7 @@ export async function castMainnetVote(args: CastMainnetVoteArgs): Promise<CastMa
         expirationDateLowerBound: ctx.proposalRules.expirationDateLowerBound,
         birthDateLowerbound: ctx.proposalRules.birthDateLowerbound,
         birthDateUpperbound: ctx.proposalRules.birthDateUpperbound,
+        skIdentity: inputs.skIdentity as string,
       });
       if (reason) throw new Error(`[VOTE_INELIGIBLE] ${reason}`);
     }
@@ -589,11 +613,21 @@ function decodeYymmdd(b: bigint): string | null {
   return out;
 }
 
-/** Convert YYMMDD → YYYY-MM-DD. ICAO MRZ convention: YY ≥ 70 → 19YY, else 20YY.
- * Same threshold the on-chain `DateDecoder` uses with `currentDate`. */
-function yymmddToFullDate(yymmdd: string): string {
+/** Convert YYMMDD → YYYY-MM-DD for diagnostic error-message display only.
+ * Delegates century expansion to the shared helpers in utils/mrzDate.ts so
+ * there is exactly one place that decides "YY=65 is 1965, not 2065". The
+ * caller passes the date's semantic role ('birth' | 'expiry') because the
+ * two contexts use different ICAO cutoffs (see expandMrzBirthYear /
+ * expandMrzExpiryYear).
+ *
+ * History: a previous local `yy >= 70` rule formatted a voter born
+ * 1965-04-14 as "2065-04-14" in `diagnoseIneligibility`'s age-rule message,
+ * which mis-blamed Bug 2 (malformed BJJ key) as an age ineligibility two
+ * reports in a row before the cause was identified. Do NOT reintroduce a
+ * local cutoff here — route through the shared helpers. */
+function yymmddToFullDate(yymmdd: string, mode: 'birth' | 'expiry'): string {
   const yy = parseInt(yymmdd.slice(0, 2), 10);
-  const yyyy = yy >= 70 ? 1900 + yy : 2000 + yy;
+  const yyyy = mode === 'birth' ? expandMrzBirthYear(yy) : expandMrzExpiryYear(yy);
   return `${yyyy}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
 }
 
@@ -622,7 +656,48 @@ function diagnoseIneligibility(args: {
   expirationDateLowerBound: bigint;
   birthDateLowerbound: bigint;
   birthDateUpperbound: bigint;
+  /** Decimal string of the BJJ private key the proof was built with. Used
+   * to detect Bug 2 (malformed sk that falls outside the vote circuit's
+   * Num2Bits(253) decomposition range). Must be checked BEFORE the age
+   * heuristics — Bug 2 produces the same misleading
+   * "Error loading signal timestampUpperbound" surface error as a date
+   * constraint, but the user-facing remediation is completely different. */
+  skIdentity: string;
 }): string | null {
+  // ── Bug 2: malformed BJJ private key (sk >= 2^253) ─────────────────────
+  // The vote circuit's BabyPbk decomposes skIdentity via circomlib's
+  // `Num2Bits(253)`, which only accepts scalars in [0, 2^253). Older
+  // SDK-generated keys (`@iden3/js-crypto`'s `babyJub.F.random()`) sampled
+  // from the base field [0, p ≈ 2^254) with no subgroup reduction; ~34%
+  // landed in the dead zone and tripped the assert ~280 ms into
+  // witnesscalc. Witnesscalc reports the alphabetically-last loaded signal
+  // (`timestampUpperbound`) as the error name — same surface error as a
+  // genuine date-bound mismatch, which is why this used to be mis-blamed
+  // on the age rule with a century-bug-induced "naissance le 2065-04-14"
+  // message. The user's recourse is different too: no document or
+  // proposal change rescues a key that's already on-chain; only switching
+  // to a different document works.
+  //
+  // Generation of new keys is now safe — `utils/identity.ts`'s
+  // `generateValidBJJPrivateKey()` rejection-samples until sk < 2^253 —
+  // but identities already registered on-chain with a bad sk remain
+  // unrecoverable on French passports (no DG15 → no AA → `revoke()`
+  // blocked).
+  try {
+    if (BigInt(args.skIdentity) >= (1n << 253n)) {
+      return (
+        `Ce passeport est lié à une identité on-chain dont la clé privée ` +
+        `n'est pas valide pour le circuit de vote (clé hors plage). Cette ` +
+        `identité ne peut pas être réinitialisée pour un passeport français ` +
+        `(absence d'authentification active / DG15). Veuillez voter avec un ` +
+        `autre document.`
+      );
+    }
+  } catch {
+    // skIdentity isn't a valid decimal — not the case this branch guards.
+    // Fall through to the standard date-based heuristics below.
+  }
+
   const sel = args.selector;
   const bit = (i: number) => ((sel >> BigInt(i)) & 1n) === 1n;
   const dates = extractMrzDates(args.dg1);
@@ -632,8 +707,8 @@ function diagnoseIneligibility(args: {
   if (bit(12)) {
     const lb = decodeYymmdd(args.expirationDateLowerBound);
     if (lb && dates.expiryYymmdd) {
-      const passportExp = yymmddToFullDate(dates.expiryYymmdd);
-      const minExp = yymmddToFullDate(lb);
+      const passportExp = yymmddToFullDate(dates.expiryYymmdd, 'expiry');
+      const minExp = yymmddToFullDate(lb, 'expiry');
       if (passportExp < minExp) {
         return (
           `Votre passeport est expiré pour ce scrutin. ` +
@@ -649,8 +724,8 @@ function diagnoseIneligibility(args: {
   if (bit(14)) {
     const lb = decodeYymmdd(args.birthDateLowerbound);
     if (lb && dates.birthYymmdd) {
-      const passportBirth = yymmddToFullDate(dates.birthYymmdd);
-      const minBirth = yymmddToFullDate(lb);
+      const passportBirth = yymmddToFullDate(dates.birthYymmdd, 'birth');
+      const minBirth = yymmddToFullDate(lb, 'birth');
       if (passportBirth < minBirth) {
         return (
           `Votre date de naissance est antérieure à la limite de ce scrutin ` +
@@ -664,8 +739,8 @@ function diagnoseIneligibility(args: {
   if (bit(15)) {
     const ub = decodeYymmdd(args.birthDateUpperbound);
     if (ub && dates.birthYymmdd) {
-      const passportBirth = yymmddToFullDate(dates.birthYymmdd);
-      const maxBirth = yymmddToFullDate(ub);
+      const passportBirth = yymmddToFullDate(dates.birthYymmdd, 'birth');
+      const maxBirth = yymmddToFullDate(ub, 'birth');
       if (passportBirth >= maxBirth) {
         return (
           `Vous n'êtes pas éligible à ce scrutin selon la règle d'âge ` +

@@ -5,7 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.1',
+    version: '1.0',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       backgroundColor: '#ffffff',
     },
     ios: {
-      supportsTablet: true,
+      supportsTablet: false,
       bundleIdentifier: 'fr.referendum.citoyen',
       deploymentTarget: '16.0',
       infoPlist: {

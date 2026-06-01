@@ -292,10 +292,12 @@ export default function AccueilScreen() {
   // when the dev toggle is on — used to keep older verified scrutins
   // reachable for QA without exposing them to regular users.
   const HARDCODED_PROPOSAL_IDS = ['50'];
-  // Proposals only surfaced when dev mode is on. #25 is the open TD3
-  // mainnet scrutin the QA team uses for end-to-end vote tests (the
-  // production #50 is TD1).
-  const DEV_ONLY_PROPOSAL_IDS = ['25,47,48'];
+  // Proposals only surfaced when dev mode is on — recent open PASSPORT
+  // scrutins (all on BioPassportVoting) the QA team uses for end-to-end vote
+  // tests. Production #50 is in HARDCODED above, so it shows in both modes.
+  // NB: #48 is intentionally excluded — it's an IDCardVoting proposal, and a
+  // mainnet vote on it fails at submit (vote-calldata targets BioPassportVoting).
+  const DEV_ONLY_PROPOSAL_IDS = ['38', '47', '49'];
   const effectiveIds = [
     ...HARDCODED_PROPOSAL_IDS,
     ...(devMode ? DEV_ONLY_PROPOSAL_IDS : []),

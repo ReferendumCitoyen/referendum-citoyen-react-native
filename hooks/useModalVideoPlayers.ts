@@ -76,6 +76,24 @@ export function useModalVideoPlayers() {
     }
   );
 
+  // Intro video — full-bleed clip that plays *above* the Step 4 "Démarrer
+  // l'analyse" content as a teaching screen. Same source for both platforms;
+  // Android uses a re-muxed .mp4 (H.264 Baseline, faststart) so Media3
+  // ExoPlayer takes the standard MP4 extractor path and hardware-decodes via
+  // MediaCodec on every device.
+  const playerIntro = useVideoPlayer(
+    Platform.select({
+      ios: require('@/assets/videos/intro-passport-flow.mov'),
+      android: require('@/assets/videos/intro-passport-flow.mp4'),
+    })!,
+    player => {
+      player.loop = true;
+      player.muted = true;
+      player.audioMixingMode = 'mixWithOthers';
+      player.pause();
+    }
+  );
+
   const handleStepChange = useCallback((nextStep: number) => {
     // On Android, add small delay to let player initialize before playing
     const playDelay = isAndroid ? 100 : 0;
@@ -114,9 +132,14 @@ export function useModalVideoPlayers() {
       case 4:
         safePause(player3);
         safePlay(player1);
+        // Step 4 has an iOS-only intro phase that plays the intro video
+        // ahead of the existing card content. Kick it off in parallel so
+        // the user sees motion the instant the slide arrives.
+        safePlay(playerIntro);
         break;
       case 5:
         safePause(player1);
+        safePause(playerIntro);
         break;
       case 6:
         safePlay(player4);
@@ -132,7 +155,7 @@ export function useModalVideoPlayers() {
         safePause(player3);
         break;
     }
-  }, [player1, player2, player3, player4, player5, isAndroid]);
+  }, [player1, player2, player3, player4, player5, playerIntro, isAndroid]);
 
   const pauseAll = useCallback(() => {
     try {
@@ -160,7 +183,12 @@ export function useModalVideoPlayers() {
         player5.pause();
       }
     } catch (e) { /* Ignore errors from released players */ }
-  }, [player1, player2, player3, player4, player5]);
+    try {
+      if (playerIntro && typeof playerIntro.pause === 'function') {
+        playerIntro.pause();
+      }
+    } catch (e) { /* Ignore errors from released players */ }
+  }, [player1, player2, player3, player4, player5, playerIntro]);
 
   const pauseVerificationVideo = useCallback(() => {
     try {
@@ -171,7 +199,7 @@ export function useModalVideoPlayers() {
   }, [player5]);
 
   return {
-    players: { player1, player2, player3, player4, player5 },
+    players: { player1, player2, player3, player4, player5, playerIntro },
     handleStepChange,
     pauseAll,
     pauseVerificationVideo,
