@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-01T19:00:00Z",
+  "mainnet": {
+    "active": ["50"],
+    "devOnly": ["38", "47", "49"]
+  },
+  "testnet": {
+    "active": [],
+    "devOnly": []
+  }
+}
