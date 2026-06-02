@@ -50,7 +50,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         resizeMode: 'contain',
         backgroundColor: '#ffffff',
       },
-      edgeToEdgeEnabled: false,
+      // True switches RN 0.81's Android template + react-native-screens to
+      // WindowCompat / WindowInsetsControllerCompat — the APIs Android 15
+      // requires. Leaving this false makes RN fall back to the deprecated
+      // Window.setStatusBarColor / setNavigationBarColor path, which Play
+      // Console now flags. SafeAreaProvider + useSafeAreaInsets are already
+      // in place at the root (app/_layout.tsx) and in the load-bearing
+      // surfaces (CustomTabBar, voting-flow), so the visual layout stays
+      // correct under the new path. Visually verify any custom-headered
+      // screen and the navigation-bar area after toggling.
+      edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
       permissions: ['android.permission.NFC', 'android.permission.CAMERA'],
       // Block permissions pulled in transitively by deps but never used

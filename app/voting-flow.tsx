@@ -700,9 +700,9 @@ export default function VotingFlowScreen() {
                 <View key={key} style={{ width: containerWidth }} />
               );
               return [
-                show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} isPassportFlow={isPassportFlow} /> : spacer('s1'),
-                show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} isPassportFlow={isPassportFlow} /> : spacer('s2'),
-                show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} slideAreaHeight={slideAreaHeight} /> : spacer('s3'),
+                show(0) ? <Step1 key="s1" player={player1} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s1'),
+                show(1) ? <Step2 key="s2" player={player2} containerWidth={containerWidth} isPassportFlow={isPassportFlow} /> : spacer('s2'),
+                show(2) ? <Step3 key="s3" player={player3} containerWidth={containerWidth} /> : spacer('s3'),
                 show(3) ? <Step4 key="s4" player={player1} introPlayer={playerIntro} containerWidth={containerWidth} onStartAnalysis={handleNext} isPassportFlow={isPassportFlow} /> : spacer('s4'),
                 show(4) ? (
                   <Step5
