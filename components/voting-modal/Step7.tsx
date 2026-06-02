@@ -137,13 +137,23 @@ const Step7: React.FC<Step7Props> = ({
   useEffect(() => {
     if (!hasStarted || hasCalledCallback.current) return;
     if (rarime && passport) return;
+    // 30 s defensive watchdog. Previously 15 s, which was tight enough
+    // that the CSCA pre-warm's synchronous Merkle build (20-25 s on slow
+    // Android devices) would starve the Rarime SDK init effect and fire
+    // this timer falsely — see error reports 2026-06-02T08:10 / 11:52.
+    // The Merkle build is now async + yielding (utils/icao-master-tree.ts
+    // ::buildIcaoMasterTreeAsync) so the JS thread stays responsive
+    // during CSCA pre-warm; this timer should never fire under normal
+    // operation. Keep it as a guard against future regressions or
+    // genuine init failures (network drop while loading bundled circuit,
+    // SecureStore failure, etc.) without making the wait absurd.
     const timer = setTimeout(() => {
       if (hasCalledCallback.current) return;
       if (rarime && passport) return;
       hasCalledCallback.current = true;
       setErrorMessage(t('voting.step7MissingData'));
       onError?.();
-    }, 15000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [hasStarted, rarime, passport, onError, t]);
 

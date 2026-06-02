@@ -34,7 +34,7 @@ import { Certificate } from '@peculiar/asn1-x509';
 import { Buffer } from 'buffer';
 import type { ExtendedCertificate } from '@/utils/e-document/extended-cert';
 import {
-  buildIcaoMasterTree,
+  buildIcaoMasterTreeAsync,
   extractAuthorityKeyIdentifier,
   extractSubjectKeyIdentifier,
   pemToDerList,
@@ -118,7 +118,12 @@ export async function ensureMastersCache(): Promise<CachedMasters> {
     console.log(`[csca-bootstrap] SKI map: ${bySki.size} entries (${skipNoSki} skipped: no SKI ext) in ${Date.now() - t1}ms`);
 
     const t2 = Date.now();
-    const tree = buildIcaoMasterTree(cscaDers);
+    // Async variant — yields every ~16 ms so the Rarime SDK init effect in
+    // voting-flow.tsx (sharing the JS thread) can make progress in parallel.
+    // Wall-clock build time stays similar but the JS thread is no longer
+    // monopolised, so Step 7's verification path sees `rarime` non-null
+    // well before its 30 s watchdog timer would fire on a slow device.
+    const tree = await buildIcaoMasterTreeAsync(cscaDers);
     console.log(`[csca-bootstrap] merkle tree built in ${Date.now() - t2}ms`);
 
     return { bySki, tree };
