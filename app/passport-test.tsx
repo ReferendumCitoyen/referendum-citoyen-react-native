@@ -823,8 +823,11 @@ export default function PassportTestScreen() {
       const bacBirthDate = convertFrenchDateToMRZ(birthDate);
       const bacExpiryDate = convertFrenchDateToMRZ(expiryDate);
 
-      console.log("BAC Birth Date (YYMMDD):", bacBirthDate);
-      console.log("BAC Expiry Date (YYMMDD):", bacExpiryDate);
+      // SECURITY: BAC dates are PII (half the BAC key) — dev-gated.
+      if (__DEV__) {
+        console.log("BAC Birth Date (YYMMDD):", bacBirthDate);
+        console.log("BAC Expiry Date (YYMMDD):", bacExpiryDate);
+      }
 
       const result = await scanDocument('P', {
         documentNumber: documentNo,
@@ -847,11 +850,15 @@ export default function PassportTestScreen() {
         return obj;
       };
 
-      console.log("=== EDOCUMENT RESULT (truncated) ===");
-      console.log(JSON.stringify(truncateBase64(result), null, 2));
-      console.log("=== PERSON DETAILS ===");
-      console.log(JSON.stringify(truncateBase64(result.personDetails), null, 2));
-      console.log("=====================");
+      // SECURITY: full result + personDetails carry name / DOB / doc-number
+      // PII — dev-gated so the dump is stripped from release bundles.
+      if (__DEV__) {
+        console.log("=== EDOCUMENT RESULT (truncated) ===");
+        console.log(JSON.stringify(truncateBase64(result), null, 2));
+        console.log("=== PERSON DETAILS ===");
+        console.log(JSON.stringify(truncateBase64(result.personDetails), null, 2));
+        console.log("=====================");
+      }
 
       console.log("✅ Scan completed successfully, updating UI...");
       console.log("Result object keys:", Object.keys(result || {}));
@@ -889,8 +896,11 @@ export default function PassportTestScreen() {
         rarimePassportRef.current = rarimePassport;
 
         console.log('Step 3: Extracting passport data from RarimePassport...');
-        console.log(`  - Passport Key: ${rarimePassport.getPassportKey()}`);
-        console.log(`  - Passport Hash: ${rarimePassport.getPassportHash()}`);
+        // SECURITY: passport key + hash are stable per-document identifiers — dev-gated.
+        if (__DEV__) {
+          console.log(`  - Passport Key: ${rarimePassport.getPassportKey()}`);
+          console.log(`  - Passport Hash: ${rarimePassport.getPassportHash()}`);
+        }
         console.log(`  - DG Hash Algorithm: ${rarimePassport.extractDGHashAlgo()}`);
         console.log(`  - Signature Algorithm: ${rarimePassport.getSignatureAlgorithm()}`);
 
@@ -1337,15 +1347,20 @@ export default function PassportTestScreen() {
                 const expiryMonth = expiryParts[1] || '??';
                 const expiryYear = expiryParts[2] || '??';
 
-                console.log("=== DEBUG: Current Input Values ===");
-                console.log("Document Number:", documentNo);
-                console.log("Birth Date (DD/MM/YY):", birthDate);
-                console.log("  → Day:", birthDay, "Month:", birthMonth, "Year:", birthYear);
-                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(birthDate));
-                console.log("Expiry Date (DD/MM/YY):", expiryDate);
-                console.log("  → Day:", expiryDay, "Month:", expiryMonth, "Year:", expiryYear);
-                console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
-                console.log("===================================");
+                // SECURITY: doc number + DOB + expiry are BAC-key PII — dev-gated
+                // so these call sites are stripped from release bundles (the alert
+                // below is an explicit user-initiated dev action, left as-is).
+                if (__DEV__) {
+                  console.log("=== DEBUG: Current Input Values ===");
+                  console.log("Document Number:", documentNo);
+                  console.log("Birth Date (DD/MM/YY):", birthDate);
+                  console.log("  → Day:", birthDay, "Month:", birthMonth, "Year:", birthYear);
+                  console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(birthDate));
+                  console.log("Expiry Date (DD/MM/YY):", expiryDate);
+                  console.log("  → Day:", expiryDay, "Month:", expiryMonth, "Year:", expiryYear);
+                  console.log("  → MRZ (YYMMDD):", convertFrenchDateToMRZ(expiryDate));
+                  console.log("===================================");
+                }
                 alert(
                   `📋 VOS VALEURS:\n\n` +
                   `📄 Document: ${documentNo}\n\n` +
@@ -1600,21 +1615,20 @@ export default function PassportTestScreen() {
                 <Text style={styles.infoValue}>Données du passeport disponibles dans les logs</Text>
               )}
 
-              <TouchableOpacity
-                style={styles.viewRawButton}
-                onPress={() => {
-                  // SECURITY: tagData carries personDetails + DG byte arrays
-                  // — full passport PII. __DEV__-gated so the call site is
-                  // dead-code-eliminated in release bundles; the button
-                  // remains visible but becomes a no-op in production
-                  // (the screen itself is only reachable via dev mode).
-                  if (__DEV__) {
+              {__DEV__ && (
+                <TouchableOpacity
+                  style={styles.viewRawButton}
+                  onPress={() => {
+                    // SECURITY: tagData carries personDetails + DG byte arrays —
+                    // full passport PII. The whole button is dev-only, so it
+                    // never renders in release (no dead control) and the log
+                    // can't run in production.
                     console.log("Full data:", JSON.stringify(tagData, null, 2));
-                  }
-                }}
-              >
-                <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
-              </TouchableOpacity>
+                  }}
+                >
+                  <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 

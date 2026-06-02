@@ -7,6 +7,7 @@ import { Svg, Path } from 'react-native-svg';
 import { createStepSpecificStyles } from './styles';
 import { useColors } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
+import { CAP_SMALL } from '@/utils/font-scale-cap';
 import { parseMRZDate, checkBirthDate, checkExpiryDate } from '@/utils/mrzDate';
 import { useDevMode } from '@/contexts/DevModeContext';
 import { extractMrz, extractMrzTd1 } from '@/utils/mrz-rarimo';
@@ -293,10 +294,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
+          <Text style={stepSpecificStyles.step5Title} maxFontSizeMultiplier={CAP_SMALL}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-              <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraPermission')}</Text>
+              <Text style={stepSpecificStyles.step5Title} maxFontSizeMultiplier={CAP_SMALL}>{t('voting.step5CameraPermission')}</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -316,10 +317,10 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
     return (
       <View style={[{ width: containerWidth }]} onLayout={onLayout}>
         <View style={stepSpecificStyles.step5Container}>
-          <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
+          <Text style={stepSpecificStyles.step5Title} maxFontSizeMultiplier={CAP_SMALL}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
           <View style={stepSpecificStyles.step5Camera}>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-              <Text style={stepSpecificStyles.step5Title}>{t('voting.step5CameraUnavailable')}</Text>
+              <Text style={stepSpecificStyles.step5Title} maxFontSizeMultiplier={CAP_SMALL}>{t('voting.step5CameraUnavailable')}</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -339,7 +340,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
   return (
     <View style={[{ width: containerWidth }]} onLayout={onLayout}>
       <View style={stepSpecificStyles.step5Container}>
-        <Text style={stepSpecificStyles.step5Title}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
+        <Text style={stepSpecificStyles.step5Title} maxFontSizeMultiplier={CAP_SMALL}>{t(`voting.step5Title_${isPassportFlow ? 'passport' : 'idCard'}`)}</Text>
         <View style={[stepSpecificStyles.step5Camera, { position: 'relative' }]}>
           {/*
             Android (Volla / Camera2): keep <Camera /> permanently mounted;
@@ -457,7 +458,7 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
             </View>
               );
             })()}
-            <Text style={{
+            <Text maxFontSizeMultiplier={CAP_SMALL} style={{
               color: colors.scanOverlayText, fontSize: 14, fontWeight: '600',
               textAlign: 'center', marginTop: 12,
               textShadowColor: colors.overlay, textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
@@ -476,8 +477,6 @@ const Step5: React.FC<Step5Props> = ({ containerWidth, isActive, onMRZScanned, o
         {ocrUnavailable && (
           <View style={{
             backgroundColor: colors.warningBackground,
-            borderLeftWidth: 4,
-            borderLeftColor: colors.warningText,
             paddingVertical: 10,
             paddingHorizontal: 12,
             marginHorizontal: 12,

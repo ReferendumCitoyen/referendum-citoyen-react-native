@@ -619,7 +619,7 @@ export default function AccueilScreen() {
           <View style={styles.badgeContainer}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, !active && { backgroundColor: colors.border }]}>
-                <Text style={styles.badgeText}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
+                <Text style={styles.badgeText} allowFontScaling={false}>{active ? t('home.badgeOngoing') : t('home.badgeFinished')}</Text>
               </View>
               {devMode && (
                 <TouchableOpacity
@@ -835,6 +835,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
   },
   startedAgo: {
