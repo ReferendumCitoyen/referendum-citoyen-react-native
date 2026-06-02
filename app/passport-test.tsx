@@ -1615,21 +1615,20 @@ export default function PassportTestScreen() {
                 <Text style={styles.infoValue}>Données du passeport disponibles dans les logs</Text>
               )}
 
-              <TouchableOpacity
-                style={styles.viewRawButton}
-                onPress={() => {
-                  // SECURITY: tagData carries personDetails + DG byte arrays
-                  // — full passport PII. __DEV__-gated so the call site is
-                  // dead-code-eliminated in release bundles; the button
-                  // remains visible but becomes a no-op in production
-                  // (the screen itself is only reachable via dev mode).
-                  if (__DEV__) {
+              {__DEV__ && (
+                <TouchableOpacity
+                  style={styles.viewRawButton}
+                  onPress={() => {
+                    // SECURITY: tagData carries personDetails + DG byte arrays —
+                    // full passport PII. The whole button is dev-only, so it
+                    // never renders in release (no dead control) and the log
+                    // can't run in production.
                     console.log("Full data:", JSON.stringify(tagData, null, 2));
-                  }
-                }}
-              >
-                <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
-              </TouchableOpacity>
+                  }}
+                >
+                  <Text style={styles.viewRawButtonText}>📋 Voir données brutes (logs)</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
