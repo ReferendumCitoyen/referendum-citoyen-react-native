@@ -793,7 +793,9 @@ export default function FrenchIDTestScreen() {
 
       // Snapshot SMT root BEFORE proof generation to detect race condition
       const smtRootBefore = await (rarime as any).getSMTProof(passport);
-      console.log("[FreedomTool] SMT root BEFORE proof:", smtRootBefore.root);
+      // SECURITY: the SMT root is identity-correlating — dev-gated so the
+      // call site is dead-code-eliminated from release bundles.
+      if (__DEV__) console.log("[FreedomTool] SMT root BEFORE proof:", smtRootBefore.root);
 
       let queryProof;
       try {
@@ -818,20 +820,24 @@ export default function FrenchIDTestScreen() {
       }
       console.log("[FreedomTool] pub_signals count:", queryProof.pub_signals.length);
 
-      // Check if root changed during proof generation
-      const smtRootAfter = await (rarime as any).getSMTProof(passport);
-      console.log("[FreedomTool] SMT root AFTER proof:", smtRootAfter.root);
-      if (smtRootBefore.root !== smtRootAfter.root) {
-        console.warn("[FreedomTool] ⚠️ SMT root CHANGED during proof generation - race condition!");
-      } else {
-        console.log("[FreedomTool] ✅ SMT root stable");
-      }
-      // Check which pub_signal matches the SMT root (to find the right index)
-      queryProof.pub_signals.forEach((sig: string, idx: number) => {
-        if (sig && smtRootBefore.root && ('0x' + sig).toLowerCase() === smtRootBefore.root.toLowerCase()) {
-          console.log(`[FreedomTool] pub_signals[${idx}] matches SMT root`);
+      // Check if root changed during proof generation. SECURITY: SMT roots +
+      // pub_signals are identity-correlating — whole diagnostic block dev-gated
+      // so the call sites are stripped from release bundles.
+      if (__DEV__) {
+        const smtRootAfter = await (rarime as any).getSMTProof(passport);
+        console.log("[FreedomTool] SMT root AFTER proof:", smtRootAfter.root);
+        if (smtRootBefore.root !== smtRootAfter.root) {
+          console.warn("[FreedomTool] ⚠️ SMT root CHANGED during proof generation - race condition!");
+        } else {
+          console.log("[FreedomTool] ✅ SMT root stable");
         }
-      });
+        // Check which pub_signal matches the SMT root (to find the right index)
+        queryProof.pub_signals.forEach((sig: string, idx: number) => {
+          if (sig && smtRootBefore.root && ('0x' + sig).toLowerCase() === smtRootBefore.root.toLowerCase()) {
+            console.log(`[FreedomTool] pub_signals[${idx}] matches SMT root`);
+          }
+        });
+      }
 
       const txCallData = await ft.buildProposalCallData(
         [selectedAnswer], proposalInfo, rarime, passport, queryProof, passportInfo
@@ -839,7 +845,10 @@ export default function FrenchIDTestScreen() {
       console.log("[FreedomTool] CallData built, length:", txCallData.length);
       console.log("[FreedomTool] Destination:", proposalInfo.sendVoteContractAddress);
 
-      // Call getPublicSignalsTD1 to see how the CONTRACT builds pub_signals
+      // Call getPublicSignalsTD1 to see how the CONTRACT builds pub_signals.
+      // SECURITY: this comparison logs raw pub_signals (identity-correlating)
+      // — whole block dev-gated so the call sites are stripped from release.
+      if (__DEV__) {
       try {
         const { createIDCardVotingContract } = await import('@rarimo/rarime-rn-sdk/build/helpers/contracts');
         const { JsonRpcProvider: JRP } = await import('ethers');
@@ -899,6 +908,7 @@ export default function FrenchIDTestScreen() {
       } catch (compareErr: any) {
         console.error("[Compare] getPublicSignalsTD1 error:", compareErr.message);
       }
+      } // end __DEV__ pub_signals comparison
 
       // Simulate via eth_call to get exact revert reason
       try {

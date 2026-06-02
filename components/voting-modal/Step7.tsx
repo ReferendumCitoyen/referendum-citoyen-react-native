@@ -103,6 +103,13 @@ const Step7: React.FC<Step7Props> = ({
   const hasCalledCallback = useRef(false);
   const isVerifying = useRef(false);
   const [hasStarted, setHasStarted] = useState(false);
+  // Mirror of `isActive` readable from inside the long-running async
+  // verification flow below. The mainnet SMT poll can run up to 60 s; if the
+  // user cancels or navigates away mid-poll we must stop touching state /
+  // callbacks on an inactive step. A ref so the running closure sees the
+  // latest value without re-subscribing.
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
 
   useEffect(() => {
     if (isActive && !hasStarted) {
@@ -422,6 +429,12 @@ const Step7: React.FC<Step7Props> = ({
             const tConfirmStart = Date.now();
             let confirmed = false;
             while (Date.now() - tConfirmStart < POLL_TIMEOUT_MS) {
+              // Abort if Step 7 deactivated (user cancelled / navigated away)
+              // so we don't keep polling and fire callbacks on an inactive step.
+              if (!isActiveRef.current) {
+                console.log('[Step7][mainnet] step deactivated mid-poll — aborting confirmation');
+                return;
+              }
               try {
                 const smtProof = await rarime.getSMTProof(passport);
                 if (smtProof.existence) {
@@ -443,6 +456,10 @@ const Step7: React.FC<Step7Props> = ({
           }
         }
 
+        if (!isActiveRef.current) {
+          console.log('[Step7] step inactive at completion — skipping onSuccess');
+          return;
+        }
         hasCalledCallback.current = true;
         console.log('[Step7] Verification complete — calling onSuccess');
         setStatusText(t('voting.step7Verified'));
@@ -450,6 +467,10 @@ const Step7: React.FC<Step7Props> = ({
       } catch (err: any) {
         console.error('[Step7] Verification error:', err);
         hasCalledCallback.current = true;
+        if (!isActiveRef.current) {
+          console.log('[Step7] step inactive at error — skipping onError');
+          return;
+        }
         const msg: string = err?.message ?? '';
         // [VOTE_INELIGIBLE] errors carry a French user-facing message that
         // we want to surface verbatim — formatRpcError would replace it
