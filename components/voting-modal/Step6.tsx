@@ -361,6 +361,20 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         return;
       }
 
+      // "Tag was lost" is the single most common NFC error (user lifted
+      // the document mid-scan, phone wobbled, NFC antenna drifted out of
+      // alignment). The native module reports it verbatim in English, which
+      // leaks through step6ErrorWithMessage's {{message}} substitution as
+      // "Erreur: Tag was lost. Réessayez." — confusing for a French user
+      // and gives no remediation advice. Surface a French-native message
+      // that names the cause AND tells them what to do differently.
+      if (errLower.includes('tag was lost') || errLower.includes('tag connection lost')) {
+        setScanStatus(t('voting.step6TagLostError'));
+        setIsScanning(false);
+        setShowRetry(true);
+        return;
+      }
+
       setScanStatus(
         t('voting.step6ErrorWithMessage', {
           message: error.message || error.code || t('voting.step6ReadError'),
@@ -480,18 +494,50 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
         )}
 
         {isScanning && (
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
-            {[1, 2, 3, 4].map((step) => (
-              <View
-                key={step}
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: scanStep >= step ? colors.successText : colors.border,
-                }}
-              />
-            ))}
+          <View style={{ marginHorizontal: 16, marginBottom: 12 }}>
+            {/* Prominent reminder pinned just above the progress bar — the
+                static step6Instruction_* text above is at 0.7 opacity and
+                gets visually drowned out the moment the bar starts moving.
+                The single most common scan failure ("Tag was lost") comes
+                from the user lifting the document partway through; this
+                line reads naturally while the bar is in motion. */}
+            <Text style={{
+              textAlign: 'center',
+              marginBottom: 8,
+              fontSize: 13,
+              fontFamily: Typography.fontFamily.semibold,
+              color: colors.text,
+            }}>
+              {t(`voting.step6KeepClose_${docSfx}`)}
+            </Text>
+            {/* Continuous progress bar. scanStep advances on native events:
+                0 = pre-scan, 1 = chip detected (RequestPresentPassport),
+                2 = PACE/BAC handshake done (AuthenticatingWithPassport),
+                3 = reading data groups (ReadingDataGroupProgress /
+                ActiveAuthentication), 4 = success. So 25/50/75/100 % feels
+                accurate against the actual native milestones. */}
+            <View style={{
+              height: 8,
+              backgroundColor: colors.border,
+              borderRadius: 4,
+              overflow: 'hidden',
+            }}>
+              <View style={{
+                height: '100%',
+                width: `${(scanStep / 4) * 100}%`,
+                backgroundColor: colors.successText,
+                borderRadius: 4,
+              }} />
+            </View>
+            <Text style={{
+              textAlign: 'center',
+              marginTop: 6,
+              fontSize: 11,
+              color: colors.textSecondary || colors.text,
+              opacity: 0.7,
+            }}>
+              {Math.round((scanStep / 4) * 100)}%
+            </Text>
           </View>
         )}
 
