@@ -391,7 +391,14 @@ export interface IcaoMasterTree {
 /** Build the canonical ICAO master tree from a list of DER-encoded CSCA
  * certificates. The order of `cscaCertDers` doesn't affect the tree (the
  * treap structure is determined by deterministic key+priority), but
- * deduplication preserves the FIRST occurrence — match Go SDK semantics. */
+ * deduplication preserves the FIRST occurrence — match Go SDK semantics.
+ *
+ * Synchronous version, used by tests. Production callers should use
+ * `buildIcaoMasterTreeAsync` below — it yields to the JS event loop
+ * periodically so it doesn't block parallel work (notably the Rarime SDK
+ * init in voting-flow.tsx). On a slow Android device the loop takes
+ * 14-25 s; without yields the SDK init can't make progress and Step 7's
+ * watchdog timer wrongly declares verification failed. */
 export function buildIcaoMasterTree(cscaCertDers: Uint8Array[]): IcaoMasterTree {
   let root: Node | null = null;
   const seen = new Set<string>();
@@ -415,8 +422,58 @@ export function buildIcaoMasterTree(cscaCertDers: Uint8Array[]): IcaoMasterTree 
   }
 
   if (!root) throw new Error('empty master tree');
-  const r = root;
+  return finalizeTree(root);
+}
 
+/** Async variant of `buildIcaoMasterTree` that yields to the JS event loop
+ * roughly every 16 ms of work. Use this in production code; the per-yield
+ * overhead is negligible (a few `Date.now()` calls per cert) but the
+ * presence of `await` points lets other effects' microtasks fire between
+ * iterations.
+ *
+ * Why this exists: the synchronous version blocks the JS thread for
+ * 14-25 s on slow Android devices (treap inserts + RSA/ECDSA SPKI parsing
+ * × 857 certs). While that ran from `csca-bootstrap.ts::ensureMastersCache`
+ * after NFC scan, the Rarime SDK init effect in `voting-flow.tsx` (which
+ * shares the JS thread) sat queued behind it, so by the time it could set
+ * `rarimeRef.current` Step 7's 15 s "missing data" watchdog had already
+ * fired and falsely declared verification failed. */
+export async function buildIcaoMasterTreeAsync(cscaCertDers: Uint8Array[]): Promise<IcaoMasterTree> {
+  let root: Node | null = null;
+  const seen = new Set<string>();
+  let lastYield = Date.now();
+  const YIELD_INTERVAL_MS = 16;
+
+  for (const certDer of cscaCertDers) {
+    let pubKey: Uint8Array;
+    try {
+      pubKey = pubKeyBytesFromSpki(spkiFromCert(certDer));
+    } catch {
+      continue;
+    }
+    if (pubKey.length === IGNORED_KEY_LENGTH) continue;
+    const dupKey = Buffer.from(pubKey).toString('hex');
+    if (seen.has(dupKey)) continue;
+    seen.add(dupKey);
+    const leaf = keccak(pubKey);
+    root = insert(root, leaf, derivePriority(leaf));
+
+    if (Date.now() - lastYield > YIELD_INTERVAL_MS) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      lastYield = Date.now();
+    }
+  }
+
+  if (!root) throw new Error('empty master tree');
+  return finalizeTree(root);
+}
+
+/** Shared closure factory for both sync + async builders. Captures the
+ * finished treap root and exposes the `IcaoMasterTree` interface against
+ * it. Keeping this in one place means a future change to proof generation
+ * only has to land in one spot. */
+function finalizeTree(root: Node): IcaoMasterTree {
+  const r = root;
   return {
     root: () => r.merkleHash,
     generateProof: (pubKey: Uint8Array): Uint8Array[] => {

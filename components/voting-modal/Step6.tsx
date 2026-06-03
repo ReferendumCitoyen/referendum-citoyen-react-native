@@ -263,18 +263,33 @@ const Step6: React.FC<Step6Props> = ({ containerWidth, player, mrzData, onAnalyz
       // wrong DG1, then the relayer's gas estimate reverts ~30 s later with a
       // generic "Execution reverted" — confusing for the user and unrecoverable
       // because the identity is now bound to the wrong on-chain contract.
+      // Fail closed unless DG1 is exactly the length expected for this flow.
+      // This catches both the wrong-document case (e.g. an ID-card MRZ entered
+      // for a passport-only proposal → dg1Len 95 instead of 93) AND a
+      // missing/corrupt DG1 (len 0 or any other value). Either way, falling
+      // through would build the proof off a bad DG1 and the relayer's gas
+      // estimate reverts ~30 s later with a generic "Execution reverted".
       const dg1Len = (result as { dg1Bytes?: Uint8Array }).dg1Bytes?.length ?? 0;
-      const actualIsPassport = dg1Len === 93;
-      const actualIsIdCard = dg1Len === 95;
-      const docMismatch =
-        (isPassportFlow && actualIsIdCard) ||
-        (!isPassportFlow && actualIsPassport);
-      if (docMismatch) {
-        console.warn(
-          `[Step6] doc-type mismatch: flow=${isPassportFlow ? 'passport' : 'idCard'} but chip dg1Len=${dg1Len}`,
-        );
-        setPassportDetected(true);
-        setScanStatus('');
+      const expectedDg1Len = isPassportFlow ? 93 : 95;
+      if (dg1Len !== expectedDg1Len) {
+        const otherDocDg1Len = isPassportFlow ? 95 : 93;
+        if (dg1Len === otherDocDg1Len) {
+          // Genuine wrong-document swap (passport MRZ on an ID-card flow or vice
+          // versa) → show the "wrong document" banner + restart-with-correct-doc.
+          console.warn(
+            `[Step6] doc-type mismatch: flow=${isPassportFlow ? 'passport' : 'idCard'} but chip dg1Len=${dg1Len}`,
+          );
+          setPassportDetected(true);
+          setScanStatus('');
+        } else {
+          // Any other DG1 length (0 / missing / corrupt) is NOT a wrong-document
+          // case — surface a generic read error and keep the normal retry CTA
+          // (don't set passportDetected, which hides the analyze/retry button).
+          console.warn(
+            `[Step6] unexpected DG1 length: expected=${expectedDg1Len} got=${dg1Len}`,
+          );
+          setScanStatus(t('voting.step6ReadError'));
+        }
         setIsScanning(false);
         setShowRetry(true);
         return;

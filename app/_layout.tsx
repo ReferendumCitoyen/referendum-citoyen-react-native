@@ -1,5 +1,6 @@
 import '@/utils/logger-install';
 import '@/polyfills';
+import { installFontScaleCap, CAP_BIG } from '@/utils/font-scale-cap';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@/locales';
@@ -38,6 +39,12 @@ export const unstable_settings = {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Global Dynamic-Type cap: text scales up to 1.5× the design size for
+// readability, then stops, so large accessibility text can't blow up layouts.
+// Per-element overrides still win — allowFontScaling={false} (frozen chrome)
+// and maxFontSizeMultiplier on individual <Text> elements both take precedence.
+installFontScaleCap(CAP_BIG);
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
