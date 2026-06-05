@@ -46,7 +46,12 @@ Thumbs.db
 .idea/
 
 # local env files
+.env
 .env*.local
+secrets/
+
+# downloaded build artifacts
+*.ipa
 
 # personal working notes & local audit logs (e.g. TODO.local.md, eas-builds.local.log)
 *.local.md
