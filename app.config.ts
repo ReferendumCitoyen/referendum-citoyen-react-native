@@ -93,10 +93,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-video',
       '@rarimo/rarime-rn-sdk',
-      // Injects flatDir entries for the Groth16 stack's local AARs
-      // (modules/rapidsnark-wrp + modules/witnesscalculator). Needed by the
-      // Mainnet vote flow's witnesscalc + rapidsnark prove pipeline.
-      './plugins/withCircomFlatDirs.js',
+      // Replaces the Rarime SDK's bundled noir.aar with a 16 KB page-size
+      // aligned rebuild (modules/noir-16k/noir.aar) so the Noir register flow
+      // doesn't crash at System.loadLibrary() on Android 15+ 16 KB-page
+      // devices. Must run after '@rarimo/rarime-rn-sdk'. Built reproducibly by
+      // scripts/native-build/noir — see scripts/native-build/README.md.
+      './plugins/withAlignedNoir.js',
       // Sets android:largeHeap="true" on the <application/> element. The
       // Groth16 witness calculator on the Mainnet vote path allocates a
       // ~100 MB buffer which OOMs the default 256 MB Dalvik heap. See the
@@ -104,8 +106,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       './plugins/withLargeHeap.js',
       // Restricts Android build to arm64-v8a and emits per-ABI APK splits
       // (no universal APK). The Rarimo prebuilts the vote / register
-      // flows depend on (libnoir_java.so, libRmoCalcs.so,
-      // libwitnesscalc_*.so) ship only as arm64-v8a — building for
+      // flows depend on (libnoir_java.so, libwitnesscalc_queryIdentity.so)
+      // ship only as arm64-v8a — building for
       // armv7 / x86 / x86_64 produces APKs that install but crash at
       // Step 7 / Step 11. The direct-download .apk now lands at ~80 MB
       // (was ~290 MB universal). Play Store path uses AAB; Play splits
@@ -156,8 +158,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             ],
           },
           android: {
-            // RmoCalcs.aar (modules/witnesscalculator) declares minSdkVersion
-            // 27. Bumping our floor to match. Needed for the Groth16 vote flow.
+            // Native dependencies in the vote/register stack (Rarime SDK
+            // Noir module, witnesscalc query_identity, rapidsnark) require an
+            // API 27 floor. Kept at 27 to match.
             minSdkVersion: 27,
             // Google Play requires targetSdkVersion >= 35 (Android 15) for
             // every app submitted or updated after 2025-08-31. compileSdk
