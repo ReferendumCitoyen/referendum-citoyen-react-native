@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'fr.referendum.citoyen',
+      bundleIdentifier: 'app.referendumcitoyen.fr',
       deploymentTarget: '16.0',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -31,6 +31,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           "Cette application a besoin de lire la puce NFC de votre carte d'identité pour vérifier votre âge et nationalité de manière anonyme.",
         NSCameraUsageDescription:
           "Cette application a besoin d'accéder à la caméra pour scanner la zone MRZ de votre carte d'identité.",
+        // Required to satisfy ITMS-90683: a transitive dependency references the
+        // location API even though the app never requests the user's location.
+        NSLocationWhenInUseUsageDescription:
+          "Cette application n'utilise pas votre position. Cette autorisation est requise par un composant tiers mais aucune donnée de localisation n'est collectée.",
         'com.apple.developer.nfc.readersession.iso7816.select-identifiers': [
           'A0000002471001',
           'A0000001510000',
