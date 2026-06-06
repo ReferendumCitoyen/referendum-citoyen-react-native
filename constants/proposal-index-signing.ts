@@ -26,7 +26,7 @@
 // Placeholder. Replace with the hex output of
 // `node scripts/generate-proposal-signing-key.mjs`.
 export const PROPOSAL_INDEX_PUBLIC_KEY_HEX =
-  '0000000000000000000000000000000000000000000000000000000000000000'; // nosec: all-zeros placeholder (not a real Ed25519 key) — replaced via setup script
+  '2a022e4c0ad1a6edcaf9569e112c8408c843482ac6de0105075df84f0efd8130'; //nosec: public key
 
 /**
  * When the placeholder is in place, verification is *soft-disabled*: the
@@ -40,4 +40,5 @@ export const PROPOSAL_INDEX_PUBLIC_KEY_HEX =
  */
 export const PROPOSAL_INDEX_VERIFICATION_REQUIRED =
   PROPOSAL_INDEX_PUBLIC_KEY_HEX !==
-  '0000000000000000000000000000000000000000000000000000000000000000'; // nosec: all-zeros placeholder sentinel — flips this flag to true once a real key is pinned above
+  '2a022e4c0ad1a6edcaf9569e112c8408c843482ac6de0105075df84f0efd8130'; //nosec: public key
+
