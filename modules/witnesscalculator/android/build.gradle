@@ -72,6 +72,8 @@ android {
   }
 }
 
-dependencies {
-  implementation(name: 'RmoCalcs', ext: 'aar')
-}
+// No external AAR dependency: the register/auth Groth16 witness calculators
+// (formerly RmoCalcs.aar) were removed — registration runs through the Rarime
+// SDK's Noir module now. The query_identity vote witness calculator is built
+// from source via the CMake JNI shim above (links the prebuilt
+// libwitnesscalc_queryIdentity.so in jniLibs/).

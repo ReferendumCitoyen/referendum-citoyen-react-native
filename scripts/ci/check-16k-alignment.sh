@@ -32,15 +32,21 @@ echo "Auditing $APK"
 # misalignment from OUR builds fails CI even while these upstream blockers
 # remain. Remove an entry once upstream ships a 16 KB-aligned version.
 declare -a EXPECTED_MISALIGNED=(
-  # @rarimo/rarime-rn-sdk 0.3.1 — bundled noir.aar. No newer SDK published.
-  "lib/arm64-v8a/libnoir_java.so"
-  # rarimo/rarime-android-app prebuilt witnesscalc binaries (RmoCalcs.aar +
-  # raw jniLibs). No 16 KB-aligned upstream release yet.
-  "lib/arm64-v8a/libRmoCalcs.so"
-  "lib/arm64-v8a/libwitnesscalc_auth.so"
-  "lib/arm64-v8a/libwitnesscalc_queryIdentity.so"
-  "lib/arm64-v8a/libwitnesscalc_registerIdentityUniversalRSA2048.so"
-  "lib/arm64-v8a/libwitnesscalc_registerIdentityUniversalRSA4096.so"
+  # Empty: all six previously-misaligned arm64 prebuilts are now resolved.
+  #
+  # Fixed 2026-06:
+  # - libnoir_java.so (register flow) rebuilt 16 KB-aligned from
+  #   rarimo/noir_android @ v1.0.3 via scripts/native-build/noir; the repacked
+  #   noir.aar is committed at modules/noir-16k/noir.aar and swapped into the
+  #   SDK aar at prebuild by plugins/withAlignedNoir.js. The aar's redundant
+  #   4 KB libc++_shared.so was dropped (RN's NDK copy wins pickFirst).
+  # - libwitnesscalc_queryIdentity.so (vote flow) rebuilt 16 KB-aligned from
+  #   rarimo/witnesscalc @ 2a2ccd5 via scripts/native-build/witnesscalc and
+  #   committed to modules/witnesscalculator/.../jniLibs/.
+  # - The four RmoCalcs.aar prebuilts (libRmoCalcs.so, libwitnesscalc_auth.so,
+  #   libwitnesscalc_registerIdentityUniversalRSA2048/4096.so) backed the dead
+  #   Groth16 register/auth path and were deleted — registration runs through
+  #   the Rarime SDK's Noir module. They no longer ship in the APK.
 )
 
 is_allowlisted() {

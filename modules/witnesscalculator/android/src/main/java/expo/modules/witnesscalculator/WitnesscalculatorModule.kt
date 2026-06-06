@@ -1,6 +1,5 @@
 package expo.modules.witnesscalculator
 
-import com.example.rmocalcs.WtnsUtils
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -14,37 +13,17 @@ class WitnesscalculatorModule : Module() {
     // The module will be accessible from `requireNativeModule('Witnesscalculator')` in JavaScript.
     Name("Witnesscalculator")
 
-    AsyncFunction("calcWtnsRegisterIdentityUniversalRSA4096") { dat: ByteArray, inputs: ByteArray ->
-      val witnessCalculator = WtnsCalculator()
-
-      val res = witnessCalculator.calculateWtns(dat, inputs, WtnsUtils::registerIdentityUniversalRSA4096)
-
-      return@AsyncFunction res
-    }
-
-    AsyncFunction("calcWtnsRegisterIdentityUniversalRSA2048") { dat: ByteArray, inputs: ByteArray ->
-      val witnessCalculator = WtnsCalculator()
-
-      val res = witnessCalculator.calculateWtns(dat, inputs, WtnsUtils::registerIdentityUniversalRSA2048)
-
-      return@AsyncFunction res
-    }
-
-
-    AsyncFunction("calcWtnsAuth") { dat: ByteArray, inputs: ByteArray ->
-      val witnessCalculator = WtnsCalculator()
-
-      val res = witnessCalculator.calculateWtns(dat, inputs, WtnsUtils::auth)
-
-      return@AsyncFunction res
-    }
-
     // Witness calculator for the `query_identity` Groth16 circuit used by
-    // the Mainnet vote flow. Distinct binding from the register/auth ones
-    // above because RmoCalcs.aar (com.example.rmocalcs.WtnsUtils) doesn't
-    // ship query_identity — we shim it ourselves via WitnesscalcQueryNative
+    // the Mainnet vote flow. We shim it ourselves via WitnesscalcQueryNative
     // (which JNI-binds the prebuilt libwitnesscalc_queryIdentity.so in
     // jniLibs/<ABI>/).
+    //
+    // The register/auth witness calculators that previously lived here
+    // (backed by RmoCalcs.aar's com.example.rmocalcs.WtnsUtils) were removed:
+    // registration now runs through the Rarime SDK's Noir module, so the
+    // Groth16 register/auth path was dead code. Dropping RmoCalcs.aar also
+    // removed four 4 KB-aligned prebuilts that blocked Android 15+ 16 KB
+    // page-size compatibility.
     AsyncFunction("calcWtnsQueryIdentity") { dat: ByteArray, inputs: ByteArray ->
       val witnessCalculator = WtnsCalculator()
       val native = WitnesscalcQueryNative()
