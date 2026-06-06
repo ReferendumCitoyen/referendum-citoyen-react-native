@@ -45,6 +45,8 @@
     "privacyPolicy": "Politique de confidentialité",
     "termsAndConditions": "Conditions générales",
     "contact": "Nous contacter",
+    "contactSubject": "Référendum Citoyen — Contact",
+    "contactBody": "Bonjour,\n\nÉcrivez ici…\n\n———\nApp : {{version}} (build {{build}})\nAppareil : {{device}} — {{platform}} {{os}}\nOTA : {{ota}}",
     "nfcTest": "Test NFC",
     "diagnostics": "Diagnostics",
     "language": "Langue",
