@@ -105,6 +105,10 @@ const createMarkdownStyles = (colors: any) => ({
   heading1: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.h1,
+    // Explicit lineHeight: without it react-native-markdown-display sizes the
+    // heading line box too short for RethinkSans-SemiBold and clips the tops
+    // of the glyphs (e.g. "Article 4. Anonymat").
+    lineHeight: Typography.lineHeight.h1,
     color: colors.text,
     marginTop: 20,
     marginBottom: 8,
@@ -112,6 +116,7 @@ const createMarkdownStyles = (colors: any) => ({
   heading2: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
     color: colors.text,
     marginTop: 20,
     marginBottom: 8,
@@ -119,6 +124,7 @@ const createMarkdownStyles = (colors: any) => ({
   heading3: {
     fontFamily: Typography.fontFamily.semibold,
     fontSize: Typography.fontSize.body + 2,
+    lineHeight: 26,
     color: colors.text,
     marginTop: 12,
     marginBottom: 4,
