@@ -1,0 +1,85 @@
+name: Publish proposal index to GitHub Pages
+
+# Signs and deploys the contents of `public-data/` to GitHub Pages so the
+# mobile app can fetch the current proposal allow-list at
+# https://referendumcitoyen.github.io/referendum-citoyen-react-native/proposals.json
+# with a detached signature at .../proposals.json.sig
+#
+# To update the list: edit `public-data/proposals.json`, commit, push.
+# This workflow runs automatically, signs the JSON with the
+# PROPOSAL_INDEX_SIGNING_KEY secret, and deploys both files to Pages.
+# Change is live in ~30 s. App verifies the signature on download
+# (utils/proposal-index.ts).
+#
+# One-time setup in repo Settings:
+#   1. Pages → Source: select "GitHub Actions".
+#   2. Secrets and variables → Actions → New repository secret:
+#        Name:  PROPOSAL_INDEX_SIGNING_KEY
+#        Value: hex-encoded 32-byte Ed25519 private seed
+#               (output of `node scripts/generate-proposal-signing-key.mjs`)
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'public-data/**'
+      - '.github/workflows/publish-proposal-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sign proposal index with PROPOSAL_INDEX_SIGNING_KEY
+        env:
+          SIGNING_KEY_HEX: ${{ secrets.PROPOSAL_INDEX_SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY_HEX" ]; then
+            echo "::warning::PROPOSAL_INDEX_SIGNING_KEY secret is not set — publishing unsigned."
+            echo "         The app will refuse the list once verification is enforced"
+            echo "         (constants/proposal-index-signing.ts)."
+            exit 0
+          fi
+          node --input-type=module -e "
+            import { readFileSync, writeFileSync } from 'node:fs';
+            import { createPrivateKey, sign } from 'node:crypto';
+            const skHex = process.env.SIGNING_KEY_HEX.trim();
+            if (!/^[0-9a-fA-F]{64}\$/.test(skHex)) {
+              console.error('SIGNING_KEY_HEX must be 64 hex chars (raw Ed25519 seed).');
+              process.exit(1);
+            }
+            // Build PKCS#8 DER from the 32-byte seed so Node's createPrivateKey
+            // accepts it. Prefix is the fixed ASN.1 wrapper:
+            //   SEQUENCE { INTEGER 0, SEQUENCE { OID 1.3.101.112 }, OCTET STRING <OCTET STRING <seed>> }
+            const seed = Buffer.from(skHex, 'hex');
+            const der = Buffer.concat([
+              Buffer.from('302e020100300506032b657004220420', 'hex'),
+              seed,
+            ]);
+            const sk = createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+            const data = readFileSync('public-data/proposals.json');
+            const signature = sign(null, data, sk);
+            writeFileSync('public-data/proposals.json.sig', signature);
+            console.log('Signed ' + data.length + ' bytes -> public-data/proposals.json.sig (' + signature.length + ' bytes)');
+          "
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-data
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -17,6 +17,12 @@ import {
   migrateLegacyCache,
   bigintReplacer,
 } from '@/utils/proposal-cache';
+import {
+  getProposalIndex,
+  readCachedIndex,
+  idsForNetwork,
+  type ProposalIndex,
+} from '@/utils/proposal-index';
 import { computeVoteResults, isFrenchCompatible, isPassportVotingTarget } from '@/utils/voteResults';
 import { consumePendingVote } from '@/utils/post-vote-refresh';
 import i18nModule from 'i18next';
@@ -236,6 +242,7 @@ export default function AccueilScreen() {
   const ftConfig = useMemo(() => getFreedomToolConfig(network), [network]);
 
   const [proposals, setProposals] = useState<ProposalInfo[]>([]);
+  const [proposalIndex, setProposalIndex] = useState<ProposalIndex | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllList, setShowAllList] = useState(false);
@@ -286,23 +293,37 @@ export default function AccueilScreen() {
       .map(r => r.value);
   }, [getFreedomTool]);
 
-  // Main allowlist of proposal IDs to display on the home screen.
-  //   #50 — the production scrutin for this release.
+  // Allow-list of proposal IDs to display on the home screen. Source of
+  // truth is public-data/proposals.json in this repo, published to GitHub
+  // Pages via .github/workflows/publish-proposal-index.yml. The app
+  // fetches it on mount (utils/proposal-index.ts) so the list can change
+  // without a code release. While `proposalIndex` is still null on first
+  // paint, fall back to the bundled defaults inside proposal-index.ts —
+  // see BUNDLED_FALLBACK there — so cold-start with no network still
+  // surfaces the production scrutin.
   // Extras (the editable list in ExtraProposalsContext) are concatenated
   // when the dev toggle is on — used to keep older verified scrutins
   // reachable for QA without exposing them to regular users.
-  const HARDCODED_PROPOSAL_IDS = ['50'];
-  // Proposals only surfaced when dev mode is on — recent open PASSPORT
-  // scrutins (all on BioPassportVoting) the QA team uses for end-to-end vote
-  // tests. Production #50 is in HARDCODED above, so it shows in both modes.
-  // NB: #48 is intentionally excluded — it's an IDCardVoting proposal, and a
-  // mainnet vote on it fails at submit (vote-calldata targets BioPassportVoting).
-  const DEV_ONLY_PROPOSAL_IDS = ['38', '47', '49'];
-  const effectiveIds = [
-    ...HARDCODED_PROPOSAL_IDS,
-    ...(devMode ? DEV_ONLY_PROPOSAL_IDS : []),
-    ...(extraEnabled ? extraIds : []),
-  ];
+  const effectiveIds = useMemo(() => {
+    const indexIds = proposalIndex
+      ? idsForNetwork(proposalIndex, network, devMode)
+      : [];
+    return [...indexIds, ...(extraEnabled ? extraIds : [])];
+  }, [proposalIndex, network, devMode, extraEnabled, extraIds]);
+
+  // Hydrate the proposal index from cache for instant render, then fetch
+  // fresh in the background. Both updates flow through setProposalIndex so
+  // the existing fetchProposals effect re-runs against the new ID list.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = await readCachedIndex();
+      if (!cancelled && cached) setProposalIndex(cached);
+      const fresh = await getProposalIndex();
+      if (!cancelled) setProposalIndex(fresh);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
@@ -376,8 +397,9 @@ export default function AccueilScreen() {
       setIsRefreshing(false);
     }
     // Re-fetch when the effective ID list changes (devMode flips, the
-    // extras toggle flips, or the user edits the extras list in Settings).
-  }, [getFreedomTool, network, ftConfig, devMode, extraEnabled, extraIds]);
+    // extras toggle flips, the user edits the extras list in Settings,
+    // or the GitHub-Pages proposal index updates the active list).
+  }, [getFreedomTool, network, ftConfig, devMode, extraEnabled, extraIds, proposalIndex]);
 
   const fetchMore = useCallback(async () => {
     if (isLoadingMore || !hasMore || oldestIdRef.current <= 1) return;

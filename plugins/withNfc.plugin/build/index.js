@@ -162,10 +162,39 @@ const UNUSED_PERMISSIONS = [
     'android.permission.WRITE_EXTERNAL_STORAGE',
     'android.permission.RECORD_AUDIO',
     'android.permission.MODIFY_AUDIO_SETTINGS',
+    'com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE',
 ];
+// Emit `<uses-permission … tools:node="remove"/>` for each unused permission
+// rather than deleting the node. Deleting (the old AndroidConfig.Permissions.
+// removePermissions approach) only strips the entry from *this* manifest — the
+// manifest merger then freely re-introduces it from library manifests
+// (expo-av pulls in RECORD_AUDIO / *_EXTERNAL_STORAGE, Play Services pulls in
+// the install-referrer binding). The `tools:node="remove"` marker is the only
+// thing the merger honours as "keep this out of the final APK". This also
+// reinforces Expo's `android.blockedPermissions` instead of fighting it: this
+// plugin runs last, so deleting nodes previously clobbered the very markers
+// blockedPermissions had just added.
 const withTrimmedPermissions = c => {
     return (0, config_plugins_1.withAndroidManifest)(c, config => {
-        config_plugins_1.AndroidConfig.Permissions.removePermissions(config.modResults, UNUSED_PERMISSIONS);
+        const manifest = config.modResults.manifest;
+        // Ensure the `tools` namespace is declared so `tools:node` is valid.
+        manifest.$ = manifest.$ || {};
+        if (!manifest.$['xmlns:tools']) {
+            manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+        }
+        manifest['uses-permission'] = manifest['uses-permission'] || [];
+        const usesPermissions = manifest['uses-permission'];
+        for (const name of UNUSED_PERMISSIONS) {
+            const existing = usesPermissions.find(p => p.$?.['android:name'] === name);
+            if (existing) {
+                existing.$['tools:node'] = 'remove';
+            }
+            else {
+                usesPermissions.push({
+                    $: { 'android:name': name, 'tools:node': 'remove' },
+                });
+            }
+        }
         return config;
     });
 };

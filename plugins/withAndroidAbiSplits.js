@@ -4,7 +4,7 @@
  *
  * Why:
  *   The Rarimo prebuilts our app depends on for vote + register
- *   (libnoir_java.so, libRmoCalcs.so, libwitnesscalc_*.so) ship only as
+ *   (libnoir_java.so, libwitnesscalc_queryIdentity.so) ship only as
  *   arm64-v8a. Without an abiFilter the default `assembleRelease` builds
  *   a universal APK (~290 MB) containing armv7 / x86 / x86_64 binaries
  *   that look complete (Hermes / Expo / RN libs all ship multi-ABI) but
