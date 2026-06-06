@@ -45,6 +45,8 @@
     "privacyPolicy": "Privacy policy",
     "termsAndConditions": "Terms and conditions",
     "contact": "Contact us",
+    "contactSubject": "Référendum Citoyen — Contact",
+    "contactBody": "Hello,\n\nWrite here…\n\n———\nApp: {{version}} (build {{build}})\nDevice: {{device}} — {{platform}} {{os}}\nOTA: {{ota}}",
     "nfcTest": "NFC test",
     "diagnostics": "Diagnostics",
     "language": "Language",
@@ -384,7 +386,7 @@
         "accordions": [
           {
             "title": "What do I need to vote?",
-            "content": "You need a passport, and a smartphone with the Référendum Citoyen app installed."
+            "content": "You need a currently valid passport, and a smartphone with the Référendum Citoyen app installed."
           },
           {
             "title": "Why not the ID card?",

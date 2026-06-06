@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, ScrollView, View, Text, Switch, TouchableOpacity, Linking, Alert, TextInput } from 'react-native';
 import * as Application from 'expo-application';
 import { useUpdates } from 'expo-updates';
+import * as MailComposer from 'expo-mail-composer';
 import { OTA_PATCH } from '@/constants/otaVersion';
 import { useTranslation } from 'react-i18next';
 import { useColors, useTheme, Typography, Spacing } from '@/constants/theme';
@@ -11,6 +12,7 @@ import { useDevMode } from '@/contexts/DevModeContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useExtraProposals } from '@/contexts/ExtraProposalsContext';
 import { LEGAL_URLS, CONTACT_EMAIL } from '@/constants/urls';
+import { getContactInfoVars } from '@/utils/contact-info';
 
 const CaretRightIcon = ({ color, size = 24 }: { color: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -82,6 +84,27 @@ export default function ParametresScreen() {
     );
   };
 
+  // Opens the user's mail client pre-filled with a non-PII debug footer
+  // (version, build, device, OS, locale, network, OTA) so support emails carry
+  // enough context to triage — e.g. spotting a reporter on an already-fixed
+  // build. Uses MailComposer when available, falls back to a mailto: link.
+  const handleContact = async () => {
+    const vars = getContactInfoVars();
+    const subject = t('settings.contactSubject');
+    const body = t('settings.contactBody', vars);
+    try {
+      if (await MailComposer.isAvailableAsync()) {
+        await MailComposer.composeAsync({ recipients: [CONTACT_EMAIL], subject, body });
+        return;
+      }
+    } catch {
+      // fall through to the mailto: fallback below
+    }
+    Linking.openURL(
+      `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+    );
+  };
+
   return (
     <View style={styles.screenContainer}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
@@ -124,7 +147,7 @@ export default function ParametresScreen() {
           <TouchableOpacity
             style={styles.settingRow}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}
+            onPress={handleContact}
           >
             <Text style={styles.settingLabel}>{t('settings.contact')}</Text>
             <CaretRightIcon color={colors.icon} size={Spacing.icon.size} />

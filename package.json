@@ -1,6 +1,6 @@
 {
   "name": "referendum-citoyen",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Secure digital voting app with passport NFC verification and zero-knowledge proofs",
   "main": "expo-router/entry",
   "repository": {
@@ -58,7 +58,7 @@
     "crypto-browserify": "^3.12.1",
     "elliptic": "^6.6.1",
     "ethers": "^6.15.0",
-    "expo": "54.0.30",
+    "expo": "~54.0.35",
     "expo-application": "~7.0.7",
     "expo-asset": "~12.0.12",
     "expo-av": "~16.0.7",
@@ -68,20 +68,21 @@
     "expo-constants": "~18.0.9",
     "expo-crypto": "^15.0.7",
     "expo-dev-client": "~6.0.16",
+    "expo-device": "~8.0.10",
     "expo-document-picker": "~14.0.8",
-    "expo-file-system": "~19.0.22",
-    "expo-font": "~14.0.9",
+    "expo-file-system": "~19.0.23",
+    "expo-font": "~14.0.12",
     "expo-keep-awake": "~15.0.8",
     "expo-linear-gradient": "~15.0.7",
     "expo-linking": "~8.0.8",
-    "expo-localization": "^17.0.7",
+    "expo-localization": "~17.0.9",
     "expo-mail-composer": "~15.0.8",
-    "expo-router": "~6.0.13",
+    "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
-    "expo-updates": "~29.0.17",
+    "expo-updates": "~29.0.18",
     "expo-video": "~3.0.11",
     "expo-web-browser": "~15.0.8",
     "i18next": "^25.6.0",
@@ -130,5 +131,23 @@
     "prettier": "^3.7.4",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react-native-get-random-values"
+      ]
+    },
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false,
+        "exclude": [
+          "react-native-nfc-manager",
+          "react-native-vision-camera-text-recognition",
+          "expo-av",
+          "react-native-markdown-display"
+        ]
+      }
+    }
   }
 }

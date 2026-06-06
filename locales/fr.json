@@ -45,6 +45,8 @@
     "privacyPolicy": "Politique de confidentialité",
     "termsAndConditions": "Conditions générales",
     "contact": "Nous contacter",
+    "contactSubject": "Référendum Citoyen — Contact",
+    "contactBody": "Bonjour,\n\nÉcrivez ici…\n\n———\nApp : {{version}} (build {{build}})\nAppareil : {{device}} — {{platform}} {{os}}\nOTA : {{ota}}",
     "nfcTest": "Test NFC",
     "diagnostics": "Diagnostics",
     "language": "Langue",
@@ -384,7 +386,7 @@
         "accordions": [
           {
             "title": "De quoi ai-je besoin pour voter ?",
-            "content": "Vous avez besoin d'un passeport, et d'un smartphone avec l'application Référendum Citoyen installée."
+            "content": "Vous avez besoin d'un passeport en cours de validité, et d'un smartphone avec l'application Référendum Citoyen installée."
           },
           {
             "title": "Pourquoi pas la carte d'identité ?",
