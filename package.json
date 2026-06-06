@@ -24,7 +24,7 @@
     "build:android:production": "eas build --platform android --profile production",
     "update:preview": "node ./scripts/publish-ota.mjs preview",
     "update:production": "node ./scripts/publish-ota.mjs production",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && node scripts/postinstall-aligned-noir.js",
     "eas-build-post-install": "node ./scripts/strip-bitcode.js",
     "prepare": "husky",
     "log:eas": "node ./scripts/update-eas-log.mjs",
