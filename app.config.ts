@@ -5,7 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Référendum Citoyen',
     slug: 'referendum-citoyen',
-    version: '1.2',
+    version: '1.2.1',
     orientation: 'portrait',
     icon: './assets/images/app-icon.png',
     scheme: 'referendumcitoyen',
@@ -173,6 +173,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             // level — Expo SDK 54 / RN 0.81 already officially support 35.
             targetSdkVersion: 35,
             compileSdkVersion: 35,
+            packagingOptions: {
+              // The 16 KB-aligned libnoir_java.so in modules/noir-16k/noir.aar
+              // is pre-stripped and then patched with patchelf (--add-needed
+              // libc++_shared.so — the upstream rebuild dropped the DT_NEEDED
+              // entry while still referencing libc++ symbols, which made
+              // System.loadLibrary throw UnsatisfiedLinkError on EVERY device
+              // and broke registration entirely in v1.2/build 14). Running
+              // AGP's llvm-strip over a patchelf-modified ELF corrupts its
+              // dynamic section (empty DT_GNU_HASH) — so strip must skip it.
+              doNotStrip: ['**/libnoir_java.so'],
+            },
           },
         },
       ],
