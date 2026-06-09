@@ -3,13 +3,14 @@ import { View, Text, LayoutChangeEvent, Dimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { createStepSpecificStyles } from './styles';
 import { useColors, Typography } from '@/constants/theme';
-import { formatRpcError, type Network } from '@/constants/rarime-config';
+import { formatRpcError, getFreedomToolConfig, type Network } from '@/constants/rarime-config';
 import type { ProposalInfo, Rarime, RarimePassport, FreedomTool } from '@rarimo/rarime-rn-sdk';
 import { useTranslation } from 'react-i18next';
 import { Buffer } from 'buffer';
 import { ensureCircuitsReady } from '@/utils/circuit-preload';
 import { castMainnetVote } from '@/utils/mainnet-vote-flow';
 import { getOrCreatePrivateKey } from '@/utils/identity';
+import { waitForVoteReceipt } from '@/utils/vote-confirmation';
 
 // voting-flow's sliding container chain has no defined height on iOS
 // (flex: undefined in styles.ts) so `height: '100%'` on a slide collapses
@@ -20,7 +21,11 @@ const SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 interface Step11Props {
   containerWidth: number;
   isActive?: boolean;
-  onSuccess?: (txHash: string) => void;
+  /** `confirmed` reflects the on-chain receipt: true = mined with status 1,
+   * false = submitted but not yet confirmed (Step12 shows a neutral pending
+   * message rather than a definitive success). A reverted tx never calls this
+   * — it routes to onError instead. */
+  onSuccess?: (txHash: string, confirmed: boolean) => void;
   onError?: (reason?: string, error?: unknown) => void;
   onLayout?: (event: LayoutChangeEvent) => void;
   freedomTool?: FreedomTool;
@@ -117,6 +122,34 @@ const Step11: React.FC<Step11Props> = ({
 
     isSubmitting.current = true;
     (async () => {
+      // Gate "success" on the on-chain receipt, NOT on the relayer ACK. The
+      // relayer returns a tx hash the moment it broadcasts; a tx that later
+      // reverts (identity registered after the proposal cutoff, failed proof,
+      // used nullifier) still has a hash and decodable vote calldata. Poll the
+      // receipt: status 1 → success; status 0 → surface as an error (vote NOT
+      // registered); still-pending at timeout → optimistic success flagged
+      // unconfirmed so Step12 shows a neutral "awaiting confirmation" message.
+      const confirmAndFinish = async (txHash: string) => {
+        hasCalledCallback.current = true;
+        setStatusText(t('voting.step11Confirming'));
+        try {
+          const { JsonRpcProvider } = await import('ethers');
+          const rpcUrl = getFreedomToolConfig(network).api.votingRpcUrl;
+          const outcome = await waitForVoteReceipt(new JsonRpcProvider(rpcUrl), txHash);
+          if (outcome === 'reverted') {
+            console.warn('[Step11] vote tx reverted on-chain:', txHash);
+            onError?.(t('voting.voteNotRegistered'));
+            return;
+          }
+          onSuccess?.(txHash, outcome === 'success');
+        } catch (confirmErr: any) {
+          // Couldn't read the receipt (RPC down). Don't claim failure on a tx
+          // that may well have succeeded — show optimistic + unconfirmed.
+          console.warn('[Step11] receipt confirmation failed:', confirmErr?.message ?? confirmErr);
+          onSuccess?.(txHash, false);
+        }
+      };
+
       try {
         // ----------------------------------------------------------------
         // Vote-path routing (by network + doc type, see props comment):
@@ -172,9 +205,7 @@ const Step11: React.FC<Step11Props> = ({
             },
           });
           console.log('[Step11][mainnet] vote tx id:', txId);
-          hasCalledCallback.current = true;
-          setStatusText(t('voting.step11VoteSubmitted'));
-          onSuccess?.(txId);
+          await confirmAndFinish(txId);
           return;
         }
 
@@ -268,9 +299,7 @@ const Step11: React.FC<Step11Props> = ({
         });
 
         console.log('[FreedomTool] Step11: Vote TX hash:', txHash);
-        hasCalledCallback.current = true;
-        setStatusText(t('voting.step11VoteSubmitted'));
-        onSuccess?.(txHash);
+        await confirmAndFinish(txHash);
       } catch (err: any) {
         console.error('[FreedomTool] Step11: Vote error:', err);
         console.error('[FreedomTool] Step11: Error details:', JSON.stringify({ message: err?.message, code: err?.code, data: err?.data, status: err?.status }, null, 2));

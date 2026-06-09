@@ -7,6 +7,10 @@ import { useColors, Typography } from '@/constants/theme';
 import { useTranslation } from 'react-i18next';
 
 interface Step12SuccessProps {
+  /** false = tx submitted but not yet confirmed on-chain (timeout). Shows a
+   * neutral "awaiting confirmation" title/description instead of definitive
+   * success. Defaults to true. */
+  confirmed?: boolean;
   containerWidth: number;
   voteIdentifier?: string;
   onViewResults?: () => void;
@@ -19,7 +23,7 @@ interface Step12SuccessProps {
 // minHeight on both platforms.
 const SLIDE_MIN_HEIGHT = Math.round(Dimensions.get('window').height * 0.75);
 
-const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdentifier, onViewResults, onLayout }) => {
+const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdentifier, confirmed = true, onViewResults, onLayout }) => {
   const { t } = useTranslation();
   const colors = useColors();
   const modalStyles = createModalStyles(colors);
@@ -52,11 +56,11 @@ const Step12Success: React.FC<Step12SuccessProps> = ({ containerWidth, voteIdent
       <View style={stepSpecificStyles.step12SuccessContainer}>
         <View style={stepSpecificStyles.step12SuccessContent}>
           <Text style={stepSpecificStyles.step12SuccessTitle}>
-            {t('voting.step12SuccessTitle')}
+            {t(confirmed ? 'voting.step12SuccessTitle' : 'voting.step12PendingTitle')}
           </Text>
 
           <Text style={stepSpecificStyles.step12SuccessDescription}>
-            {t('voting.step12SuccessDescription')}
+            {t(confirmed ? 'voting.step12SuccessDescription' : 'voting.step12PendingDescription')}
           </Text>
 
           <LottieView

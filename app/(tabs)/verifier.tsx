@@ -4,6 +4,7 @@ import { Svg, Path } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { getFreedomToolConfig, getExplorerTxBaseUrl, type Network } from '@/constants/rarime-config';
+import { classifyReceipt, type VoteTxStatus } from '@/utils/vote-confirmation';
 import { useNetwork } from '@/contexts/NetworkContext';
 import SettingsButton from '@/components/SettingsButton';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
@@ -18,6 +19,15 @@ const ShieldCheckIcon = ({ color, size = 20 }: { color: string; size?: number })
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
       d="M12 2L3 7V12C3 17.55 6.84 22.74 12 24C17.16 22.74 21 17.55 21 12V7L12 2ZM10 17L6 13L7.41 11.59L10 14.17L16.59 7.58L18 9L10 17Z"
+      fill={color}
+    />
+  </Svg>
+);
+
+const AlertIcon = ({ color, size = 20 }: { color: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
       fill={color}
     />
   </Svg>
@@ -51,6 +61,10 @@ interface LookupResult {
   answerIndex: number;
   txHash: string;
   voteDate: string | null;
+  /** On-chain execution status. 'success' = mined & counted, 'reverted' =
+   * mined but failed (vote NOT registered), 'pending' = not yet mined. A tx
+   * existing and decoding as a vote does NOT mean it counted — gate on this. */
+  status: VoteTxStatus;
   /** Which network the tx was actually found on — drives the explorer link
    * below (rarimo mainnet scan vs qtestnet scan). Shared vote hashes can
    * arrive from either network, so the verifier tries both and reports
@@ -134,9 +148,12 @@ export default function VerifierScreen() {
     if (!decoded) return null;
     const { proposalId, answerIndex } = decoded;
 
-    // Block timestamp
+    // On-chain execution status + block timestamp. A reverted tx (status 0)
+    // still exists and still decodes as a vote(...) — we MUST NOT report it as
+    // a counted vote. classifyReceipt maps status→success/reverted/pending.
     let voteDate: string | null = null;
     const receipt = await provider.getTransactionReceipt(hash);
+    const status = classifyReceipt(receipt);
     if (receipt?.blockNumber) {
       const block = await provider.getBlock(receipt.blockNumber);
       if (block?.timestamp) {
@@ -156,7 +173,7 @@ export default function VerifierScreen() {
     const variants = proposal.questions[0]?.variants ?? [];
     const votedFor = variants[answerIndex] ?? `Option ${answerIndex + 1}`;
 
-    return { proposal, votedFor, answerIndex, txHash: hash, voteDate, network: net };
+    return { proposal, votedFor, answerIndex, txHash: hash, voteDate, network: net, status };
   }, []);
 
   const lookupVoteTx = useCallback(async () => {
@@ -243,22 +260,44 @@ export default function VerifierScreen() {
 
         {/* Result card */}
         {txLookupStatus === 'success' && lookupResult && (() => {
-          const { proposal: p, votedFor, answerIndex, txHash, voteDate } = lookupResult;
+          const { proposal: p, votedFor, answerIndex, txHash, voteDate, status } = lookupResult;
           const active = isActive(p);
+          const counted = status === 'success';
           const variants = p.questions[0]?.variants ?? [];
           const total = computeTotal(p.votingResults, variants.length);
 
           return (
             <View style={styles.resultCard}>
-              {/* Vote confirmation */}
-              <View style={styles.voteConfirmation}>
-                <ShieldCheckIcon color={colors.successText} size={24} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.voteConfirmationTitle}>{t('verifier.voteVerified')}</Text>
-                  <Text style={styles.voteConfirmationAnswer}>{t('verifier.voteVerifiedAnswer', { vote: votedFor })}</Text>
-                  {voteDate && <Text style={styles.voteConfirmationDate}>{t('verifier.recordedOn', { date: voteDate })}</Text>}
+              {/* Vote confirmation — gated on the on-chain receipt status, NOT
+                  merely on the tx existing. A reverted tx is shown red. */}
+              {status === 'success' && (
+                <View style={styles.voteConfirmation}>
+                  <ShieldCheckIcon color={colors.successText} size={24} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.voteConfirmationTitle}>{t('verifier.voteVerified')}</Text>
+                    <Text style={styles.voteConfirmationAnswer}>{t('verifier.voteVerifiedAnswer', { vote: votedFor })}</Text>
+                    {voteDate && <Text style={styles.voteConfirmationDate}>{t('verifier.recordedOn', { date: voteDate })}</Text>}
+                  </View>
                 </View>
-              </View>
+              )}
+              {status === 'reverted' && (
+                <View style={styles.voteConfirmationError}>
+                  <AlertIcon color={colors.errorText} size={24} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.voteConfirmationTitleError}>{t('verifier.voteFailed')}</Text>
+                    <Text style={styles.voteConfirmationAnswer}>{t('verifier.voteFailedDescription')}</Text>
+                  </View>
+                </View>
+              )}
+              {status === 'pending' && (
+                <View style={styles.voteConfirmationPending}>
+                  <AlertIcon color={colors.warningText} size={24} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.voteConfirmationTitlePending}>{t('verifier.votePending')}</Text>
+                    <Text style={styles.voteConfirmationAnswer}>{t('verifier.votePendingDescription')}</Text>
+                  </View>
+                </View>
+              )}
 
               {/* Poll info */}
               <View style={styles.pollSection}>
@@ -292,7 +331,7 @@ export default function VerifierScreen() {
                     {variants.map((v: string, idx: number) => {
                       const count = p.votingResults?.[0]?.[idx] ? Number(p.votingResults[0][idx]) : 0;
                       const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
-                      const isThisVote = idx === answerIndex;
+                      const isThisVote = counted && idx === answerIndex;
                       return (
                         <View key={idx} style={[styles.variantRow, isThisVote && styles.variantRowHighlight]}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 }}>
@@ -422,6 +461,32 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     fontFamily: Typography.fontFamily.bold,
     fontSize: Typography.fontSize.body,
     color: colors.successText,
+  },
+  voteConfirmationError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.errorBackground,
+    borderRadius: 12,
+    padding: 16,
+  },
+  voteConfirmationTitleError: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: colors.errorText,
+  },
+  voteConfirmationPending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.warningBackground,
+    borderRadius: 12,
+    padding: 16,
+  },
+  voteConfirmationTitlePending: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.body,
+    color: colors.warningText,
   },
   voteConfirmationAnswer: {
     fontFamily: Typography.fontFamily.semibold,
