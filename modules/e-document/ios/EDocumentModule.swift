@@ -49,22 +49,22 @@ public class EDocumentModule: Module {
 
             let bacKeyParameters = try JSONDecoder().decode(BacKeyParameters.self, from: bacKeyParametersJson.data(using: .utf8)!)
 
-            // Debug log helper
+            // Debug log helper. DEBUG_LOG events are forwarded to the JS log
+            // buffer (and a user-mailable error report), so gate emission to
+            // debug builds only — release builds never emit them.
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": message])
+                #endif
             }
 
             debugLog("=== iOS NFC Scan Starting ===")
             debugLog("Document Type: \(documentType)")
-            debugLog("Document Number: \(bacKeyParameters.documentNumber)")
 
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
             debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
 
             let canKey = bacKeyParameters.can
-            if let can = canKey {
-                debugLog("CAN provided: \(can)")
-            }
 
             // For ID cards, skip DG15 (not present on French CNIe)
             // For passports, also read DG12 (issuing authority, date of issue) and DG14 (chip auth info)
@@ -154,7 +154,9 @@ public class EDocumentModule: Module {
 
         AsyncFunction("testNfcDetection") { (timeoutSeconds: Double) -> String in
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG] \(message)"])
+                #endif
             }
 
             debugLog("Starting NFC diagnostic (timeout: \(timeoutSeconds)s)")
@@ -172,7 +174,9 @@ public class EDocumentModule: Module {
 
         AsyncFunction("testPassportDetection") { (timeoutSeconds: Double) -> String in
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG-P] \(message)"])
+                #endif
             }
 
             debugLog("Starting passport NFC diagnostic (timeout: \(timeoutSeconds)s, iso14443 only)")

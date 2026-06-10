@@ -42,6 +42,12 @@ const PATTERNS: Array<[RegExp, string]> = [
     (_m: string, label: string, closingQuote: string) => label + closingQuote + ':<redacted>',
   ] as unknown as [RegExp, string],
   [/\b\d{8,}\b/g, '<digits>'],
+  // Catch-all for any remaining hex run >=32 chars. The `\b…{64}\b` patterns
+  // above only match when a word boundary sits exactly at the 64-char mark, so
+  // a continuous blob longer than that (e.g. a full APDU TX/RX transcript)
+  // slips through. Ordered last so the more specific <hex64>/<addr>/<digits>
+  // labels win wherever they apply; anything left over is masked to <hex>.
+  [/(?:0x)?[a-fA-F0-9]{32,}/g, '<hex>'],
 ];
 
 export function redact(line: string): string {

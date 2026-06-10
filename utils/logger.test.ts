@@ -15,6 +15,17 @@ describe('redact', () => {
     expect(redact(`hash: ${h}`)).toBe('hash: <hex64>');
   });
 
+  it('redacts a continuous hex blob longer than 64 chars (APDU transcript)', () => {
+    // No internal word boundary, so the `\b…{64}\b` patterns miss it.
+    const blob = 'a1b2c3d4'.repeat(20); // 160 hex chars
+    expect(redact(`[RX] ${blob} (SW: 9000)`)).toBe('[RX] <hex> (SW: 9000)');
+  });
+
+  it('redacts a 500-char continuous hex string', () => {
+    const hex = 'deadbeef'.repeat(63); // 504 hex chars
+    expect(redact(hex)).toBe('<hex>');
+  });
+
   it('redacts whole-line MRZ rows', () => {
     expect(redact('P<FRADUPONT<<JEAN<<<<<<<<<<<<<<<<<<<<<<<<<<<')).toBe('<mrz>');
   });

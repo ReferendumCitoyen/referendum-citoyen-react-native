@@ -160,7 +160,7 @@ export default function VotingFlowScreen() {
         // network calls happen. See utils/register-via-noir.ts.
         try { assertOnChainConstants(); } catch (e) { console.error('[voting-flow]', e); }
 
-        const { Rarime: RarimeClass, FreedomTool: FT, RarimeUtils } =
+        const { Rarime: RarimeClass, FreedomTool: FT } =
           await import('@rarimo/rarime-rn-sdk');
 
         // The voting flow is now TD1 (French ID card) only. The TD1 light
@@ -182,32 +182,6 @@ export default function VotingFlowScreen() {
 
         const storedKey = await getOrCreatePrivateKey();
         setPrivateKey(storedKey);
-
-        // Dump the BJJ keypair so the user can preserve it if registration
-        // eventually succeeds (private key lives only in SecureStore — wiping
-        // the app loses on-chain identity).
-        //
-        // SECURITY: gated behind __DEV__ so release builds never log the
-        // user's BJJ private key. The per-passport DB + key-management UI
-        // (app/key-management.tsx) is the supported backup path for users
-        // — the logcat dump is purely a developer convenience for QA.
-        if (__DEV__) {
-          try {
-            const { babyJub } = await import('@iden3/js-crypto');
-            const pubPoint = babyJub.mulPointEScalar(babyJub.Base8, BigInt('0x' + storedKey));
-            const pubX = pubPoint[0].toString(16).padStart(64, '0');
-            const pubY = pubPoint[1].toString(16).padStart(64, '0');
-            const profileKey = RarimeUtils.getProfileKey(storedKey);
-            console.log('[FreedomTool][KEYPAIR] ===== BJJ KEYPAIR (save if reg succeeds) =====');
-            console.log('[FreedomTool][KEYPAIR] privateKey: 0x' + storedKey);
-            console.log('[FreedomTool][KEYPAIR] pubPoint.x: 0x' + pubX);
-            console.log('[FreedomTool][KEYPAIR] pubPoint.y: 0x' + pubY);
-            console.log('[FreedomTool][KEYPAIR] profileKey: 0x' + profileKey);
-            console.log('[FreedomTool][KEYPAIR] ===== END KEYPAIR =====');
-          } catch (e: any) {
-            console.error('[FreedomTool][KEYPAIR] dump failed:', e?.message ?? e);
-          }
-        }
 
         // Pick the right contract / RPC bundle for the currently-active
         // network. The whole Rarime + FreedomTool pair has to share a network
@@ -412,33 +386,6 @@ export default function VotingFlowScreen() {
           setPassportKeyReady(true);
         }
 
-        // One-shot capture for inid-passport-debug's PassportDebug screen,
-        // which accepts {dg1, sod, dg15?, aaSignature?} as hex strings.
-        // Pull off-device with `adb pull
-        // /storage/emulated/0/Android/data/com.referendumcitoyen.app/files/passport.json`
-        // (or the documentDirectory from logs below).
-        //
-        // SECURITY: gated behind __DEV__ so release builds never persist
-        // raw chip bytes (DG1 = MRZ biographic data, SOD = passive-auth
-        // signature, DG15 = AA public key, AA signature). The contents
-        // are highly identifying and would survive an app uninstall on
-        // Android (cleared) and iOS (cleared on uninstall, but copies via
-        // file-sharing intents persist).
-        if (__DEV__) {
-          const toHex = (u: Uint8Array) =>
-            Array.from(u).map(b => b.toString(16).padStart(2, '0')).join('');
-          const FS = await import('expo-file-system/legacy');
-          const payload: Record<string, string> = {
-            dg1: toHex(new Uint8Array(data.dg1Bytes)),
-            sod: toHex(new Uint8Array(data.sodBytes)),
-          };
-          if (data.dg15Bytes && data.dg15Bytes.length) payload.dg15 = toHex(new Uint8Array(data.dg15Bytes));
-          if (data.aaSignature && data.aaSignature.length) payload.aaSignature = toHex(new Uint8Array(data.aaSignature));
-          const path = (FS.documentDirectory ?? '') + 'passport.json';
-          await FS.writeAsStringAsync(path, JSON.stringify(payload));
-          console.log('[passport.json] written to', path);
-          console.log('[passport.json] bytes: dg1=' + payload.dg1.length / 2 + ' sod=' + payload.sod.length / 2 + ' dg15=' + ((payload.dg15?.length ?? 0) / 2) + ' aaSig=' + ((payload.aaSignature?.length ?? 0) / 2));
-        }
       } catch (err) {
         console.error('[FreedomTool] PASSPORT_CREATE_FAILED', err);
       }
