@@ -20,7 +20,7 @@
  *   - `- item` lists      → bullet list
  *   - `[label](url)`      → hyperlink
  *
- * Content is French-only by design (this is a French legal document; per
+ * Content is French-git n (this is a French legal document; per
  * the 2026-05-22 product decision, other locales fall back to French here
  * rather than receive an unreviewed machine translation).
  */
@@ -34,7 +34,7 @@ export const TERMS_TEXT_FR = `**NB.** L'Utilisateur doit consentir à ces CGU av
 
 ## Préambule
 
-Les présentes Conditions Générales d'Utilisation (ci-après les *« CGU »*) régissent l'accès et l'utilisation de l'application mobile **« REFERENDUM CITOYEN »** (ci-après *l'Application*), éditée par l'association **« LIBÉREZ VOUS CITOYENS »** sise 12 rue Lafayette à Paris (75009) représentée par son Président William Azan (ci-après *« l'Éditeur »*), dédiée à l'organisation de consultations publiques et de votes par tout citoyen qui souhaitera en faire usage dans les conditions détaillées dans ce document (ci-après *l'Utilisateur*).
+Les présentes Conditions Générales d'Utilisation (ci-après les *« CGU »*) régissent l'accès et l'utilisation de l'application mobile **« REFERENDUM CITOYEN »** (ci-après *l'Application*), éditée par l'association **« LIBÉREZ VOUS CITOYENS »** sise 70 rue La Boétie, 75008 représentée par son Président Robinson Jardin (ci-après *« l'Éditeur »*), dédiée à l'organisation de consultations publiques et de votes par tout citoyen qui souhaitera en faire usage dans les conditions détaillées dans ce document (ci-après *l'Utilisateur*).
 
 L'application a pour objectif de permettre aux citoyens de participer à des votes et consultations de manière **sécurisée, intègre et anonyme**, en garantissant le principe *« une personne, une voix »* grâce à un mécanisme de vérification d'identité **sans conservation de donnée personnelle**. Les coûts sont pris en charge par l'Éditeur de manière à ce que l'Utilisateur puisse voter gratuitement ; seul le coût du téléphone et de son fonctionnement restent à la charge de l'Utilisateur.
 
@@ -93,7 +93,7 @@ Lors de la vérification de la pièce d'identité, l'application procède à un 
 
 Conformément au **Règlement Général sur la Protection des Données (RGPD)**, bien qu'aucune donnée personnelle ne soit conservée, l'Éditeur s'engage à la transparence sur le processus de vérification.
 
-Pour toute question relative aux données personnelles, l'utilisateur peut contacter l'Éditeur à l'adresse électronique *referemdumcitoyen@proton.me* ou à l'adresse postale 12 rue Lafayette à Paris (75009).
+Pour toute question relative aux données personnelles, l'utilisateur peut contacter l'Éditeur à l'adresse électronique *referemdumcitoyen@proton.me* ou à l'adresse postale 70 rue La Boétie, 75008 Paris.
 
 ### 4.4. Données de vote
 

@@ -564,8 +564,13 @@ export default function VotingFlowScreen() {
   }, [handleClose]);
 
   const [voteTxId, setVoteTxId] = useState<string | null>(null);
-  const handleStep11Success = useCallback((txHash: string) => {
+  // false when the tx was submitted but not yet confirmed on-chain at timeout —
+  // Step12Success then shows a neutral "awaiting confirmation" message instead
+  // of a definitive green success. A reverted tx never reaches here (→ error).
+  const [voteConfirmed, setVoteConfirmed] = useState(true);
+  const handleStep11Success = useCallback((txHash: string, confirmed: boolean) => {
     setVoteTxId(txHash);
+    setVoteConfirmed(confirmed);
     setVoteSubmissionResult('success');
     // Tell the home tab a vote landed so it knows to do an extra delayed
     // refresh once tx propagation completes (the immediate focus-time
@@ -797,6 +802,7 @@ export default function VotingFlowScreen() {
                     key="s12s"
                     containerWidth={containerWidth}
                     voteIdentifier={voteTxId ?? undefined}
+                    confirmed={voteConfirmed}
                     onViewResults={handleClose}
                   />
                 ) : spacer('s12s'),

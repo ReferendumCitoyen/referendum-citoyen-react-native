@@ -19,6 +19,7 @@ import {
 } from '@/utils/register-via-noir';
 import { EPassport } from '@/utils/e-document/e-document';
 import { expandMrzBirthYear } from '@/utils/mrzDate';
+import { isServiceUnavailableError } from '@/utils/relayer-errors';
 
 interface NFCPersonDetails {
   firstName?: string;
@@ -485,12 +486,32 @@ const Step7: React.FC<Step7Props> = ({
         // [VOTE_INELIGIBLE] errors carry a French user-facing message that
         // we want to surface verbatim — formatRpcError would replace it
         // with a generic "an error occurred" string.
-        const isFatal = msg.startsWith('[VOTE_INELIGIBLE]');
-        const text = isFatal
-          ? msg.replace('[VOTE_INELIGIBLE]', '').trim()
-          : formatRpcError(err);
+        const isIneligible = msg.startsWith('[VOTE_INELIGIBLE]');
+        // 5xx / network / confirmation-timeout → transient SERVER-side failure
+        // (e.g. the registration relayer returning HTTP 500). Show an honest
+        // "service temporarily unavailable, try again later" message instead of
+        // formatRpcError's generic text — and crucially treat it as blocking so
+        // the user isn't auto-advanced into a vote that fails with the
+        // misleading existence=false / "restore your key".
+        const isServiceDown = !isIneligible && isServiceUnavailableError(err);
+        let text: string;
+        if (isIneligible) {
+          text = msg.replace('[VOTE_INELIGIBLE]', '').trim();
+        } else if (isServiceDown) {
+          text = t('voting.errors.registrationServiceUnavailable', {
+            defaultValue:
+              "Le service d'enregistrement est temporairement indisponible. Réessayez plus tard.",
+          });
+        } else {
+          text = formatRpcError(err);
+        }
+        // Block the flow for BOTH permanent (ineligible) and transient
+        // (service-down) failures. voting-flow's handleVerificationError keeps
+        // the user on Step 7 with this message when the 2nd arg is true,
+        // instead of setTimeout(handleNext) which would walk into the vote.
+        const blocking = isIneligible || isServiceDown;
         setErrorMessage(text);
-        onError?.(text, isFatal, err);
+        onError?.(text, blocking, err);
       }
     })();
   }, [hasStarted, rarime, passport, freedomTool, onSuccess, onError]);
