@@ -258,6 +258,7 @@
       "cscaNotInBundle": "Le certificat racine (CSCA) de votre passeport n'est pas dans la liste ICAO embarquée dans l'application. Demandez à la maintenance de mettre à jour la liste des certificats.",
       "missingAki": "Votre certificat de passeport n'a pas d'AuthorityKeyIdentifier — impossible de déterminer le CSCA signataire.",
       "cscaNotRegisteredOnMainnet": "Le certificat racine de votre passeport n'est pas encore enregistré sur Mainnet. Réessayez plus tard ou contactez le support.",
+      "registrationServiceUnavailable": "Le service d'enregistrement est temporairement indisponible. Votre vote n'a pas encore été enregistré. Réessayez plus tard.",
       "switchToMainnet": "Changez de réseau dans Paramètres → Réseau.",
       "network": "Erreur réseau — vérifiez votre connexion et réessayez.",
       "alreadyRegistered": "Identité déjà enregistrée.",
