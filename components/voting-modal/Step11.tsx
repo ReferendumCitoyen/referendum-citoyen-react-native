@@ -11,6 +11,7 @@ import { ensureCircuitsReady } from '@/utils/circuit-preload';
 import { castMainnetVote } from '@/utils/mainnet-vote-flow';
 import { getOrCreatePrivateKey } from '@/utils/identity';
 import { waitForVoteReceipt } from '@/utils/vote-confirmation';
+import { isServiceUnavailableError } from '@/utils/relayer-errors';
 
 // voting-flow's sliding container chain has no defined height on iOS
 // (flex: undefined in styles.ts) so `height: '100%'` on a slide collapses
@@ -319,6 +320,18 @@ const Step11: React.FC<Step11Props> = ({
           errorMsg = t('voting.step11VotingNotStarted');
         } else if (msg.includes('Voting has ended')) {
           errorMsg = t('voting.step11VotingEnded');
+        } else if (isServiceUnavailableError(err)) {
+          // 5xx / network / timeout from the vote relayer or RPC (e.g. the
+          // 2026-06-11 nginx "502 Bad Gateway" on /v2/vote). Server-side and
+          // transient: show an honest "service unavailable, retry later"
+          // instead of formatRpcError's generic text or raw nginx HTML.
+          // Checked BEFORE the pairing heuristic: its `execution reverted +
+          // failed to estimate gas` arm targets the relayer 400 (a 4xx, which
+          // isServiceUnavailableError deliberately does not match).
+          errorMsg = t('voting.errors.votingServiceUnavailable', {
+            defaultValue:
+              "Le service de vote est temporairement indisponible. Votre vote n'a pas été enregistré. Réessayez plus tard.",
+          });
         } else if (
           // 0xd71fd263 = PAIRING_FAILED from BaseUltraVerifier. The on-chain
           // pairing check rejected the Noir proof. Known Android-only issue:

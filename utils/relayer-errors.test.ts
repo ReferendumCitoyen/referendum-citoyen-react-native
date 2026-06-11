@@ -19,6 +19,31 @@ describe('isServiceUnavailableError', () => {
     expect(isServiceUnavailableError(new Error('relayer failed: Internal Server Error'))).toBe(true);
   });
 
+  it('matches the real Step11 vote-path failures from the 2026-06-11 outage', () => {
+    // nginx 502 from the vote relayer (report 2026-06-11T08-21-36)
+    expect(
+      isServiceUnavailableError(
+        new Error('[submitVote] relayer 502 : <html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n'),
+      ),
+    ).toBe(true);
+    // ethers RPC-level 502 (report 2026-06-11T08-28-00)
+    expect(
+      isServiceUnavailableError(
+        new Error('server response 502  (request={  }, response={  }, error=null, info={ "requestUrl": "https://l2.rarimo.com" })'),
+      ),
+    ).toBe(true);
+    // registration relayer 504 (report 2026-06-11T08-48-51)
+    expect(isServiceUnavailableError(new Error('[registerViaNoir] relayer 504 : <html>'))).toBe(true);
+  });
+
+  it('does NOT swallow the TD1 relayer 400 "failed to estimate gas" (a 4xx, handled elsewhere)', () => {
+    expect(
+      isServiceUnavailableError(
+        new Error('[SDK] sendProposalRequest failed: 400 : {"error":"Execution reverted","field":"failed to estimate gas"}'),
+      ),
+    ).toBe(false);
+  });
+
   it('matches network/transport failures (fetch throws before any HTTP status)', () => {
     expect(isServiceUnavailableError(new Error('Network request failed'))).toBe(true);
     expect(isServiceUnavailableError(new Error('TypeError: Failed to fetch'))).toBe(true);

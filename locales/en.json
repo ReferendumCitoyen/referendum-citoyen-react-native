@@ -259,6 +259,7 @@
       "missingAki": "Your passport certificate has no AuthorityKeyIdentifier — unable to determine the signing CSCA.",
       "cscaNotRegisteredOnMainnet": "Your passport's root certificate is not yet registered on Mainnet. Try again later or contact support.",
       "registrationServiceUnavailable": "The registration service is temporarily unavailable. Your vote has not been registered yet. Please try again later.",
+      "votingServiceUnavailable": "The voting service is temporarily unavailable. Your vote has not been registered. Please try again later.",
       "switchToMainnet": "Change the network in Settings → Network.",
       "network": "Network error — check your connection and try again.",
       "alreadyRegistered": "Identity already registered.",
