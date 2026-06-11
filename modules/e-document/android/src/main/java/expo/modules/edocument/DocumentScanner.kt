@@ -376,10 +376,8 @@ class DocumentScanner(
     if (!bacKeyParameters.can.isNullOrEmpty()) {
       try {
         onDebugLog("=== PACE Authentication Starting ===")
-        onDebugLog("CAN: ${bacKeyParameters.can}")
 
         val canBytes = bacKeyParameters.can!!.toByteArray(Charsets.US_ASCII)
-        onDebugLog("CAN hex: ${canBytes.joinToString("") { "%02X".format(it) }}")
 
         onDebugLog("Reading EF_CARD_ACCESS...")
         val cardAccessFile = CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))

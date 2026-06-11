@@ -440,39 +440,6 @@ export default function AccueilScreen() {
     });
   }, []);
 
-  // Dump the BJJ keypair at app launch so a developer can save it before
-  // any test run — the private key only lives in SecureStore, so wiping the
-  // app (or uninstalling) loses on-chain identity. Capture via `adb logcat |
-  // grep KEYPAIR`. Duplicates the dump in app/voting-flow.tsx (which fires
-  // later in the voting flow).
-  //
-  // SECURITY: gated behind __DEV__ so release builds never log the private
-  // key to logcat. Anyone with `adb logcat` access on an unlocked device
-  // could harvest the key and impersonate the user on-chain.
-  useEffect(() => {
-    if (!__DEV__) return;
-    (async () => {
-      try {
-        const { getOrCreatePrivateKey } = await import('@/utils/identity');
-        const storedKey = await getOrCreatePrivateKey();
-        const { babyJub } = await import('@iden3/js-crypto');
-        const { RarimeUtils } = await import('@rarimo/rarime-rn-sdk');
-        const pubPoint = babyJub.mulPointEScalar(babyJub.Base8, BigInt('0x' + storedKey));
-        const pubX = pubPoint[0].toString(16).padStart(64, '0');
-        const pubY = pubPoint[1].toString(16).padStart(64, '0');
-        const profileKey = RarimeUtils.getProfileKey(storedKey);
-        console.log('[FreedomTool][KEYPAIR] ===== BJJ KEYPAIR (save before testing) =====');
-        console.log('[FreedomTool][KEYPAIR] privateKey: 0x' + storedKey);
-        console.log('[FreedomTool][KEYPAIR] pubPoint.x: 0x' + pubX);
-        console.log('[FreedomTool][KEYPAIR] pubPoint.y: 0x' + pubY);
-        console.log('[FreedomTool][KEYPAIR] profileKey: 0x' + profileKey);
-        console.log('[FreedomTool][KEYPAIR] ===== END KEYPAIR =====');
-      } catch (e: any) {
-        console.error('[FreedomTool][KEYPAIR] launch dump failed:', e?.message ?? e);
-      }
-    })();
-  }, []);
-
   // Auto-refresh when screen regains focus (e.g. after voting). Also fires
   // an extra refresh ~4 s later when the user just voted, because the
   // immediate refetch usually races ahead of the vote tx's L2 confirmation
