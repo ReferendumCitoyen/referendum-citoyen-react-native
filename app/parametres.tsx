@@ -90,7 +90,7 @@ export default function ParametresScreen() {
   // build. Uses MailComposer when available, falls back to a mailto: link.
   const handleContact = async () => {
     const vars = getContactInfoVars();
-    const subject = t('settings.contactSubject');
+    const subject = t('settings.contactSubject', vars);
     const body = t('settings.contactBody', vars);
     try {
       if (await MailComposer.isAvailableAsync()) {

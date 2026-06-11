@@ -160,7 +160,7 @@ export default function VotingFlowScreen() {
         // network calls happen. See utils/register-via-noir.ts.
         try { assertOnChainConstants(); } catch (e) { console.error('[voting-flow]', e); }
 
-        const { Rarime: RarimeClass, FreedomTool: FT, RarimeUtils } =
+        const { Rarime: RarimeClass, FreedomTool: FT } =
           await import('@rarimo/rarime-rn-sdk');
 
         // The voting flow is now TD1 (French ID card) only. The TD1 light
@@ -182,32 +182,6 @@ export default function VotingFlowScreen() {
 
         const storedKey = await getOrCreatePrivateKey();
         setPrivateKey(storedKey);
-
-        // Dump the BJJ keypair so the user can preserve it if registration
-        // eventually succeeds (private key lives only in SecureStore — wiping
-        // the app loses on-chain identity).
-        //
-        // SECURITY: gated behind __DEV__ so release builds never log the
-        // user's BJJ private key. The per-passport DB + key-management UI
-        // (app/key-management.tsx) is the supported backup path for users
-        // — the logcat dump is purely a developer convenience for QA.
-        if (__DEV__) {
-          try {
-            const { babyJub } = await import('@iden3/js-crypto');
-            const pubPoint = babyJub.mulPointEScalar(babyJub.Base8, BigInt('0x' + storedKey));
-            const pubX = pubPoint[0].toString(16).padStart(64, '0');
-            const pubY = pubPoint[1].toString(16).padStart(64, '0');
-            const profileKey = RarimeUtils.getProfileKey(storedKey);
-            console.log('[FreedomTool][KEYPAIR] ===== BJJ KEYPAIR (save if reg succeeds) =====');
-            console.log('[FreedomTool][KEYPAIR] privateKey: 0x' + storedKey);
-            console.log('[FreedomTool][KEYPAIR] pubPoint.x: 0x' + pubX);
-            console.log('[FreedomTool][KEYPAIR] pubPoint.y: 0x' + pubY);
-            console.log('[FreedomTool][KEYPAIR] profileKey: 0x' + profileKey);
-            console.log('[FreedomTool][KEYPAIR] ===== END KEYPAIR =====');
-          } catch (e: any) {
-            console.error('[FreedomTool][KEYPAIR] dump failed:', e?.message ?? e);
-          }
-        }
 
         // Pick the right contract / RPC bundle for the currently-active
         // network. The whole Rarime + FreedomTool pair has to share a network
