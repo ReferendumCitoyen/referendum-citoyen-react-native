@@ -1,6 +1,6 @@
 {
   "name": "referendum-citoyen",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Secure digital voting app with passport NFC verification and zero-knowledge proofs",
   "main": "expo-router/entry",
   "repository": {
