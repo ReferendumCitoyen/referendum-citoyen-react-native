@@ -56,15 +56,11 @@ public class EDocumentModule: Module {
 
             debugLog("=== iOS NFC Scan Starting ===")
             debugLog("Document Type: \(documentType)")
-            debugLog("Document Number: \(bacKeyParameters.documentNumber)")
 
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
             debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
 
             let canKey = bacKeyParameters.can
-            if let can = canKey {
-                debugLog("CAN provided: \(can)")
-            }
 
             // For ID cards, skip DG15 (not present on French CNIe)
             // For passports, also read DG12 (issuing authority, date of issue) and DG14 (chip auth info)
