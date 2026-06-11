@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, Pressable } from 'react-native';
 import { useColors, Typography, Spacing } from '@/constants/theme';
+import { referendumInfoUrl } from '@/constants/urls';
 import { Svg, Path } from 'react-native-svg';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getFreedomToolConfig } from '@/constants/rarime-config';
 import type { ProposalInfo } from '@rarimo/rarime-rn-sdk';
@@ -687,6 +689,17 @@ export default function AccueilScreen() {
             <TextWithLinks text={p.description} style={styles.voteDescription} linkColor={colors.secondary} />
           ) : null}
 
+          <TouchableOpacity
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            accessibilityLabel={t('home.referendumLearnMore')}
+            onPress={() => WebBrowser.openBrowserAsync(referendumInfoUrl(p.id))}
+            style={styles.learnMoreLink}
+          >
+            <Text style={styles.learnMoreText}>{t('home.referendumLearnMore')}</Text>
+            <CaretRightIcon color={colors.secondary} size={16} />
+          </TouchableOpacity>
+
           <View style={styles.statsContainer}>
             {belowThreshold ? (
               <View style={styles.statColumn}>
@@ -815,6 +828,20 @@ const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     backgroundColor: colors.cardBackground,
     paddingTop: Spacing.voteList.paddingTop,
     paddingHorizontal: Spacing.voteList.paddingHorizontal,
+  },
+  learnMoreLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingVertical: 2,
+  },
+  learnMoreText: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.small,
+    lineHeight: Typography.lineHeight.small,
+    color: colors.secondary,
+    textDecorationLine: 'underline',
   },
   voteListHeader: {
     flexDirection: 'row',
