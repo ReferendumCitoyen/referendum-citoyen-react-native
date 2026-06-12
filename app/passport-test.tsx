@@ -127,12 +127,12 @@ export default function PassportTestScreen() {
         const derivedProfileKey = RarimeUtils.getProfileKey(storedKey);
         setProfileKey(derivedProfileKey);
 
-        // SECURITY: 8-char prefix + 8-char suffix from each end of the
-        // 64-char BJJ key shrinks the brute-force surface to 32 bits.
-        // Screen is devMode-gated but the global ring buffer ships logs
-        // in user-submitted error reports, so guard the dump itself.
+        // SECURITY: private-key material must not appear in any log, even
+        // dev (DPIA R5 — same standard as the removed KEYPAIR dumps). The
+        // profile key is the on-chain public identifier and is safe to show
+        // truncated. The global ring buffer ships logs in user-submitted
+        // error reports, so the guard matters beyond logcat.
         if (__DEV__) {
-          console.log(`Private Key: ${storedKey.substring(0, 8)}...${storedKey.substring(56)}`);
           console.log(`Profile Key: ${derivedProfileKey.substring(0, 8)}...${derivedProfileKey.substring(56)}`);
           console.log('=== RARIME TESTNET INIT COMPLETE ===');
         }

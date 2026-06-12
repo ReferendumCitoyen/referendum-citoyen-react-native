@@ -58,7 +58,9 @@ public class EDocumentModule: Module {
             debugLog("Document Type: \(documentType)")
 
             let mrzKey = PassportUtils.getMRZKey(passportNumber: bacKeyParameters.documentNumber, dateOfBirth: bacKeyParameters.dateOfBirth, dateOfExpiry: bacKeyParameters.dateOfExpiry)
-            debugLog("MRZ Key generated: \(mrzKey.prefix(10))...")
+            // PII: never log mrzKey content — its first 10 chars ARE the
+            // document number + check digit (BAC seed = docNo + DOB + expiry).
+            debugLog("MRZ Key generated")
 
             let canKey = bacKeyParameters.can
 
