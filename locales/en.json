@@ -131,7 +131,9 @@
     "showLess": "Show less",
     "showMore": "Show more ({{count}})",
     "loadErrorNetwork": "Network error — check your connection and pull down to retry.",
-    "loadErrorGeneric": "Unable to load proposals. Pull down to retry."
+    "loadErrorGeneric": "Unable to load proposals. Pull down to retry.",
+    "updateNoticeTitle": "Update recommended",
+    "updateNoticeBody": "Your app version is out of date. Install version {{min}} or later from the store to keep voting smoothly."
   },
   "voting": {
     "title": "Voting process",

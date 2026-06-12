@@ -34,6 +34,16 @@ export interface ProposalIndex {
   /** ISO 8601 timestamp the maintainer wrote into the JSON. Informational
    * only — we don't gate freshness on it (HTTP cache + ETag handle that). */
   updatedAt?: string;
+  /** Optional per-platform minimum app version. When the installed native
+   * version is older, the home screen shows a dismissible "please update"
+   * banner (utils/update-notice.ts). OPTIONAL on purpose, and the schema
+   * `version` stays 1: bumping it would make already-shipped apps reject
+   * the whole index (version > SUPPORTED_VERSION → bundled fallback) —
+   * exactly the installs the notice needs to reach. */
+  min_supported_app_versions?: {
+    android?: string;
+    ios?: string;
+  };
   mainnet: NetworkBlock;
   testnet: NetworkBlock;
 }
@@ -83,9 +93,21 @@ function validate(parsed: unknown): ProposalIndex | null {
   const mainnet = validateBlock(o.mainnet);
   const testnet = validateBlock(o.testnet);
   if (!mainnet || !testnet) return null;
+  // Optional + lenient: a malformed block degrades to "no update notice",
+  // never to rejecting the proposal list.
+  let minVersions: ProposalIndex['min_supported_app_versions'];
+  const mv = o.min_supported_app_versions;
+  if (mv && typeof mv === 'object') {
+    const m = mv as Record<string, unknown>;
+    minVersions = {
+      android: typeof m.android === 'string' ? m.android : undefined,
+      ios: typeof m.ios === 'string' ? m.ios : undefined,
+    };
+  }
   return {
     version: o.version,
     updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : undefined,
+    min_supported_app_versions: minVersions,
     mainnet,
     testnet,
   };

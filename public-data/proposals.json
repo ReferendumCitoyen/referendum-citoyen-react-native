@@ -1,6 +1,10 @@
 {
   "version": 1,
-  "updatedAt": "2026-06-01T19:00:00Z",
+  "updatedAt": "2026-06-12T10:00:00Z",
+  "min_supported_app_versions": {
+    "android": "1.2.4",
+    "ios": "1.2.4"
+  },
   "mainnet": {
     "active": ["52", "53","54","55"],
     "devOnly": ["50", "51", "38", "47", "25"]
