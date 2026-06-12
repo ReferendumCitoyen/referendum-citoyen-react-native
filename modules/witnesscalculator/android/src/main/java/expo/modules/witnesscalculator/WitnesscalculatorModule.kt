@@ -30,6 +30,27 @@ class WitnesscalculatorModule : Module() {
       val res = witnessCalculator.calculateWtns(dat, inputs, native::queryIdentity)
       return@AsyncFunction res
     }
+
+    // Diagnostic probe for the Rarime SDK's Noir prover library.
+    //
+    // The SDK's noir.aar wraps `System.loadLibrary("noir_java")` in a
+    // try/catch that prints the REAL dlopen error to System.err (logcat
+    // only) and then continues — so when the load fails, user error reports
+    // only ever show the downstream generic "No implementation found for
+    // …setup_srs" (seen on builds 14-17, incl. an arm64 Oppo Reno 5 Pro on
+    // Android 11 where the packaged .so is verified-correct). loadLibrary is
+    // idempotent per classloader, so this probe is free when the library is
+    // healthy; when it isn't, it returns the actual dlopen failure message
+    // so the JS side can put the root cause into the log ring buffer and
+    // error reports become self-diagnosing.
+    Function("probeNoirLibrary") {
+      return@Function try {
+        System.loadLibrary("noir_java")
+        "ok"
+      } catch (t: Throwable) {
+        t.message ?: t.toString()
+      }
+    }
   }
 }
 
