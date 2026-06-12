@@ -131,7 +131,9 @@
     "showLess": "Voir moins",
     "showMore": "Voir plus ({{count}})",
     "loadErrorNetwork": "Erreur réseau — vérifiez votre connexion et tirez vers le bas pour réessayer.",
-    "loadErrorGeneric": "Impossible de charger les propositions. Tirez vers le bas pour réessayer."
+    "loadErrorGeneric": "Impossible de charger les propositions. Tirez vers le bas pour réessayer.",
+    "updateNoticeTitle": "Mise à jour recommandée",
+    "updateNoticeBody": "Votre version de l'application n'est plus à jour. Installez la version {{min}} ou plus récente depuis le store pour voter dans de bonnes conditions."
   },
   "voting": {
     "title": "Processus de vote",
