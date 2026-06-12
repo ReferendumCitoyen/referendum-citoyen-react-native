@@ -3,6 +3,7 @@ import {
   sanitizeDateInput,
   parseFrenchDate,
   parseMRZDate,
+  expandMrzBirthYear,
   ageInYears,
   isExpired,
   checkBirthDate,
@@ -75,8 +76,11 @@ describe('parseFrenchDate', () => {
     expect(d!.getDate()).toBe(15);
   });
 
-  it('treats AA < 50 as 20YY (e.g. expiry 25/12/29 → 2029)', () => {
-    const d = parseFrenchDate('251229');
+  it('treats AA < 50 as 20YY for EXPIRY dates (25/12/29 → 2029)', () => {
+    // Was calling birth mode — which (correctly, post-sliding-window) reads
+    // a future year as the previous century. An expiry example must use
+    // expiry mode, exactly as Step5/ManualMRZInput do.
+    const d = parseFrenchDate('251229', 'expiry');
     expect(d!.getFullYear()).toBe(2029);
   });
 
@@ -180,15 +184,16 @@ describe('parseMRZDate', () => {
       expect(parseMRZDate('500101', 'expiry')!.getFullYear()).toBe(1950);
     });
 
-    it('birth: fixed `>35` cutoff (≤35 → 20YY, >35 → 19YY)', () => {
-      // The boundary
-      expect(parseMRZDate('350101', 'birth')!.getFullYear()).toBe(2035);
-      expect(parseMRZDate('360101', 'birth')!.getFullYear()).toBe(1936);
-      // The 80-year-old voter case that bit us (YY=44):
-      expect(parseMRZDate('441231', 'birth')!.getFullYear()).toBe(1944);
+    it('birth: sliding century window (future years roll back 100)', () => {
+      const now = new Date(2026, 5, 12);
+      // The 91-year-old case that bit us (YY=35 used to read 2035):
+      expect(parseMRZDate('350101', 'birth', now)!.getFullYear()).toBe(1935);
+      expect(parseMRZDate('360101', 'birth', now)!.getFullYear()).toBe(1936);
+      // The 80-year-old voter case that bit us earlier (YY=44):
+      expect(parseMRZDate('441231', 'birth', now)!.getFullYear()).toBe(1944);
       // Modern voters
-      expect(parseMRZDate('070101', 'birth')!.getFullYear()).toBe(2007);
-      expect(parseMRZDate('990101', 'birth')!.getFullYear()).toBe(1999);
+      expect(parseMRZDate('070101', 'birth', now)!.getFullYear()).toBe(2007);
+      expect(parseMRZDate('990101', 'birth', now)!.getFullYear()).toBe(1999);
     });
 
     it('birth mode is the default when no mode is passed', () => {
@@ -268,7 +273,7 @@ describe('end-to-end policy: scan-path simulation', () => {
 
   it('lets a valid French ID card through (Robinson 1994 / 2033)', () => {
     expect(checkBirthDate(parseMRZDate('941231'), today)).toBeNull();
-    expect(checkExpiryDate(parseMRZDate('330209'), today)).toBeNull();
+    expect(checkExpiryDate(parseMRZDate('330209', 'expiry'), today)).toBeNull();
   });
 
   it('flags a 16-year-old card as underage', () => {
@@ -279,5 +284,94 @@ describe('end-to-end policy: scan-path simulation', () => {
   it('flags an expired card', () => {
     // expiry 31 Dec 2024
     expect(checkExpiryDate(parseMRZDate('241231'), today)).toBe('expired');
+  });
+});
+
+describe('birth-date sliding century window (born-1935 bug, reported 2026-06-12)', () => {
+  // Fixed reference date for determinism.
+  const now = new Date(2026, 5, 12); // 2026-06-12
+
+  it('REGRESSION: born 12/04/1935 (MRZ "350412") is an eligible 91-year-old, not underage', () => {
+    expect(expandMrzBirthYear(35, now)).toBe(1935);
+    const d = parseMRZDate('350412', 'birth', now);
+    expect(d!.getFullYear()).toBe(1935);
+    expect(checkBirthDate(d, now)).toBeNull();
+  });
+
+  it('the 1927-1935 cohort (ages 91-99) resolves to 19xx and is eligible', () => {
+    for (let yy = 27; yy <= 35; yy++) {
+      const d = parseMRZDate(`${String(yy).padStart(2, '0')}0701`, 'birth', now);
+      expect(d!.getFullYear()).toBe(1900 + yy);
+      expect(checkBirthDate(d, now)).toBeNull();
+    }
+  });
+
+  it('YY ≤ current year resolves to 20YY — the ambiguity is settled in favour of the (vastly more numerous) children', () => {
+    // A 2-digit year cannot distinguish a 1910-born (age 116) from a
+    // 2010-born (age 16). The sliding window picks the modern reading;
+    // the only real-world loss is voters aged exactly 100+ — irreducible
+    // without a 4-digit source (DG11 would have it when present).
+    for (let yy = 9; yy <= 26; yy++) {
+      const d = parseMRZDate(`${String(yy).padStart(2, '0')}0101`, 'birth', now);
+      expect(d!.getFullYear()).toBe(2000 + yy);
+    }
+  });
+
+  it('still correctly rejects actual minors (born 2010 stays 2010)', () => {
+    const d = parseMRZDate('100612', 'birth', now);
+    expect(d!.getFullYear()).toBe(2010);
+    expect(checkBirthDate(d, now)).toBe('underage');
+  });
+
+  it('18th birthday today is eligible; tomorrow-18 is not', () => {
+    expect(checkBirthDate(parseMRZDate('080612', 'birth', now), now)).toBeNull();
+    expect(checkBirthDate(parseMRZDate('080613', 'birth', now), now)).toBe('underage');
+  });
+
+  it('date-level window: YY equal to current year but month/day in the future → previous century (centenarian, not future baby)', () => {
+    // Born 1 Dec 1926 — "261201" would naively parse as 2026-12-01 (future).
+    const d = parseMRZDate('261201', 'birth', now);
+    expect(d!.getFullYear()).toBe(1926);
+    expect(checkBirthDate(d, now)).toBeNull(); // 99 years old, eligible
+  });
+
+  it('irreducible 2-digit ambiguity: born earlier this year parses as a baby (collides with a 100th birthday)', () => {
+    const d = parseMRZDate('260101', 'birth', now);
+    expect(d!.getFullYear()).toBe(2026); // baby reading wins; a 1926-01-01 centenarian is the one unavoidable loss
+    expect(checkBirthDate(d, now)).toBe('underage');
+  });
+
+  it("CIRCUIT PARITY: born exactly today flips to the previous century, like Rarimo's EncodedDateIsLessNormalized", () => {
+    // The circuit's comparator is STRICT (`date < currentDate` → current
+    // century), so a YYMMDD equal to today is normalized to 19xx — i.e. a
+    // voter celebrating their 100th birthday today, not a newborn. Mirror
+    // that exactly so Step 5's pre-filter predicts the circuit's verdict.
+    const d = parseMRZDate('260612', 'birth', now); // == now (2026-06-12)
+    expect(d!.getFullYear()).toBe(1926);
+    expect(checkBirthDate(d, now)).toBeNull(); // 100 today → eligible
+  });
+
+  it('CIRCUIT PARITY holds regardless of the scan time of day', () => {
+    const lateInTheDay = new Date(2026, 5, 12, 23, 45);
+    expect(parseMRZDate('260612', 'birth', lateInTheDay)!.getFullYear()).toBe(1926);
+    expect(parseMRZDate('260611', 'birth', lateInTheDay)!.getFullYear()).toBe(2026); // yesterday → baby
+  });
+
+  it('century shift preserves Feb-29 validity (2028→1928, both leap)', () => {
+    const d = parseMRZDate('280229', 'birth', now);
+    expect(d!.getFullYear()).toBe(1928);
+    expect(d!.getMonth()).toBe(1);
+    expect(d!.getDate()).toBe(29);
+  });
+
+  it('window slides with the clock: in 2030, YY=31 means 1931 and YY=29 a recent child', () => {
+    const later = new Date(2030, 5, 1);
+    expect(parseMRZDate('310101', 'birth', later)!.getFullYear()).toBe(1931); // 99yo, eligible
+    expect(parseMRZDate('290101', 'birth', later)!.getFullYear()).toBe(2029); // 1-year-old
+  });
+
+  it('expiry mode is untouched by the sliding window (fixed >=50 rule)', () => {
+    expect(parseMRZDate('291225', 'expiry', now)!.getFullYear()).toBe(2029);
+    expect(parseMRZDate('550101', 'expiry', now)!.getFullYear()).toBe(1955);
   });
 });

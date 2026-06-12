@@ -131,7 +131,9 @@
     "showLess": "Show less",
     "showMore": "Show more ({{count}})",
     "loadErrorNetwork": "Network error — check your connection and pull down to retry.",
-    "loadErrorGeneric": "Unable to load proposals. Pull down to retry."
+    "loadErrorGeneric": "Unable to load proposals. Pull down to retry.",
+    "updateNoticeTitle": "Update recommended",
+    "updateNoticeBody": "Your app version is out of date. Install version {{min}} or later from the store to keep voting smoothly."
   },
   "voting": {
     "title": "Voting process",
@@ -261,6 +263,7 @@
       "cscaNotRegisteredOnMainnet": "Your passport's root certificate is not yet registered on Mainnet. Try again later or contact support.",
       "registrationServiceUnavailable": "The registration service is temporarily unavailable. Your vote has not been registered yet. Please try again later.",
       "votingServiceUnavailable": "The voting service is temporarily unavailable. Your vote has not been registered. Please try again later.",
+      "deviceStorageFull": "Not enough storage space on your device. Voting requires downloading about 1 GB of cryptographic data. Free up some space and try again.",
       "switchToMainnet": "Change the network in Settings → Network.",
       "network": "Network error — check your connection and try again.",
       "alreadyRegistered": "Identity already registered.",

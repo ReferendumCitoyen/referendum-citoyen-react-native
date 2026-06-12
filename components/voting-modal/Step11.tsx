@@ -12,6 +12,7 @@ import { castMainnetVote } from '@/utils/mainnet-vote-flow';
 import { getOrCreatePrivateKey } from '@/utils/identity';
 import { waitForVoteReceipt } from '@/utils/vote-confirmation';
 import { isServiceUnavailableError } from '@/utils/relayer-errors';
+import { isStorageFullError } from '@/utils/storage-errors';
 
 // voting-flow's sliding container chain has no defined height on iOS
 // (flex: undefined in styles.ts) so `height: '100%'` on a slide collapses
@@ -107,8 +108,15 @@ const Step11: React.FC<Step11Props> = ({
     const timer = setTimeout(() => {
       if (hasCalledCallback.current || canSubmitReal) return;
       hasCalledCallback.current = true;
-      setStatusText(t(`voting.step11MissingData_${docSfx}`));
-      onError?.();
+      const msg = t(`voting.step11MissingData_${docSfx}`);
+      // This fires when the user reached the vote step WITHOUT the NFC scan /
+      // registration refs (see the #54 step-skip reports). Log it (this path
+      // was previously silent) and pass the localized reason through so
+      // Step12Error shows "scannez d'abord votre document" instead of the
+      // meaningless "Unknown vote error".
+      console.warn('[Step11] missing-data timeout (15s) — rarime/passport/proposal refs never arrived');
+      setStatusText(msg);
+      onError?.(msg);
     }, 15000);
     return () => clearTimeout(timer);
   }, [hasStarted, canSubmitReal, onError, t]);
@@ -320,6 +328,14 @@ const Step11: React.FC<Step11Props> = ({
           errorMsg = t('voting.step11VotingNotStarted');
         } else if (msg.includes('Voting has ended')) {
           errorMsg = t('voting.step11VotingEnded');
+        } else if (isStorageFullError(err)) {
+          // Disk-full / OOM (e.g. ENOSPC on the 757 MB zkey download, or
+          // witnesscalc OOM on low-RAM devices) — device problem, "try later"
+          // would be wrong advice. Checked before the service-down branch.
+          errorMsg = t('voting.errors.deviceStorageFull', {
+            defaultValue:
+              "Espace de stockage insuffisant sur votre appareil. Le vote nécessite le téléchargement d'environ 1 Go de données cryptographiques. Libérez de l'espace puis réessayez.",
+          });
         } else if (isServiceUnavailableError(err)) {
           // 5xx / network / timeout from the vote relayer or RPC (e.g. the
           // 2026-06-11 nginx "502 Bad Gateway" on /v2/vote). Server-side and

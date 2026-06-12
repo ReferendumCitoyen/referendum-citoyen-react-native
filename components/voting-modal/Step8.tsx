@@ -29,8 +29,20 @@ const Step8: React.FC<Step8Props> = ({
   const modalStyles = createModalStyles(colors);
   const stepSpecificStyles = createStepSpecificStyles(colors);
 
-  // Navigate to voting screen when button is pressed
+  // Navigate to voting screen when button is pressed.
+  // GUARD: only advance when Step 7 actually verified the registration.
+  // Three production reports (2026-06-11/12, iOS, proposal #54) show users
+  // reaching the vote screens with no NFC scan and no registration — Step 11
+  // then dead-ends on "Unknown vote error". The jump path is still
+  // unidentified (possibly stale OTA JS); whatever it is, an unverified user
+  // must never get past this button.
   const handleVote = () => {
+    if (verificationResult !== 'success') {
+      console.warn(
+        `[Step8] Vote-now tapped without verified registration (verificationResult=${String(verificationResult)}) — ignoring`,
+      );
+      return;
+    }
     if (onVoteSuccess) {
       onVoteSuccess();
     }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, Pressable } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, RefreshControl, Linking, Platform, Pressable } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Application from 'expo-application';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { referendumInfoUrl } from '@/constants/urls';
 import { Svg, Path } from 'react-native-svg';
@@ -26,6 +28,8 @@ import {
   type ProposalIndex,
 } from '@/utils/proposal-index';
 import { computeVoteResults, isFrenchCompatible, isPassportVotingTarget } from '@/utils/voteResults';
+import { shouldShowUpdateNotice, UPDATE_NOTICE_DISMISSED_KEY } from '@/utils/update-notice';
+import UpdateNoticeBanner from '@/components/UpdateNoticeBanner';
 import { consumePendingVote } from '@/utils/post-vote-refresh';
 import i18nModule from 'i18next';
 
@@ -327,6 +331,37 @@ export default function AccueilScreen() {
     return () => { cancelled = true; };
   }, []);
 
+  // "Please update" notice, driven by the optional
+  // `min_supported_app_versions` block of the (signed) proposal index —
+  // piggybacks on the fetch above, no extra network call. Dismissal is
+  // persisted per minimum version: the banner reappears only if the
+  // published minimum moves past the dismissed one.
+  const [updateNoticeMin, setUpdateNoticeMin] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const min =
+        proposalIndex?.min_supported_app_versions?.[Platform.OS === 'ios' ? 'ios' : 'android'];
+      if (!min) {
+        if (!cancelled) setUpdateNoticeMin(null);
+        return;
+      }
+      const current = Application.nativeApplicationVersion ?? '0';
+      const dismissedMin = await AsyncStorage.getItem(UPDATE_NOTICE_DISMISSED_KEY).catch(() => null);
+      if (!cancelled) {
+        setUpdateNoticeMin(shouldShowUpdateNotice({ current, min, dismissedMin }) ? min : null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [proposalIndex]);
+
+  const dismissUpdateNotice = useCallback(() => {
+    if (updateNoticeMin) {
+      AsyncStorage.setItem(UPDATE_NOTICE_DISMISSED_KEY, updateNoticeMin).catch(() => {});
+    }
+    setUpdateNoticeMin(null);
+  }, [updateNoticeMin]);
+
   const fetchProposals = useCallback(async (refresh = false) => {
     try {
       if (!refresh) {
@@ -536,6 +571,10 @@ export default function AccueilScreen() {
         <SettingsButton />
       </View>
 
+      {updateNoticeMin && (
+        <UpdateNoticeBanner minVersion={updateNoticeMin} onDismiss={dismissUpdateNotice} />
+      )}
+
       {isLoading && (
         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
           <ActivityIndicator size="small" color={colors.secondary} />
@@ -584,7 +623,7 @@ export default function AccueilScreen() {
         </TouchableOpacity>
       )}
     </View>
-  ), [activeProposals, showAllList, isLoading, loadError, colors, styles, handleAnchorPress, t]);
+  ), [activeProposals, showAllList, isLoading, loadError, colors, styles, handleAnchorPress, t, updateNoticeMin, dismissUpdateNotice]);
 
   const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
     const active = isActive(p);

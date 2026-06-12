@@ -31,6 +31,7 @@
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Asset } from 'expo-asset';
+import { ensureAssetOnDisk } from '@/utils/asset-on-disk';
 // Native modules — the witnesscalc binding for queryIdentity ships with this
 // repo (modules/witnesscalculator/android/src/main/cpp/queryIdentity.cpp,
 // jniLibs/<ABI>/libwitnesscalc_queryIdentity.so); the rapidsnark prover comes
@@ -71,14 +72,12 @@ async function loadQueryIdentityDat(): Promise<Uint8Array> {
   // require() returns an opaque module number which Asset.fromModule
   // resolves to an Asset with a downloadable URI (in dev mode Metro serves
   // it over HTTP; in release the file is unpacked from the APK).
+  // ensureAssetOnDisk existence-checks the materialised file and re-extracts
+  // when Android purged it from cacheDirectory mid-session (production
+  // ENOENT, report 2026-06-12T11-05 — see utils/asset-on-disk.ts).
   const asset = Asset.fromModule(require('@/assets/circuits/query_identity.dat'));
-  if (!asset.localUri) {
-    await asset.downloadAsync();
-  }
-  if (!asset.localUri) {
-    throw new Error('[groth16-vote] failed to materialise query_identity.dat');
-  }
-  const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+  const localUri = await ensureAssetOnDisk(asset, 'query_identity.dat');
+  const base64 = await FileSystem.readAsStringAsync(localUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   return new Uint8Array(Buffer.from(base64, 'base64'));
@@ -111,15 +110,12 @@ export async function ensureZkey(_onProgress?: (p: ZkeyDownloadProgress) => void
   // `query_identity.dat` and `query_identity.zkey` both want
   // `raw/query_identity`).
   const asset = Asset.fromModule(require('@/assets/circuits/query_identity_zkey.zkey'));
-  if (!asset.localUri) {
-    await asset.downloadAsync();
-  }
-  if (!asset.localUri) {
-    throw new Error('[groth16-vote] failed to materialise query_identity.zkey from bundle');
-  }
-  console.log(`[groth16-vote] zkey ready at ${asset.localUri}`);
+  // Existence-checked: Android may purge the extracted copy from
+  // cacheDirectory between votes (see loadQueryIdentityDat above).
+  const localUri = await ensureAssetOnDisk(asset, 'query_identity_zkey.zkey');
+  console.log(`[groth16-vote] zkey ready at ${localUri}`);
   // strip file:// prefix because rapidsnark wants a plain absolute path
-  return asset.localUri.replace(/^file:\/\//, '');
+  return localUri.replace(/^file:\/\//, '');
 }
 
 export interface GenerateQueryProofArgs {
