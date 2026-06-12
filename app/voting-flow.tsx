@@ -235,6 +235,7 @@ export default function VotingFlowScreen() {
   useFocusEffect(
     useCallback(() => {
       // Reset to step 1 when screen is focused
+      console.log('[flow] step → 1 (focus-reset)');
       setCurrentStep(1);
       setVerificationResult(null);
       setVerificationError(null);
@@ -285,6 +286,11 @@ export default function VotingFlowScreen() {
 
   const handleNext = useCallback(() => {
     const newStep = currentStep + 1;
+    // Step-transition audit trail: the #54 step-skip reports (2026-06-11/12)
+    // showed users reaching the vote screens with no visible path in the
+    // logs. Every transition now logs its source so the 5-min error-report
+    // tail can name the jumper outright.
+    console.log(`[flow] step ${currentStep} → ${newStep} (next)`);
     setCurrentStep(newStep);
 
     Animated.timing(slideAnim, {
@@ -422,6 +428,7 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleGoBackToMRZScan = useCallback(() => {
+    console.log('[flow] step → 5 (back-to-mrz)');
     setCurrentStep(5);
     setMRZData(null);
     Animated.timing(slideAnim, {
@@ -453,6 +460,7 @@ export default function VotingFlowScreen() {
     setVerificationResult('success');
     // Move to step 8 (voting screen) after a brief delay
     setTimeout(() => {
+      console.log('[flow] step → 8 (verification-success)');
       setCurrentStep(8);
       Animated.timing(slideAnim, {
         toValue: -7 * containerWidth,
@@ -478,6 +486,7 @@ export default function VotingFlowScreen() {
   }, [handleNext]);
 
   const handleVoteSuccess = useCallback(() => {
+    console.log('[flow] step → 9 (step8-vote-now)');
     setCurrentStep(9);
     Animated.timing(slideAnim, {
       toValue: -8 * containerWidth,
@@ -490,6 +499,7 @@ export default function VotingFlowScreen() {
 
   const handleVoteSelect = useCallback((answerIndex: number) => {
     setSelectedVote(answerIndex);
+    console.log('[flow] step → 10 (vote-selected)');
     setCurrentStep(10);
     Animated.timing(slideAnim, {
       toValue: -9 * containerWidth,
@@ -501,6 +511,7 @@ export default function VotingFlowScreen() {
   }, [slideAnim, containerWidth, handleStepChange]);
 
   const handleStep9Confirm = useCallback(() => {
+    console.log('[flow] step → 11 (vote-confirmed)');
     setCurrentStep(11);
     Animated.timing(slideAnim, {
       toValue: -10 * containerWidth,
@@ -550,6 +561,7 @@ export default function VotingFlowScreen() {
     // refresh once tx propagation completes (the immediate focus-time
     // refetch races ahead of L2 confirmation otherwise).
     markVoteJustCast();
+    console.log('[flow] step → 12 (vote-submitted)');
     setCurrentStep(12);
     Animated.timing(slideAnim, {
       toValue: -11 * containerWidth,
@@ -566,6 +578,7 @@ export default function VotingFlowScreen() {
     setVoteErrorReason(reason || null);
     setVoteError(error ?? new Error(reason ?? 'Unknown vote error'));
     setVoteSubmissionResult('error');
+    console.log('[flow] step → 13 (vote-error)');
     setCurrentStep(13);
     Animated.timing(slideAnim, {
       toValue: -12 * containerWidth,

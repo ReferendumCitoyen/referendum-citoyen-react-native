@@ -108,8 +108,15 @@ const Step11: React.FC<Step11Props> = ({
     const timer = setTimeout(() => {
       if (hasCalledCallback.current || canSubmitReal) return;
       hasCalledCallback.current = true;
-      setStatusText(t(`voting.step11MissingData_${docSfx}`));
-      onError?.();
+      const msg = t(`voting.step11MissingData_${docSfx}`);
+      // This fires when the user reached the vote step WITHOUT the NFC scan /
+      // registration refs (see the #54 step-skip reports). Log it (this path
+      // was previously silent) and pass the localized reason through so
+      // Step12Error shows "scannez d'abord votre document" instead of the
+      // meaningless "Unknown vote error".
+      console.warn('[Step11] missing-data timeout (15s) — rarime/passport/proposal refs never arrived');
+      setStatusText(msg);
+      onError?.(msg);
     }, 15000);
     return () => clearTimeout(timer);
   }, [hasStarted, canSubmitReal, onError, t]);
