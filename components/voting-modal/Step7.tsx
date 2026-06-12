@@ -153,8 +153,17 @@ const Step7: React.FC<Step7Props> = ({
       if (hasCalledCallback.current) return;
       if (rarime && passport) return;
       hasCalledCallback.current = true;
-      setErrorMessage(t('voting.step7MissingData'));
-      onError?.();
+      const msg = t('voting.step7MissingData');
+      // Previously this path was completely silent (no console output) AND
+      // non-blocking — handleVerificationError would auto-advance to Step 8
+      // after 1.5 s, walking the user toward a vote that cannot succeed
+      // (no rarime/passport refs). Log it and mark it blocking so the user
+      // stays on Step 7 with the explanatory message.
+      console.warn(
+        `[Step7] missing-data timeout (30s) — refs never arrived (rarime=${!!rarime}, passport=${!!passport})`,
+      );
+      setErrorMessage(msg);
+      onError?.(msg, true);
     }, 30000);
     return () => clearTimeout(timer);
   }, [hasStarted, rarime, passport, onError, t]);
