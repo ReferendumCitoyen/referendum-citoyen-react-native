@@ -328,6 +328,31 @@ const Step7: React.FC<Step7Props> = ({
                 : undefined,
             });
 
+            // Diagnostic probe BEFORE the Noir prover runs: the SDK's
+            // noir.aar swallows System.loadLibrary("noir_java") failures
+            // into System.err (logcat only), so when the lib can't load,
+            // reports only show the generic "No implementation found for
+            // …setup_srs". This probe surfaces the REAL dlopen error into
+            // the JS log ring buffer → the error report names its own root
+            // cause (see WitnesscalculatorModule.kt::probeNoirLibrary).
+            // Free when the library is healthy (loadLibrary is idempotent).
+            if (Platform.OS === 'android') {
+              try {
+                const { default: Witnesscalculator } = await import(
+                  '@modules/witnesscalculator/src/WitnesscalculatorModule'
+                );
+                const probe: unknown = (Witnesscalculator as any).probeNoirLibrary?.();
+                if (typeof probe === 'string' && probe !== 'ok') {
+                  console.error(`[noir-probe] System.loadLibrary("noir_java") FAILED: ${probe}`);
+                } else if (probe === 'ok') {
+                  console.log('[noir-probe] noir_java loads OK');
+                }
+              } catch (probeErr: any) {
+                // Older binary without the probe function — not an error.
+                console.log('[noir-probe] probe unavailable:', probeErr?.message ?? probeErr);
+              }
+            }
+
             // Generate the heavy register proof. If the slave-cert SMT
             // lookup inside fails (existence=false) it means the CSCA
             // isn't on chain yet — catch that specific error, bootstrap
