@@ -32,21 +32,31 @@ export const sanitizeDateInput = (raw: string): string =>
   raw.replace(/\D/g, '').slice(0, 6);
 
 /**
- * Expand a 2-digit MRZ year into a 4-digit year for *birth dates*. Fixed
- * cutoff at 35 (instead of the OLD `>=50`):
- *   YY > 35 → 19YY   (covers 1936-1999, i.e. voters aged 27-90)
- *   YY ≤ 35 → 20YY   (covers 2000-2035, i.e. voters born this century)
+ * Expand a 2-digit MRZ year into a 4-digit year for *birth dates* using a
+ * TRUE sliding window: a birth year can never be in the future, so
+ *   2000+YY ≤ current year → 20YY   (people aged 0..current-YY)
+ *   2000+YY > current year → 19YY   (everyone else, up to age ~100)
  *
- * Why 35: pushes the next boundary issue out to ~2036 (when someone born
- * in 1936 would still be alive at 100; vanishingly rare voter pool).
- * The OLD `>=50` rule mapped YY=44 to 2044, so Step7's display read
- * "Né(e) le: 31/12/2044" for an 80yo voter — that's what we're fixing.
+ * History: this used to be a FIXED cutoff (`>=50`, then `>35`). A fixed
+ * cutoff always strands some real cohort — the `>35` rule mapped a 1935
+ * birth (YY=35) to 2035, so a 91-year-old voter was blocked as "underage"
+ * at Step 5 (user report, 2026-06-12); before that, `>=50` blocked everyone
+ * born 1936-1949. The sliding window self-adjusts every year and only
+ * breaks at the irreducible 2-digit ambiguity: a 100-year-old collides
+ * with a newborn carrying the same YY.
  *
- * For *expiry* dates use `expandMrzExpiryYear` (a different cutoff
- * because passports look forward, not backward).
+ * `parseFrenchDate` / `parseMRZDate` additionally refine at DATE level:
+ * when 20YY equals the current year but the month/day is still ahead, the
+ * date flips to 19YY (a December-born centenarian-to-be, not a baby born
+ * "next December").
+ *
+ * For *expiry* dates use `expandMrzExpiryYear` (a different rule because
+ * passports look forward, not backward).
  */
-export const expandMrzBirthYear = (yy: number): number =>
-  yy > 35 ? 1900 + yy : 2000 + yy;
+export const expandMrzBirthYear = (yy: number, now: Date = new Date()): number => {
+  const candidate = 2000 + yy;
+  return candidate > now.getFullYear() ? candidate - 100 : candidate;
+};
 
 /**
  * Expand a 2-digit MRZ year for *expiry dates* using the fixed `>=50` cutoff.
@@ -71,18 +81,49 @@ export const expandMrzExpiryYear = (yy: number): number =>
 export const parseFrenchDate = (
   jjmmaa: string,
   mode: 'birth' | 'expiry' = 'birth',
+  now: Date = new Date(),
 ): Date | null => {
   if (jjmmaa.length !== 6 || !/^\d{6}$/.test(jjmmaa)) return null;
   const jj = parseInt(jjmmaa.slice(0, 2), 10);
   const mm = parseInt(jjmmaa.slice(2, 4), 10);
   const aa = parseInt(jjmmaa.slice(4, 6), 10);
+  return buildCenturyAdjustedDate(jj, mm, aa, mode, now);
+};
+
+/**
+ * Shared by parseFrenchDate / parseMRZDate: expand the 2-digit year, build
+ * the Date, and (birth mode only) flip to the previous century when the
+ * result would land in the future — birth dates can't be ahead of today.
+ */
+const buildCenturyAdjustedDate = (
+  jj: number,
+  mm: number,
+  aa: number,
+  mode: 'birth' | 'expiry',
+  now: Date,
+): Date | null => {
   if (mm < 1 || mm > 12) return null;
   if (jj < 1 || jj > 31) return null;
-  const fullYear =
-    mode === 'birth' ? expandMrzBirthYear(aa) : expandMrzExpiryYear(aa);
-  const date = new Date(fullYear, mm - 1, jj);
+  let fullYear =
+    mode === 'birth' ? expandMrzBirthYear(aa, now) : expandMrzExpiryYear(aa);
+  let date = new Date(fullYear, mm - 1, jj);
+  // CIRCUIT PARITY: mirror Rarimo's EncodedDateIsLessNormalized
+  // (passport-zk-circuits/circuits/dateUtilities/dateComparisonEncodedNormalized.circom),
+  // which the on-chain query circuit uses for both birth-date bounds:
+  //   date <  currentDate → current century
+  //   date >= currentDate → previous century   (comparator is STRICT)
+  // i.e. a YYMMDD equal to today is a 100th-birthday-today voter, not a
+  // newborn. Compare at date granularity (midnight) so the verdict doesn't
+  // depend on the scan's time of day. Keeping Step 5's pre-filter identical
+  // to the circuit means it never blocks someone the proof would accept,
+  // and never green-lights someone the proof would reject on this rule.
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (mode === 'birth' && date >= todayStart) {
+    fullYear -= 100;
+    date = new Date(fullYear, mm - 1, jj);
+  }
   // Round-trip check: catches things like 31/02 → 03/03 because Date
-  // silently overflows.
+  // silently overflows (and 29/02 on a non-leap year after a century flip).
   if (
     date.getFullYear() !== fullYear ||
     date.getMonth() !== mm - 1 ||
@@ -119,24 +160,13 @@ export const isExpired = (expiryDate: Date, now: Date = new Date()): boolean => 
 export const parseMRZDate = (
   yymmdd: string,
   mode: 'birth' | 'expiry' = 'birth',
+  now: Date = new Date(),
 ): Date | null => {
   if (yymmdd.length !== 6 || !/^\d{6}$/.test(yymmdd)) return null;
   const aa = parseInt(yymmdd.slice(0, 2), 10);
   const mm = parseInt(yymmdd.slice(2, 4), 10);
   const jj = parseInt(yymmdd.slice(4, 6), 10);
-  if (mm < 1 || mm > 12) return null;
-  if (jj < 1 || jj > 31) return null;
-  const fullYear =
-    mode === 'birth' ? expandMrzBirthYear(aa) : expandMrzExpiryYear(aa);
-  const date = new Date(fullYear, mm - 1, jj);
-  if (
-    date.getFullYear() !== fullYear ||
-    date.getMonth() !== mm - 1 ||
-    date.getDate() !== jj
-  ) {
-    return null;
-  }
-  return date;
+  return buildCenturyAdjustedDate(jj, mm, aa, mode, now);
 };
 
 /**
