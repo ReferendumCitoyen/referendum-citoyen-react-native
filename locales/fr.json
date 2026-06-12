@@ -261,6 +261,7 @@
       "cscaNotRegisteredOnMainnet": "Le certificat racine de votre passeport n'est pas encore enregistré sur Mainnet. Réessayez plus tard ou contactez le support.",
       "registrationServiceUnavailable": "Le service d'enregistrement est temporairement indisponible. Votre vote n'a pas encore été enregistré. Réessayez plus tard.",
       "votingServiceUnavailable": "Le service de vote est temporairement indisponible. Votre vote n'a pas été enregistré. Réessayez plus tard.",
+      "deviceStorageFull": "Espace de stockage insuffisant sur votre appareil. Le vote nécessite le téléchargement d'environ 1 Go de données cryptographiques. Libérez de l'espace puis réessayez.",
       "switchToMainnet": "Changez de réseau dans Paramètres → Réseau.",
       "network": "Erreur réseau — vérifiez votre connexion et réessayez.",
       "alreadyRegistered": "Identité déjà enregistrée.",

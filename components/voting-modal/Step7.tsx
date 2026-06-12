@@ -20,6 +20,7 @@ import {
 import { EPassport } from '@/utils/e-document/e-document';
 import { expandMrzBirthYear } from '@/utils/mrzDate';
 import { isServiceUnavailableError } from '@/utils/relayer-errors';
+import { isStorageFullError } from '@/utils/storage-errors';
 
 interface NFCPersonDetails {
   firstName?: string;
@@ -487,16 +488,26 @@ const Step7: React.FC<Step7Props> = ({
         // we want to surface verbatim — formatRpcError would replace it
         // with a generic "an error occurred" string.
         const isIneligible = msg.startsWith('[VOTE_INELIGIBLE]');
+        // Disk-full / OOM (e.g. ENOSPC downloading the ~300 MB trusted setup,
+        // 2026-06-11 reports) — a DEVICE problem: "try later" would be wrong
+        // advice, and retrying without freeing space cannot succeed. Checked
+        // before the service-down branch so it wins.
+        const isDeviceFull = !isIneligible && isStorageFullError(err);
         // 5xx / network / confirmation-timeout → transient SERVER-side failure
         // (e.g. the registration relayer returning HTTP 500). Show an honest
         // "service temporarily unavailable, try again later" message instead of
         // formatRpcError's generic text — and crucially treat it as blocking so
         // the user isn't auto-advanced into a vote that fails with the
         // misleading existence=false / "restore your key".
-        const isServiceDown = !isIneligible && isServiceUnavailableError(err);
+        const isServiceDown = !isIneligible && !isDeviceFull && isServiceUnavailableError(err);
         let text: string;
         if (isIneligible) {
           text = msg.replace('[VOTE_INELIGIBLE]', '').trim();
+        } else if (isDeviceFull) {
+          text = t('voting.errors.deviceStorageFull', {
+            defaultValue:
+              "Espace de stockage insuffisant sur votre appareil. Le vote nécessite le téléchargement d'environ 1 Go de données cryptographiques. Libérez de l'espace puis réessayez.",
+          });
         } else if (isServiceDown) {
           text = t('voting.errors.registrationServiceUnavailable', {
             defaultValue:
@@ -505,11 +516,12 @@ const Step7: React.FC<Step7Props> = ({
         } else {
           text = formatRpcError(err);
         }
-        // Block the flow for BOTH permanent (ineligible) and transient
-        // (service-down) failures. voting-flow's handleVerificationError keeps
-        // the user on Step 7 with this message when the 2nd arg is true,
-        // instead of setTimeout(handleNext) which would walk into the vote.
-        const blocking = isIneligible || isServiceDown;
+        // Block the flow for permanent (ineligible), device (storage-full) and
+        // transient (service-down) failures alike. voting-flow's
+        // handleVerificationError keeps the user on Step 7 with this message
+        // when the 2nd arg is true, instead of setTimeout(handleNext) which
+        // would walk into the vote.
+        const blocking = isIneligible || isDeviceFull || isServiceDown;
         setErrorMessage(text);
         onError?.(text, blocking, err);
       }

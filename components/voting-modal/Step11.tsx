@@ -12,6 +12,7 @@ import { castMainnetVote } from '@/utils/mainnet-vote-flow';
 import { getOrCreatePrivateKey } from '@/utils/identity';
 import { waitForVoteReceipt } from '@/utils/vote-confirmation';
 import { isServiceUnavailableError } from '@/utils/relayer-errors';
+import { isStorageFullError } from '@/utils/storage-errors';
 
 // voting-flow's sliding container chain has no defined height on iOS
 // (flex: undefined in styles.ts) so `height: '100%'` on a slide collapses
@@ -320,6 +321,14 @@ const Step11: React.FC<Step11Props> = ({
           errorMsg = t('voting.step11VotingNotStarted');
         } else if (msg.includes('Voting has ended')) {
           errorMsg = t('voting.step11VotingEnded');
+        } else if (isStorageFullError(err)) {
+          // Disk-full / OOM (e.g. ENOSPC on the 757 MB zkey download, or
+          // witnesscalc OOM on low-RAM devices) — device problem, "try later"
+          // would be wrong advice. Checked before the service-down branch.
+          errorMsg = t('voting.errors.deviceStorageFull', {
+            defaultValue:
+              "Espace de stockage insuffisant sur votre appareil. Le vote nécessite le téléchargement d'environ 1 Go de données cryptographiques. Libérez de l'espace puis réessayez.",
+          });
         } else if (isServiceUnavailableError(err)) {
           // 5xx / network / timeout from the vote relayer or RPC (e.g. the
           // 2026-06-11 nginx "502 Bad Gateway" on /v2/vote). Server-side and

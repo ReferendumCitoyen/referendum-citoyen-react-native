@@ -14,6 +14,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { NoirCircuitParams } from '@rarimo/rarime-rn-sdk/build/RnNoirModule';
+import { isStorageFullError } from '@/utils/storage-errors';
 
 const KEEP_AWAKE_TAG = 'circuit-preload';
 
@@ -90,6 +91,14 @@ async function withDownloadRetry<T>(
       // Purge whatever was written so the next attempt restarts cleanly and
       // the SDK's "file exists, skip download" short-circuit doesn't fire.
       try { await cleanupPartial(); } catch {}
+      // Disk-full / OOM is NOT retryable — re-downloading ~300 MB onto a full
+      // disk just burns the user's data plan (observed: 4× ENOSPC retries in
+      // the 2026-06-11 reports). Abort immediately; the UI maps this to a
+      // "free up storage" message via isStorageFullError.
+      if (isStorageFullError(err)) {
+        console.warn(`[preload] ${label}: device storage/memory exhausted — not retrying`);
+        throw err;
+      }
       if (attempt < MAX_DOWNLOAD_RETRIES) {
         // 5s, 10s, 20s, 40s — capped backoff.
         const delayMs = Math.min(40_000, 5_000 * Math.pow(2, attempt - 1));
