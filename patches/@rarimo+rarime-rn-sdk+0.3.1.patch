@@ -1,5 +1,5 @@
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
-index 2719106..6c392af 100644
+index 2719106..0f84920 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
 @@ -12,9 +12,29 @@ export class FreedomTool {
@@ -155,7 +155,7 @@ index 2719106..6c392af 100644
          if (!sendVoteResponse.ok) {
 -            throw new Error(`HTTP error ${sendVoteResponse.status}`);
 +            const errBody = await sendVoteResponse.text().catch(() => '(unreadable)');
-+            console.error(`[SDK] sendProposalRequest failed: ${sendVoteResponse.status} ${sendVoteResponse.statusText}\nURL: ${this.config.api.votingRelayerUrl}/integrations/proof-verification-relayer/v3/vote\nRequest: ${JSON.stringify(sendVoteRequest)}\nResponse: ${errBody}`);
++            console.error(`[SDK] sendProposalRequest failed: ${sendVoteResponse.status} ${sendVoteResponse.statusText}\nURL: ${this.config.api.votingRelayerUrl}/integrations/proof-verification-relayer/v3/vote\nRequest: tx_data len=${txCallData.length}, destination=${proposalInfo.sendVoteContractAddress}\nResponse: ${errBody}`);
 +            throw new Error(`HTTP error ${sendVoteResponse.status}: ${errBody}`);
          }
          const sendVoteResponseParsed = await sendVoteResponse.json();
@@ -174,7 +174,7 @@ index 9655e7b..6b7f388 100644
      getPassportInfo(passport: RarimePassport): Promise<[
          StateKeeper.PassportInfoStructOutput,
 diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
-index fd0ba76..1356ed7 100644
+index fd0ba76..23bf040 100644
 --- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 +++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
 @@ -11,8 +11,26 @@ import { toPaddedHex32, wrapPem } from "./utils";
@@ -451,7 +451,7 @@ index fd0ba76..1356ed7 100644
                  attributes: {
                      document_sod: {
                          hash_algorithm: HashAlgorithm.fromOID(passport.extractDGHashAlgo()).toString(),
-@@ -210,8 +296,21 @@ export class Rarime {
+@@ -210,8 +296,13 @@ export class Rarime {
                  },
              },
          };
@@ -463,19 +463,11 @@ index fd0ba76..1356ed7 100644
 +        const verifySodPath = isTD3
 +            ? "/integrations/incognito-light-registrator/v1/register"
 +            : "/integrations/incognito-light-registrator/v1/registerid";
-+        // [DEBUG] Emit a ready-to-run curl for Lasha to replay the failing
-+        // request server-side. Remove once /register accepts our body shape.
-+        const _replayUrl = this.config.apiConfiguration.rarimeApiUrl + verifySodPath;
-+        const _replayBody = JSON.stringify(verifySodRequest);
-+        console.log('[SDK][DBG] === REPLAY COMMAND (copy block below to Lasha) ===');
-+        console.log('[SDK][DBG] pubSignals:', JSON.stringify(proof.pub_signals));
-+        console.log("[SDK][DBG] curl -X POST '" + _replayUrl + "' -H 'Content-Type: application/json' -d '" + _replayBody + "'");
-+        console.log('[SDK][DBG] === END ===');
 +        const verifySodResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl + verifySodPath, {
              method: "POST",
              headers: {
                  "Content-Type": "application/json",
-@@ -219,7 +318,9 @@ export class Rarime {
+@@ -219,7 +310,9 @@ export class Rarime {
              body: JSON.stringify(verifySodRequest),
          });
          if (!verifySodResponse.ok) {
@@ -486,7 +478,7 @@ index fd0ba76..1356ed7 100644
          }
          return verifySodResponse;
      }
-@@ -231,8 +332,10 @@ export class Rarime {
+@@ -231,8 +324,10 @@ export class Rarime {
                  destination: this.config.contractsConfiguration.registerSimpleContractAddress,
              },
          };
@@ -499,7 +491,7 @@ index fd0ba76..1356ed7 100644
              method: "POST",
              headers: {
                  "Content-Type": "application/json",
-@@ -240,8 +343,9 @@ export class Rarime {
+@@ -240,8 +335,9 @@ export class Rarime {
              body: JSON.stringify(lite_register_request),
          });
          if (!liteRegisterResponse.ok) {
