@@ -562,11 +562,15 @@ export default function AccueilScreen() {
   // instead of TD3 (passport) — see Step5/Step6. ID-card-targeted proposals
   // route to the IDCardVoting deployment at 0x7d73513d64…
   //
-  // Known gap: `utils/mainnet-vote-flow.ts` + `utils/vote-calldata.ts` still
-  // build calldata for BioPassportVoting only. On Mainnet, voting on an
-  // IDCardVoting proposal will fail at submit time. Testnet works because
-  // it goes through `FreedomTool.submitProposal` which auto-routes per
-  // `sendVoteContractAddress`. Tracked in CLAUDE.md ▸ "TD1 voting status".
+  // TD1 (CNIe) voting works on BOTH networks: Step11 routes every vote that
+  // is NOT (TD3 passport + Mainnet) through `FreedomTool.submitProposal`,
+  // which auto-routes to the IDCardVoting contract per the proposal's
+  // `sendVoteContractAddress` (Step11.tsx — `usesGroth16MainnetPath` gates the
+  // Groth16 path on `network === 'mainnet' && dg1.length === 93`). Verified
+  // on-chain on Mainnet — see CLAUDE.md ▸ "TD1 voting status" (tx 0xcfceae1c…
+  // on IDCardVoting 0x7D7351…). The Groth16 `castMainnetVote` pipeline
+  // (`utils/mainnet-vote-flow.ts` + `utils/vote-calldata.ts`) is TD3-only and
+  // is never reached for a CNIe vote, so it cannot mis-route one.
   const eligibleProposals = useMemo(
     () => {
       if (devMode) return proposals;
