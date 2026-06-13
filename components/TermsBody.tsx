@@ -14,11 +14,12 @@
  * built-in ScrollView would swallow the events.
  */
 
-import React from 'react';
-import { ScrollView, View, Text, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import React, { useRef } from 'react';
+import { ScrollView, View, Text, StyleSheet, NativeSyntheticEvent, NativeScrollEvent, LayoutChangeEvent } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useColors, Typography, Spacing } from '@/constants/theme';
 import { TERMS_TITLE_FR, TERMS_TEXT_FR, TERMS_VERSION } from '@/constants/terms';
+import { isNearBottom } from '@/utils/scroll';
 
 interface TermsBodyProps {
   onReachedEnd?: () => void;
@@ -36,13 +37,38 @@ export default function TermsBody({ onReachedEnd, bottomPadding = 0 }: TermsBody
   const styles = createStyles(colors);
   const mdStyles = createMarkdownStyles(colors);
 
+  // Latest measured ScrollView viewport / content heights. We need both to
+  // decide "reached the end" outside of a scroll event (e.g. content shorter
+  // than the viewport, or the resting position after a momentum fling).
+  const viewportH = useRef(0);
+  const contentH = useRef(0);
+
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (!onReachedEnd) return;
     const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-    const distanceFromBottom = contentSize.height - (layoutMeasurement.height + contentOffset.y);
-    // ~40 px tolerance so users with momentum-scroll inertia / slightly
-    // imprecise stop near the bottom still trigger the gate-lift.
-    if (distanceFromBottom < 40) onReachedEnd();
+    viewportH.current = layoutMeasurement.height;
+    contentH.current = contentSize.height;
+    if (isNearBottom(layoutMeasurement.height, contentSize.height, contentOffset.y)) {
+      onReachedEnd();
+    }
+  };
+
+  // Re-evaluate when either dimension is (re)measured, with offsetY 0. This
+  // covers the case where the terms fit the viewport without scrolling — no
+  // scroll event ever fires, so onScroll alone would never unlock the gate.
+  const checkFitsWithoutScroll = () => {
+    if (!onReachedEnd) return;
+    if (isNearBottom(viewportH.current, contentH.current, 0)) onReachedEnd();
+  };
+
+  const handleLayout = (e: LayoutChangeEvent) => {
+    viewportH.current = e.nativeEvent.layout.height;
+    checkFitsWithoutScroll();
+  };
+
+  const handleContentSizeChange = (_w: number, h: number) => {
+    contentH.current = h;
+    checkFitsWithoutScroll();
   };
 
   return (
@@ -50,7 +76,15 @@ export default function TermsBody({ onReachedEnd, bottomPadding = 0 }: TermsBody
       style={styles.scroll}
       contentContainerStyle={[styles.scrollContent, bottomPadding > 0 && { paddingBottom: bottomPadding }]}
       onScroll={handleScroll}
-      scrollEventThrottle={64}
+      // Also evaluate at the *resting* position: with coarse onScroll sampling
+      // a momentum fling can come to rest at the bottom between samples, so the
+      // last onScroll fired while still >40px away and the true bottom was
+      // never reported. These rest events capture it on first reach.
+      onScrollEndDrag={handleScroll}
+      onMomentumScrollEnd={handleScroll}
+      onLayout={handleLayout}
+      onContentSizeChange={handleContentSizeChange}
+      scrollEventThrottle={16}
     >
       <Text style={styles.title}>{TERMS_TITLE_FR}</Text>
       <Text style={styles.version}>{`Version : ${TERMS_VERSION}`}</Text>
