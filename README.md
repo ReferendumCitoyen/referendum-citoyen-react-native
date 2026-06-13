@@ -70,6 +70,7 @@ npm test
 ## Documentation
 
 - [Integration Guide](./INTEGRATION_GUIDE.md) - Detailed setup for native modules
+- [Versioning & update notice](./docs/versioning.md) - How to bump the app version, and when to raise `min_supported_app_versions` (only after the stores are live — never at the same time as the version bump)
 - [Roadmap](./TODO.md) - Development roadmap and tasks
 
 ## Technologies
