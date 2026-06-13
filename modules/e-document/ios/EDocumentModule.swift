@@ -49,9 +49,14 @@ public class EDocumentModule: Module {
 
             let bacKeyParameters = try JSONDecoder().decode(BacKeyParameters.self, from: bacKeyParametersJson.data(using: .utf8)!)
 
-            // Debug log helper
+            // Debug log helper. Forwards scan diagnostics to JS, where they
+            // can reach the in-memory log buffer and a user-mailed error
+            // report — so only emit in DEBUG builds, never in a release /
+            // App Store build (DPIA R5). In release this is a no-op.
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": message])
+                #endif
             }
 
             debugLog("=== iOS NFC Scan Starting ===")
@@ -152,7 +157,9 @@ public class EDocumentModule: Module {
 
         AsyncFunction("testNfcDetection") { (timeoutSeconds: Double) -> String in
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG] \(message)"])
+                #endif
             }
 
             debugLog("Starting NFC diagnostic (timeout: \(timeoutSeconds)s)")
@@ -170,7 +177,9 @@ public class EDocumentModule: Module {
 
         AsyncFunction("testPassportDetection") { (timeoutSeconds: Double) -> String in
             let debugLog: (String) -> Void = { message in
+                #if DEBUG
                 self.sendEvent(DocumentScanEvents.debugLog.rawValue, ["message": "[DIAG-P] \(message)"])
+                #endif
             }
 
             debugLog("Starting passport NFC diagnostic (timeout: \(timeoutSeconds)s, iso14443 only)")

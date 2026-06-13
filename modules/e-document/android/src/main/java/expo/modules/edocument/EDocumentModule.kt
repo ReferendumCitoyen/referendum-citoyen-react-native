@@ -3,6 +3,7 @@ package expo.modules.edocument
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
@@ -197,6 +198,13 @@ class EDocumentModule : Module() {
 
     val docScanner = DocumentScanner(isoDep, bacKey, challenge)
 
+    // DEBUG_LOG forwards raw scan diagnostics (incl. full APDU TX/RX
+    // transcripts via LoggingCardService) to JS, where they can reach the
+    // in-memory log buffer and a user-mailed error report. Only emit on
+    // debuggable builds — never in a release / Play Store build (DPIA R5).
+    val debugLoggingEnabled = activity != null &&
+      (activity.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
     try {
       val nfcDocument = when (documentType) {
         "I", "ID" -> {
@@ -206,7 +214,9 @@ class EDocumentModule : Module() {
             onActiveAuthentication = { sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value) },
             onSuccessfulRead = { sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value) },
             onDebugLog = { message ->
-              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+              if (debugLoggingEnabled) {
+                sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+              }
             },
           )
         }
@@ -217,7 +227,9 @@ class EDocumentModule : Module() {
             onActiveAuthentication = { sendEvent(DocumentScanEvents.ACTIVE_AUTHENTICATION.value) },
             onSuccessfulRead = { sendEvent(DocumentScanEvents.SUCCESSFUL_READ.value) },
             onDebugLog = { message ->
-              sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+              if (debugLoggingEnabled) {
+                sendEvent(DocumentScanEvents.DEBUG_LOG.value, mapOf("message" to message))
+              }
             },
           )
         }
