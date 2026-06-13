@@ -42,6 +42,26 @@ describe('redact', () => {
     expect(redact('status 404 retry 3 times')).toBe('status 404 retry 3 times');
   });
 
+  it('redacts a continuous hex blob longer than 64 chars (APDU transcript)', () => {
+    const blob = 'a1b2c3d4'.repeat(20); // 160 hex chars, no internal word boundary
+    expect(redact(`[RX] ${blob} (SW: 9000)`)).toBe('[RX] <hex> (SW: 9000)');
+  });
+
+  it('redacts a 500-char continuous hex string', () => {
+    const hex = 'deadbeef'.repeat(63); // 504 hex chars
+    expect(redact(hex)).toBe('<hex>');
+  });
+
+  it('still prefers the specific <hex64>/<addr> labels where they apply', () => {
+    const h = 'a'.repeat(64);
+    expect(redact(`key: ${h}`)).toBe('key: <hex64>');
+    expect(redact('to: 0xAbCdef0123456789AbCdef0123456789AbCdef01')).toBe('to: <addr>');
+  });
+
+  it('does NOT redact short hex (<32 chars)', () => {
+    expect(redact('color #aabbcc and id deadbeef')).toBe('color #aabbcc and id deadbeef');
+  });
+
   it('leaves clean text unchanged', () => {
     expect(redact('[FreedomTool] starting registration')).toBe('[FreedomTool] starting registration');
   });
