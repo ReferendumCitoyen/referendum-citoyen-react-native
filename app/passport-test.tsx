@@ -109,6 +109,11 @@ export default function PassportTestScreen() {
 
   // Load or generate BJJ private key on mount
   React.useEffect(() => {
+    // Inert when devMode is off: the `return null` below blocks render but
+    // not this effect, so without this guard a release deep-link to this dev
+    // route would silently generate + persist a BJJ key before redirecting
+    // (DPIA R5 #10 — dev screens must be inert in release).
+    if (!devMode) return;
     const initPrivateKey = async () => {
       try {
         console.log('=== RARIME TESTNET INIT ===');
@@ -142,7 +147,7 @@ export default function PassportTestScreen() {
     };
 
     initPrivateKey();
-  }, []);
+  }, [devMode]);
 
   // Track progress changes
   React.useEffect(() => {
