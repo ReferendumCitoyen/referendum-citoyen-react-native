@@ -69,11 +69,14 @@ public class EDocumentModule: Module {
 
             let canKey = bacKeyParameters.can
 
-            // For ID cards, skip DG15 (not present on French CNIe)
-            // For passports, also read DG12 (issuing authority, date of issue) and DG14 (chip auth info)
+            // DG2 (facial image) is intentionally NOT read — it serves no
+            // purpose in the eligibility flow (proof uses DG1 only); skipping
+            // it is data minimisation (DPIA R5 #5).
+            // For ID cards, skip DG15 (not present on French CNIe).
+            // For passports, also read DG12 (issuing authority, date of issue) and DG14 (chip auth info).
             let tagsToRead: [DataGroupId] = documentType == "I"
-                ? [.DG1, .DG2, .DG11, .SOD]
-                : [.DG1, .DG2, .DG11, .DG12, .DG14, .DG15, .SOD]
+                ? [.DG1, .DG11, .SOD]
+                : [.DG1, .DG11, .DG12, .DG14, .DG15, .SOD]
 
             do {
                 debugLog("Starting PassportReader...")
