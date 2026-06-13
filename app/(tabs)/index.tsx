@@ -363,6 +363,14 @@ export default function AccueilScreen() {
   }, [updateNoticeMin]);
 
   const fetchProposals = useCallback(async (refresh = false) => {
+    // Wait for the proposal index (the vote LIST) to resolve before doing
+    // anything. Until then `effectiveIds` is empty, so turning off the
+    // spinner or concluding "no votes" would be wrong — this was the startup
+    // flash where "Aucune proposition" showed while the list was still
+    // loading. proposalIndex is set by the index effect below (cache-first,
+    // then fresh) and ALWAYS resolves (getProposalIndex falls back to a
+    // bundled list), so the spinner can't deadlock here.
+    if (!proposalIndex) return;
     try {
       if (!refresh) {
         const parsed = await readCachedProposals(network);
@@ -372,7 +380,10 @@ export default function AccueilScreen() {
           // flight.
           const filtered = parsed.filter(p => effectiveIds.includes(String(p.id)));
           setProposals(filtered);
-          setIsLoading(false);
+          // Only stop the spinner if the cache actually has something to
+          // show; an empty/stale cache must keep loading until the network
+          // fetch returns, otherwise it flashes "no votes".
+          if (filtered.length > 0) setIsLoading(false);
         }
       }
 
@@ -386,6 +397,18 @@ export default function AccueilScreen() {
       const loaded = results
         .filter((r): r is PromiseFulfilledResult<ProposalInfo> => r.status === 'fulfilled')
         .map(r => r.value);
+
+      // Distinguish "the list is genuinely empty" from "every detail call
+      // failed". Promise.allSettled swallows rejections, so without this an
+      // RPC outage would render as "no votes available" instead of an error.
+      // (Partial success still renders what we got — we only error on a total
+      // wipe, and we don't overwrite an existing list with [] in that case.)
+      if (loaded.length === 0 && effectiveIds.length > 0) {
+        const firstRejected = results.find(
+          (r): r is PromiseRejectedResult => r.status === 'rejected',
+        );
+        throw firstRejected?.reason ?? new Error('all proposal detail fetches failed');
+      }
       const sorted = loaded.sort((a, b) => Number(b.id) - Number(a.id));
 
       console.log(`[Accueil][${network}] Loaded ${sorted.length}/${effectiveIds.length} proposals (extras=${extraEnabled}): [${effectiveIds.join(', ')}]`);
@@ -494,7 +517,28 @@ export default function AccueilScreen() {
     }, [fetchProposals])
   );
 
-  const onRefresh = useCallback(() => fetchProposals(true), [fetchProposals]);
+  const onRefresh = useCallback(async () => {
+    // Pull-to-refresh refreshes BOTH the vote list (proposal index) and the
+    // per-vote details/counts — so a newly-published proposal appears without
+    // an app restart, not just an updated count on the existing list. The
+    // index update flows through setProposalIndex → the fetch effect re-runs
+    // with the new id list; the awaited fetchProposals(true) refreshes the
+    // current list's details and drives the pull spinner.
+    setIsRefreshing(true);
+    try {
+      const fresh = await getProposalIndex();
+      // Only push a new index object when the list actually changed, so the
+      // common "list unchanged" pull doesn't trigger a redundant second
+      // fetch via the index effect. Same content → same reference → React
+      // bails out and only the awaited fetchProposals(true) below runs.
+      setProposalIndex((prev) =>
+        prev && JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh,
+      );
+    } catch {
+      // getProposalIndex degrades to cache/bundled internally — ignore.
+    }
+    await fetchProposals(true);
+  }, [fetchProposals]);
 
   const handleVoterPress = (p: ProposalInfo) => {
     // Pass `isPassport` in the URL so voting-flow can pick the correct MRZ
@@ -590,7 +634,7 @@ export default function AccueilScreen() {
         </Text>
       )}
 
-      {!isLoading && activeProposals.length === 0 && !loadError && (
+      {!isLoading && proposalIndex !== null && activeProposals.length === 0 && !loadError && (
         <Text style={[styles.voteListItemText, { paddingVertical: 12 }]}>
           {t('home.noProposals')}
         </Text>
@@ -623,7 +667,7 @@ export default function AccueilScreen() {
         </TouchableOpacity>
       )}
     </View>
-  ), [activeProposals, showAllList, isLoading, loadError, colors, styles, handleAnchorPress, t, updateNoticeMin, dismissUpdateNotice]);
+  ), [activeProposals, showAllList, isLoading, loadError, proposalIndex, colors, styles, handleAnchorPress, t, updateNoticeMin, dismissUpdateNotice]);
 
   const renderItem = useCallback(({ item: p, index }: { item: ProposalInfo; index: number }) => {
     const active = isActive(p);
