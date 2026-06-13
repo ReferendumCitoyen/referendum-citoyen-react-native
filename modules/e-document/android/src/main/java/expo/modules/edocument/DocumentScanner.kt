@@ -16,7 +16,6 @@ import org.jmrtd.lds.SODFile
 import org.jmrtd.lds.icao.DG11File
 import org.jmrtd.lds.icao.DG15File
 import org.jmrtd.lds.icao.DG1File
-import org.jmrtd.lds.icao.DG2File
 import org.jmrtd.lds.icao.MRZInfo
 import org.jmrtd.lds.iso19794.FaceImageInfo
 import org.jnbis.WsqDecoder
@@ -275,21 +274,11 @@ class DocumentScanner(
     val sodFile = SODFile(service.getInputStream(PassportService.EF_SOD))
     onDebugLog("SOD read OK (${byteLen} bytes)")
 
-    // -- Face Image -- //
-    onDebugLog("Reading DG2 (face image)...")
-    val dg2In = service.getInputStream(PassportService.EF_DG2)
-    val dg2File = DG2File(dg2In)
-    onDebugLog("DG2 read OK")
-
-    val faceInfos = dg2File.faceInfos
-    val allFaceImageInfos: MutableList<FaceImageInfo> = ArrayList()
-    for (faceInfo in faceInfos) {
-      allFaceImageInfos.addAll(faceInfo.faceImageInfos)
-    }
-    val passportImageRaw = if (allFaceImageInfos.isNotEmpty()) {
-      val faceImageInfo = allFaceImageInfos.iterator().next()
-      faceImageInfo.toBase64Image()
-    } else { null }
+    // -- Face Image (DG2): NOT READ -- //
+    // DG2 (the holder's facial image) serves no purpose in the eligibility
+    // flow — the proof uses DG1 only — so we don't read it, for data
+    // minimisation (DPIA R5 #5). passportImageRaw stays null end-to-end.
+    val passportImageRaw: String? = null
 
     // -- DG11 -- //
     onDebugLog("Reading DG11 (additional personal details)...")
@@ -471,21 +460,11 @@ class DocumentScanner(
     val sodFile = SODFile(service.getInputStream(PassportService.EF_SOD))
     onDebugLog( "SOD read OK, $byteLen bytes")
 
-    // -- Face Image -- //
-    onDebugLog( "Reading DG2 (face image)...")
-    val dg2In = service.getInputStream(PassportService.EF_DG2)
-    val dg2File = DG2File(dg2In)
-    onDebugLog( "DG2 read OK, ${dg2File.faceInfos.size} faces found")
-
-    val faceInfos = dg2File.faceInfos
-    val allFaceImageInfos: MutableList<FaceImageInfo> = ArrayList()
-    for (faceInfo in faceInfos) {
-      allFaceImageInfos.addAll(faceInfo.faceImageInfos)
-    }
-    val passportImageRaw = if (allFaceImageInfos.isNotEmpty()) {
-      val faceImageInfo = allFaceImageInfos.iterator().next()
-      faceImageInfo.toBase64Image()
-    } else { null }
+    // -- Face Image (DG2): NOT READ -- //
+    // DG2 (the holder's facial image) serves no purpose in the eligibility
+    // flow — the proof uses DG1 only — so we don't read it, for data
+    // minimisation (DPIA R5 #5). passportImageRaw stays null end-to-end.
+    val passportImageRaw: String? = null
 
     // -- DG11 -- //
     onDebugLog( "Reading DG11...")

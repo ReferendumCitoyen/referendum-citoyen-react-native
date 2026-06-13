@@ -216,6 +216,11 @@ export default function FrenchIDTestScreen() {
 
   // Init BJJ private key
   React.useEffect(() => {
+    // Inert when devMode is off: the `return null` below blocks render but
+    // not this effect, so without this guard a release deep-link to this dev
+    // route would silently generate + persist a BJJ key before redirecting
+    // (DPIA R5 #10 — dev screens must be inert in release).
+    if (!devMode) return;
     (async () => {
       try {
         let storedKey = await SecureStore.getItemAsync(PRIVATE_KEY_STORAGE_KEY);
@@ -231,7 +236,7 @@ export default function FrenchIDTestScreen() {
         console.error("Failed to initialize private key:", err);
       }
     })();
-  }, []);
+  }, [devMode]);
 
   // Progress queue processor
   const processProgressQueue = React.useCallback(() => {

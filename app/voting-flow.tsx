@@ -391,34 +391,6 @@ export default function VotingFlowScreen() {
           // REGISTERED_WITH_OTHER_PK branch in Step 7.
           setPassportKeyReady(true);
         }
-
-        // One-shot capture for inid-passport-debug's PassportDebug screen,
-        // which accepts {dg1, sod, dg15?, aaSignature?} as hex strings.
-        // Pull off-device with `adb pull
-        // /storage/emulated/0/Android/data/com.referendumcitoyen.app/files/passport.json`
-        // (or the documentDirectory from logs below).
-        //
-        // SECURITY: gated behind __DEV__ so release builds never persist
-        // raw chip bytes (DG1 = MRZ biographic data, SOD = passive-auth
-        // signature, DG15 = AA public key, AA signature). The contents
-        // are highly identifying and would survive an app uninstall on
-        // Android (cleared) and iOS (cleared on uninstall, but copies via
-        // file-sharing intents persist).
-        if (__DEV__) {
-          const toHex = (u: Uint8Array) =>
-            Array.from(u).map(b => b.toString(16).padStart(2, '0')).join('');
-          const FS = await import('expo-file-system/legacy');
-          const payload: Record<string, string> = {
-            dg1: toHex(new Uint8Array(data.dg1Bytes)),
-            sod: toHex(new Uint8Array(data.sodBytes)),
-          };
-          if (data.dg15Bytes && data.dg15Bytes.length) payload.dg15 = toHex(new Uint8Array(data.dg15Bytes));
-          if (data.aaSignature && data.aaSignature.length) payload.aaSignature = toHex(new Uint8Array(data.aaSignature));
-          const path = (FS.documentDirectory ?? '') + 'passport.json';
-          await FS.writeAsStringAsync(path, JSON.stringify(payload));
-          console.log('[passport.json] written to', path);
-          console.log('[passport.json] bytes: dg1=' + payload.dg1.length / 2 + ' sod=' + payload.sod.length / 2 + ' dg15=' + ((payload.dg15?.length ?? 0) / 2) + ' aaSig=' + ((payload.aaSignature?.length ?? 0) / 2));
-        }
       } catch (err) {
         console.error('[FreedomTool] PASSPORT_CREATE_FAILED', err);
       }
