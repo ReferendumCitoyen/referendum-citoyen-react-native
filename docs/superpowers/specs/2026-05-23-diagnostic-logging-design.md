@@ -6,7 +6,7 @@
 
 ## Goal
 
-When the app hits an *unexpected* error (i.e. not one of the predictable cases like passport expired, already voted, proposal closed, NFC chip not detected, user cancellation, network offline), surface a "Envoyer un rapport d'erreur" button. Tapping it opens the user's mail client with a prefilled message to `alexis+referendum@roussel-zeter.eu` and an attached `.txt` file containing the last 5 minutes of redacted in-memory logs plus the error context.
+When the app hits an *unexpected* error (i.e. not one of the predictable cases like passport expired, already voted, proposal closed, NFC chip not detected, user cancellation, network offline), surface a "Envoyer un rapport d'erreur" button. Tapping it opens the user's mail client with a prefilled message to an email and an attached `.txt` file containing the last 5 minutes of redacted in-memory logs plus the error context.
 
 The user must not have to enable anything. No PII may leak into the report. Nothing is written to disk during normal operation.
 
