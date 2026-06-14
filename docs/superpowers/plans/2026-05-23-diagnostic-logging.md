@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a user-triggered error reporting flow. When the app hits an unexpected error, surface a "Envoyer un rapport d'erreur" button that opens a prefilled mail composer to `alexis+referendum@roussel-zeter.eu` with a redacted, time-windowed (5 min) log buffer attached as a `.txt`.
+**Goal:** Add a user-triggered error reporting flow. When the app hits an unexpected error, surface a "Envoyer un rapport d'erreur" button that opens a prefilled mail composer to an email with a redacted, time-windowed (5 min) log buffer attached as a `.txt`.
 
 **Architecture:** Always-on, in-memory-only ring buffer of redacted console output (5-minute retention). No file I/O during normal operation. On error, an `ErrorReportContext` snapshots the buffer; on user tap, the snapshot is written to `${FileSystem.cacheDirectory}error-report-<ts>.txt` and shared via `expo-mail-composer` (fallback: `expo-sharing`). A root React `ErrorBoundary` catches uncaught render-tree errors. Predictable errors (passport expired, already voted, etc.) are classified via `isExpectedError()` and do **not** show the button.
 
