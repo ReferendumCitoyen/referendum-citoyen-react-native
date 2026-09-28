@@ -1,0 +1,354 @@
+name: Android Release (signed APK)
+
+# Triggered when a `v*` tag is pushed (e.g. `v1.4`, `v1.4.0`, `v2.0-beta1`).
+# The tag MUST point at a commit that lives on `master` — feature work
+# happens on `develop`, maintainers cut releases by merging `develop` into
+# `master` and tagging there. See CONTRIBUTING.md for the full flow.
+#
+# Outputs:
+#   - A release-signed APK (v2+v3 APK Signing Scheme), arm64-v8a only
+#   - SHA-256 checksum file
+#   - `apksigner verify --print-certs` output for auditability
+# Published as a GitHub Release attached to the pushed tag.
+#
+# Why arm64-only here: the released APK is for distribution to real
+# devices, which are ~100% arm64-v8a. The Rarimo upstream prebuilts
+# (libnoir_java.so, RmoCalcs.aar, jniLibs/witnesscalc_*) only ship
+# arm64-v8a, so the other three ABIs (armeabi-v7a, x86, x86_64) would
+# only have an RN/Expo runtime that crashes the moment any Rarimo code
+# runs. The nightly debug build keeps all four ABIs for emulator
+# dogfooding (see android-nightly.yml).
+#
+# -----------------------------------------------------------------------
+# Workflow shape: prebuild → build → publish
+# -----------------------------------------------------------------------
+#
+# Split into two jobs so:
+#   1. Each gets a fresh 90-minute runner budget (180 min total ceiling).
+#   2. A flaky npm install / prebuild doesn't waste a long gradle run.
+#   3. The expensive gradle step (assembleRelease) is the only thing in
+#      the `build` job, making it easy to retry just that job from the UI.
+#
+# Single-job total time should fit in well under 90 minutes; the split
+# is a defensive structural choice, not a performance optimization. The
+# real speedup vs the previous workflow comes from:
+#   - `gradle/actions/setup-gradle@v5` (Gradle build cache, not just deps)
+#   - arm64-only native compile (`-PreactNativeArchitectures=arm64-v8a`)
+#
+# -----------------------------------------------------------------------
+# One-time setup: see the previous workflow header. The four secrets
+# (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
+# ANDROID_KEY_PASSWORD) are unchanged. `scripts/ci/generate-upload-keystore.sh`
+# generates them.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)build & publish (e.g. v1.4). Must be on master."
+        required: true
+        type: string
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # required by the build job to attach the APK to a GitHub Release
+
+jobs:
+  # ===========================================================================
+  # Job 1: prebuild — checkout, validate tag, npm ci, expo prebuild, sign-patch.
+  # Uploads the prepared android/ tree as an artifact for the build job.
+  # ===========================================================================
+  prebuild:
+    name: Prebuild + sign-patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          if ! printf '%s' "$tag" | grep -qE '^v[0-9]'; then
+            echo "::error::Tag '$tag' does not match v[0-9]* — refusing to release."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tag
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0   # need history for the merge-base check below
+
+      - name: Verify tag is on master
+        # Hard guarantee: the commit pointed to by the tag must be an
+        # ancestor of origin/master. Stops a maintainer from accidentally
+        # tagging develop / a feature branch and shipping it.
+        run: |
+          set -euo pipefail
+          git fetch origin master --depth=200
+          tag_sha=$(git rev-parse "${{ steps.tag.outputs.tag }}^{commit}")
+          if ! git merge-base --is-ancestor "$tag_sha" origin/master; then
+            echo "::error::Tag ${{ steps.tag.outputs.tag }} ($tag_sha) is not on master."
+            echo "::error::Releases must be cut from master. See CONTRIBUTING.md."
+            exit 1
+          fi
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17
+        # Needed here too because `expo prebuild` resolves gradle-version
+        # metadata to write into android/gradle/wrapper/.
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build withNfc plugin
+        run: |
+          cd plugins/withNfc.plugin
+          npm install --no-audit --no-fund --ignore-scripts
+          npx tsc
+
+      - name: Expo prebuild (android)
+        env:
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_CAPABILITY_SYNC: '1'
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Inject release signing config
+        # Patches android/app/build.gradle to read REFCIT_RELEASE_* env vars.
+        # Idempotent; safe across re-runs.
+        run: node scripts/ci/inject-android-signing.mjs
+
+      - name: Bump Gradle JVM heap for D8 dex-merge
+        # Expo default `org.gradle.jvmargs` (~2 GB) is too small for the
+        # combined Noir + Groth16 + RN/Hermes class graph. D8 OOMs during
+        # mergeExtDexRelease. Locally we set this in ~/.gradle/; CI needs
+        # the same applied to android/gradle.properties (regenerated by
+        # every `expo prebuild --clean`).
+        run: node scripts/ci/inject-android-gradle-tuning.mjs
+
+      - name: Package android/ for the build job
+        # tar preserves perms (gradlew needs +x) and is faster to upload than
+        # ~10k tiny files. The artifact is only consumed by the next job in
+        # this same workflow run; default 1-day retention keeps it small.
+        run: tar -czf "$RUNNER_TEMP/android-prebuilt.tar.gz" android plugins/withNfc.plugin/build
+
+      - name: Upload prebuild artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-prebuilt-${{ steps.tag.outputs.tag }}
+          path: ${{ runner.temp }}/android-prebuilt.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  # ===========================================================================
+  # Job 2: build — restore prebuild, assemble, sign, verify, publish Release.
+  # All the slow work (gradle assembleRelease) lives here.
+  # ===========================================================================
+  build:
+    name: Build, sign, publish
+    needs: prebuild
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout tag
+        # We need package.json, plugins/, scripts/, the inject-android-signing
+        # output (via artifact), and the gradle wrapper config. Easier to just
+        # check out the whole tag again than to ship those individually.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.prebuild.outputs.tag }}
+
+      - name: Setup Node 20
+        # Required because Gradle's React Native plugin shells out to node
+        # during assembleRelease to bundle the JS. Without node on PATH the
+        # build fails with `node: command not found`.
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          cmdline-tools-version: latest
+
+      - name: Setup Gradle (build cache + dep cache)
+        # Replaces the manual actions/cache for ~/.gradle with the official
+        # gradle action, which ALSO caches the Gradle build cache (compiled
+        # outputs, transformed dependencies, native intermediates). The dep
+        # cache alone is what the previous workflow had — adding build cache
+        # is what brings second-and-later releases from ~60 min to ~15 min.
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+        with:
+          cache-read-only: false
+
+      - name: Install JS dependencies
+        # gradle's React Native plugin reads node_modules at assemble time.
+        # setup-node's `cache: npm` makes this fast (~30s on cache hit).
+        run: npm ci
+
+      - name: Download prebuild artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: android-prebuilt-${{ needs.prebuild.outputs.tag }}
+          path: ${{ runner.temp }}/prebuild
+
+      - name: Restore prebuilt android/ tree
+        # Wipes any android/ that `checkout` brought down (it shouldn't —
+        # /android is gitignored — but defensive). Then unpacks the
+        # prebuilt-signed tree from the artifact.
+        run: |
+          set -euo pipefail
+          rm -rf android plugins/withNfc.plugin/build
+          tar -xzf "$RUNNER_TEMP/prebuild/android-prebuilt.tar.gz"
+          ls android/app/build.gradle
+          # Quick sanity-check both prebuild-time patches survived the round-trip.
+          grep -q '>>> CI release signing config injected' android/app/build.gradle
+          grep -q '>>> CI gradle JVM tuning injected' android/gradle.properties
+          echo "Signing patch + JVM-tuning patch both present in restored android/."
+
+      - name: Decode keystore from secret
+        # Kept in the build job (not the prebuild) so the keystore never
+        # leaves a workflow that gradle actually consumes — and never lands
+        # in any artifact.
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 is not set. See the workflow header for one-time setup."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/keystore/release.keystore"
+          file "$RUNNER_TEMP/keystore/release.keystore"
+
+      - name: Grant gradlew execute perms
+        run: chmod +x android/gradlew
+
+      - name: Build release APK (arm64-v8a only)
+        working-directory: android
+        env:
+          REFCIT_RELEASE_STORE_FILE: ${{ runner.temp }}/keystore/release.keystore
+          REFCIT_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          REFCIT_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          REFCIT_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # `-PreactNativeArchitectures=arm64-v8a` constrains the React Native
+        # native build (Hermes, libreactnative, libreanimated, libNitroModules,
+        # libVisionCamera, etc.) to a single ABI. Cuts native-compile work
+        # ~4x vs the default arm64+armv7+x86+x86_64 fan-out — the dominant
+        # cost on a 2-core hosted runner.
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          set -euo pipefail
+          apk=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          test -n "$apk"
+          name="referendum-citoyen-${{ needs.prebuild.outputs.tag }}.apk"
+          cp "$apk" "$RUNNER_TEMP/$name"
+          echo "path=$RUNNER_TEMP/$name" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          ls -la "$RUNNER_TEMP/$name"
+
+      # The allowlist for upstream-blocked 4 KB-aligned libs is our only
+      # regression-catch — wire it into release builds
+      # so the next dep bump that adds a misaligned .so fails CI instead
+      # of shipping and crashing on Pixel 8+ / GrapheneOS at launch.
+      - name: Check 16 KB page-size alignment
+        run: bash scripts/ci/check-16k-alignment.sh "${{ steps.apk.outputs.path }}"
+
+      - name: Verify APK signature
+        # apksigner ships under $ANDROID_HOME/build-tools/<ver>/ but
+        # android-actions/setup-android@v4 doesn't put it on PATH by
+        # default. Find the actual binary (matches what
+        # scripts/ci/build-signed-apk-local.sh does locally).
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -executable 2>/dev/null | sort | tail -n 1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found under $ANDROID_HOME/build-tools"
+            ls -la "$ANDROID_HOME/build-tools" 2>&1 || true
+            exit 1
+          fi
+          echo "Using $APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "${{ steps.apk.outputs.path }}" \
+            | tee "$RUNNER_TEMP/apksigner-verify.txt"
+
+      - name: Compute SHA-256
+        id: checksum
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          sha256sum "${{ steps.apk.outputs.name }}" > "${{ steps.apk.outputs.name }}.sha256"
+          cat "${{ steps.apk.outputs.name }}.sha256"
+          echo "path=$RUNNER_TEMP/${{ steps.apk.outputs.name }}.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.checksum.outputs.path }}
+            ${{ runner.temp }}/apksigner-verify.txt
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
+        with:
+          tag_name: ${{ needs.prebuild.outputs.tag }}
+          name: ${{ needs.prebuild.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.apk.outputs.path }}
+            ${{ steps.checksum.outputs.path }}
+            ${{ runner.temp }}/apksigner-verify.txt
+          body: |
+            Signed Android release for `${{ needs.prebuild.outputs.tag }}`.
+
+            **arm64-v8a only**: armv7 / x86 / x86_64 aren't shipped because the
+            Rarimo upstream prebuilts are arm64-only.
+
+            Verify the download:
+
+            ```
+            sha256sum -c ${{ steps.apk.outputs.name }}.sha256
+            apksigner verify --print-certs ${{ steps.apk.outputs.name }}
+            ```
+
+            The expected signing cert SHA-256 is in the attached
+            `apksigner-verify.txt`.

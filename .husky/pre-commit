@@ -1,0 +1,59 @@
+#!/usr/bin/env sh
+
+# Secret-shape scan. The memory note `secret-hygiene` records the audit
+# rule: a keyword grep alone is not enough, we must also match the literal
+# byte shapes that BJJ private keys, SHA-256 / Keccak digests, and
+# Ethereum private keys all share. SecureStore returns BJJ keys as BARE
+# hex (no `0x` prefix), so we match both `0x[a-f0-9]{64}` and the
+# word-bounded `\b[a-f0-9]{64}\b` form. Scan only the about-to-be-
+# committed diff so unstaged scratch notes don't trip it. Lines may opt
+# out with a `// nosec: <reason>` suffix, but the reason token is
+# required so the bypass can be audited later.
+#
+# `assets/circuits/*.json` is excluded by PATH, because it is the one case
+# the `// nosec:` escape hatch cannot cover: these are compiled Noir ACIR
+# artifacts, minified single-line JSON, and JSON has no comment syntax to
+# hang a reason on. Each carries 8 `0x`+64-hex constants which are BYTE-FOR-
+# BYTE IDENTICAL across every circuit in this directory (verified across
+# the TD1 and TD3 register circuits) —
+# i.e. Poseidon round constants and BN254 curve parameters the compiler
+# emits into every build, not anything derived from a key, a document or a
+# holder. They are also public: the artifacts are published releases.
+#
+# Scoped as narrowly as possible on purpose. Every source file, every doc
+# and every other asset is still scanned exactly as before — this exempts
+# one directory of compiled third-party artifacts, which is not where a real
+# BJJ key would ever leak from. Anything hand-written stays covered.
+diff_added=$(git diff --cached --no-color -U0 -- . ':(exclude)assets/circuits/*.json' | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+# Strip lines that carry a non-empty `nosec:` reason. Bare `// nosec:`
+# without a reason still hits the secret-shape grep below.
+diff_filtered=$(echo "$diff_added" | grep -ivE '// *nosec: *[A-Za-z0-9]' || true)
+secret_hits=$(echo "$diff_filtered" | grep -iE '0x[a-f0-9]{64}\b|\b[a-f0-9]{64}\b' || true)
+if [ -n "$secret_hits" ]; then
+  echo ""
+  echo "🚨  Secret-shape match in staged diff (0x?+64 hex):"
+  echo ""
+  echo "$secret_hits" | head -5
+  echo ""
+  echo "   If this is a fixture or test vector, append \`// nosec: <reason>\`"
+  echo "   to the offending line (reason token required), or move it to a"
+  echo "   file in .gitignore. Commit aborted."
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "🧪  Running pre-commit tests…"
+echo ""
+
+if npm test --silent; then
+  echo ""
+  echo "✅  All tests passed — committing."
+  echo ""
+else
+  echo ""
+  echo "❌  Tests failed — commit aborted."
+  echo "   Fix the failing tests, or use --no-verify to skip (not recommended)."
+  echo ""
+  exit 1
+fi

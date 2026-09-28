@@ -1,0 +1,131 @@
+name: Android Nightly Build
+
+# - Runs every night at 03:00 UTC against `develop` (the integration branch
+#   contributors push into). Pre-release dogfooding builds — debug-signed
+#   and NOT a real release. See `.github/workflows/android-release.yml` +
+#   CONTRIBUTING.md for the signed-release flow off `master`.
+# - Manual trigger via "Run workflow" (Actions tab).
+# - Builds a debug APK via `expo prebuild` + `./gradlew assembleDebug`.
+#   Debug APK is auto-signed with the default Android debug keystore and is
+#   installable on devices — useful for internal dogfooding.
+# - The `android/` and `ios/` directories are gitignored, so we regenerate
+#   them on each run via `expo prebuild --clean`. This makes sure the config
+#   plugins (incl. ours in `plugins/withNfc.plugin`) are freshly applied.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC every day
+  workflow_dispatch:       # manual run from the UI
+    inputs:
+      variant:
+        description: 'Gradle build variant'
+        default: 'Debug'
+        type: choice
+        options: [Debug, Release]
+
+# Default GITHUB_TOKEN scopes are read-write across most APIs on private
+# repos. Pin the workflow to read-only — the nightly only needs to read
+# source and upload artifacts. Jobs that need to write add the specific
+# permission they require.
+permissions: read-all
+
+concurrency:
+  group: android-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: develop
+
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          cmdline-tools-version: latest
+
+      - name: Cache Gradle
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: npm ci
+        # postinstall runs patch-package automatically.
+
+      - name: Build withNfc plugin
+        run: |
+          cd plugins/withNfc.plugin
+          npm install --no-audit --no-fund --ignore-scripts
+          npx tsc
+
+      - name: Expo prebuild (android)
+        # --clean wipes any stale android/ dir so plugins re-apply cleanly.
+        # `npx expo` picks up the local expo-cli shipped in node_modules.
+        env:
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_CAPABILITY_SYNC: '1'
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Bump Gradle JVM heap for D8 dex-merge
+        # D8 OOMs on this repo's combined Noir + Groth16 + RN/Hermes class
+        # graph with the Expo default. Patches `android/gradle.properties`.
+        run: node scripts/ci/inject-android-gradle-tuning.mjs
+
+      - name: Grant gradlew execute perms
+        run: chmod +x android/gradlew
+
+      - name: Build APK (${{ github.event.inputs.variant || 'Debug' }})
+        working-directory: android
+        run: ./gradlew assemble${{ github.event.inputs.variant || 'Debug' }} --no-daemon --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          set -e
+          variant="${{ github.event.inputs.variant || 'Debug' }}"
+          lower=$(echo "$variant" | tr '[:upper:]' '[:lower:]')
+          apk=$(find android/app/build/outputs/apk/${lower} -name "*.apk" | head -n 1)
+          test -n "$apk"
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          echo "name=referendum-citoyen-${lower}-$(date -u +%Y%m%d).apk" >> "$GITHUB_OUTPUT"
+          ls -la "$apk"
+
+      # `scripts/ci/check-16k-alignment.sh` is the
+      # regression-catch mechanism for the six upstream-blocked libs that
+      # ship 4 KB-aligned. Without CI gating the allowlist is fiction —
+      # the next dep bump that adds a misaligned .so would land
+      # undetected until a Pixel 8+ user crashes on launch. The script
+      # exits non-zero on any new misalignment, so it fails the job.
+      - name: Check 16 KB page-size alignment
+        run: bash scripts/ci/check-16k-alignment.sh "${{ steps.apk.outputs.path }}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,74 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  prepareErrorReport,
+  sendErrorReport,
+  isExpectedError,
+  ReportContext,
+  PreparedReport,
+} from '@/utils/error-reporter';
+import { onVoteTracePurged } from '@/utils/logger';
+
+interface ErrorReportContextValue {
+  pendingReport: PreparedReport | null;
+  /** Prepare and stash the report (writes the temp file). Returns the
+   * prepared report so callers can immediately send it without waiting for
+   * the `pendingReport` state update. */
+  reportError: (err: unknown, context?: ReportContext) => Promise<PreparedReport | null>;
+  sendPending: () => Promise<void>;
+  clearReport: () => void;
+  isExpected: (err: unknown) => boolean;
+}
+
+const Ctx = createContext<ErrorReportContextValue | null>(null);
+
+export function ErrorReportProvider({ children }: { children: React.ReactNode }) {
+  const [pendingReport, setPendingReport] = useState<PreparedReport | null>(null);
+  const inFlight = useRef(false);
+
+  // A report prepared before a vote-trace purge holds the purged vote lines
+  // (utils/logger.ts::purgeVoteTrace). Drop it, so the next tap on a report
+  // button builds a new one from the purged buffer instead of reusing it.
+  useEffect(() => onVoteTracePurged(() => setPendingReport(null)), []);
+
+  const reportError = useCallback(async (err: unknown, context?: ReportContext) => {
+    // Log the error so it ends up in the snapshot itself.
+    console.error('[error-report]', err);
+    if (inFlight.current) return null;
+    inFlight.current = true;
+    try {
+      const report = await prepareErrorReport(err, context);
+      setPendingReport(report);
+      return report;
+    } catch (e) {
+      // Reporting must never crash the app.
+      console.warn('[error-report] failed to prepare report', e);
+      return null;
+    } finally {
+      inFlight.current = false;
+    }
+  }, []);
+
+  const sendPending = useCallback(async () => {
+    if (!pendingReport) return;
+    try {
+      await sendErrorReport(pendingReport);
+    } catch (e) {
+      console.warn('[error-report] send failed', e);
+    }
+  }, [pendingReport]);
+
+  const clearReport = useCallback(() => setPendingReport(null), []);
+
+  const value = useMemo<ErrorReportContextValue>(
+    () => ({ pendingReport, reportError, sendPending, clearReport, isExpected: isExpectedError }),
+    [pendingReport, reportError, sendPending, clearReport],
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useErrorReporter(): ErrorReportContextValue {
+  const v = useContext(Ctx);
+  if (!v) throw new Error('useErrorReporter must be used within ErrorReportProvider');
+  return v;
+}

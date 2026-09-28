@@ -1,0 +1,381 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { useColors, Typography } from '@/constants/theme';
+import { useTranslation } from 'react-i18next';
+import {
+  formatDateDisplay,
+  sanitizeDateInput,
+  parseFrenchDate,
+  checkBirthDate,
+  checkExpiryDate,
+} from '@/utils/mrzDate';
+import { useDevMode } from '@/contexts/DevModeContext';
+
+/** The three fields as typed: document number, then JJMMAA dates. */
+export interface ManualMRZValues {
+  documentNumber: string;
+  birthDate: string;
+  expiryDate: string;
+}
+
+interface ManualMRZInputProps {
+  isVisible: boolean;
+  /** The secondary button. For a passport this is "scan with the camera". */
+  onClose: () => void;
+  onSubmit: (data: { documentNumber: string; birthDate: string; expiryDate: string }) => void;
+  /** Same flag Step5/6/7 use — without it this screen always claimed
+   * "only passports accepted" even when the user was mid ID-card flow (or
+   * vice versa). See voting-flow.tsx's <ManualMRZInput /> for the source. */
+  isPassportFlow?: boolean;
+  /**
+   * Seeds the fields — from a camera read, in JJMMAA. The form is the
+   * confirmation screen for that read: the user sees the three values that
+   * will unlock the chip and can correct any of them before going on. A new
+   * object re-seeds; typing afterwards is never overwritten.
+   */
+  initialValues?: ManualMRZValues | null;
+  /** Shown above the fields; explains where prefilled values came from. */
+  notice?: string;
+  /** Label of the secondary button. Defaults to "back to scanner". */
+  secondaryLabel?: string;
+}
+
+const EMPTY: ManualMRZValues = { documentNumber: '', birthDate: '', expiryDate: '' };
+
+const ManualMRZInput: React.FC<ManualMRZInputProps> = ({
+  isVisible,
+  onClose,
+  onSubmit,
+  isPassportFlow = false,
+  initialValues,
+  notice,
+  secondaryLabel,
+}) => {
+  const { t } = useTranslation();
+  const colors = useColors();
+  const docSfx = isPassportFlow ? 'passport' : 'idCard';
+  // Dev mode lets QA submit underage / expired documents — mirrors the
+  // Step5 camera path bypass.
+  const { devMode } = useDevMode();
+  const [documentNumber, setDocumentNumber] = useState(initialValues?.documentNumber ?? '');
+  const [birthDate, setBirthDate] = useState(initialValues?.birthDate ?? '');
+  const [expiryDate, setExpiryDate] = useState(initialValues?.expiryDate ?? '');
+
+  useEffect(() => {
+    const v = initialValues ?? EMPTY;
+    setDocumentNumber(v.documentNumber);
+    setBirthDate(v.birthDate);
+    setExpiryDate(v.expiryDate);
+  }, [initialValues]);
+
+  if (!isVisible) return null;
+
+  // Convert French format (JJMMAA) to MRZ format (AAMMJJ)
+  const convertToMRZFormat = (frenchDate: string): string => {
+    if (frenchDate.length !== 6) return frenchDate;
+    const jj = frenchDate.substring(0, 2);
+    const mm = frenchDate.substring(2, 4);
+    const aa = frenchDate.substring(4, 6);
+    return aa + mm + jj;
+  };
+
+  // Date validation. Only show errors once the user has entered all 6 digits;
+  // it would be noisy to flag "invalid" mid-typing. The eligibility policy
+  // (≥18, not expired) lives in utils/mrzDate so the same checks fire on the
+  // camera-scan path in Step5.
+  const birthToken = birthDate.length === 6 ? checkBirthDate(parseFrenchDate(birthDate, 'birth')) : null;
+  const expiryToken = expiryDate.length === 6 ? checkExpiryDate(parseFrenchDate(expiryDate, 'expiry')) : null;
+
+  // In dev mode, only the structural 'invalid' parse failure blocks
+  // submission — 'underage' / 'expired' are downgraded to non-errors so
+  // QA can carry the document into the NFC + registration flow.
+  const birthError =
+    birthToken === 'invalid' ? t('mrzManual.birthInvalid') :
+    (birthToken === 'underage' && !devMode) ? t('mrzManual.birthUnderage') :
+    null;
+
+  const expiryError =
+    expiryToken === 'invalid' ? t('mrzManual.expiryInvalid') :
+    (expiryToken === 'expired' && !devMode) ? t(`mrzManual.expiryExpired_${docSfx}`) :
+    null;
+
+  const isValid =
+    documentNumber.length > 0 &&
+    birthDate.length === 6 &&
+    expiryDate.length === 6 &&
+    !birthError &&
+    !expiryError;
+
+  // The fields are deliberately kept after submit: a failed chip read sends
+  // the user back here to correct one of them, not to retype all three.
+  const handleSubmit = () => {
+    if (!isValid) return;
+    onSubmit({
+      documentNumber: documentNumber.toUpperCase(),
+      birthDate: convertToMRZFormat(birthDate),
+      expiryDate: convertToMRZFormat(expiryDate),
+    });
+  };
+
+  const styles = StyleSheet.create({
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.cardBackground,
+      zIndex: 10,
+      // Elevation ensures the overlay paints above underlying native views
+      // on Android (zIndex alone doesn't always win against Camera etc.).
+      elevation: 10,
+    },
+    kavFill: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    container: {
+      // flexGrow (not flex) so content can exceed the viewport and become
+      // scrollable — flex: 1 here would clamp content to viewport height and
+      // hide the last field behind the keyboard.
+      flexGrow: 1,
+      padding: 24,
+      paddingBottom: 48,
+      gap: 24,
+    },
+    title: {
+      fontFamily: Typography.fontFamily.bold,
+      fontSize: Typography.fontSize.h1,
+      lineHeight: Typography.lineHeight.h1,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    // Which documents are accepted, stated once before the fields. Grey, not
+    // error red: in red it read as "you have done something wrong" to both
+    // testers on 2026-09-09, on a screen they had only just opened.
+    docTypeNotice: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    notice: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 14,
+      lineHeight: 20,
+      color: colors.warningText,
+      backgroundColor: colors.warningBackground,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 6,
+    },
+    inputGroup: {
+      gap: 8,
+    },
+    label: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 16,
+      color: colors.text,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      padding: 14,
+      fontSize: 16,
+      fontFamily: Typography.fontFamily.medium,
+      color: colors.text,
+    },
+    hint: {
+      fontFamily: Typography.fontFamily.medium,
+      fontSize: 12,
+      color: colors.text,
+      opacity: 0.6,
+    },
+    error: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 13,
+      color: colors.errorText,
+    },
+    inputError: {
+      borderColor: colors.errorText,
+    },
+    buttonRow: {
+      gap: 12,
+      marginTop: 8,
+    },
+    submitButton: {
+      backgroundColor: colors.secondary,
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center' as const,
+    },
+    submitButtonDisabled: {
+      opacity: 0.5,
+    },
+    submitButtonText: {
+      fontFamily: Typography.fontFamily.bold,
+      fontSize: 18,
+      color: colors.buttonText,
+    },
+    cancelButton: {
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center' as const,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    cameraButton: {
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center' as const,
+      borderWidth: 2,
+      borderColor: colors.secondary,
+    },
+    cameraButtonText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 16,
+      color: colors.secondary,
+    },
+    cancelButtonText: {
+      fontFamily: Typography.fontFamily.semibold,
+      fontSize: 16,
+      color: colors.text,
+    },
+  });
+
+  // Outer View owns the opaque backdrop so it always fills the screen.
+  // KeyboardAvoidingView lives INSIDE the backdrop — when it resizes for the
+  // keyboard (behavior: 'height' on Android), it shrinks content only, not
+  // the backdrop. Otherwise the KAV would expose the Step 5 camera/overlay
+  // behind it when the keyboard opens.
+  return (
+    <View style={styles.overlay}>
+      {/*
+        Android's manifest uses `windowSoftInputMode="adjustResize"` — the OS
+        already resizes the app window for the keyboard. Layering a KAV with
+        `behavior: 'height'` on top of that was causing a white flash on focus
+        (both the KAV and the OS were fighting over the resize). So: KAV with
+        `padding` on iOS only, plain View on Android, and trust the OS resize
+        combined with the ScrollView to keep every field reachable.
+      */}
+      <KeyboardAvoidingView
+        style={styles.kavFill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+        <Text style={styles.title}>{t(`mrzManual.title_${docSfx}`)}</Text>
+
+        <Text style={styles.docTypeNotice}>{t(`mrzManual.docTypeNotice_${docSfx}`)}</Text>
+
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>{t('mrzManual.documentNumber')}</Text>
+          <TextInput
+            style={styles.input}
+            value={documentNumber}
+            onChangeText={setDocumentNumber}
+            placeholder={t('mrzManual.documentPlaceholder')}
+            placeholderTextColor={colors.text + '80'}
+            autoCapitalize="characters"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>{t('mrzManual.birthDate')}</Text>
+          <TextInput
+            style={[styles.input, birthError && styles.inputError]}
+            value={formatDateDisplay(birthDate)}
+            onChangeText={(text) => setBirthDate(sanitizeDateInput(text))}
+            placeholder={t('mrzManual.datePlaceholder')}
+            placeholderTextColor={colors.text + '80'}
+            keyboardType="number-pad"
+            maxLength={8}
+          />
+          {birthError ? (
+            <Text style={styles.error}>{birthError}</Text>
+          ) : (
+            <Text style={styles.hint}>{t('mrzManual.birthHint')}</Text>
+          )}
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>{t('mrzManual.expiryDate')}</Text>
+          <TextInput
+            style={[styles.input, expiryError && styles.inputError]}
+            value={formatDateDisplay(expiryDate)}
+            onChangeText={(text) => setExpiryDate(sanitizeDateInput(text))}
+            placeholder={t('mrzManual.datePlaceholder')}
+            placeholderTextColor={colors.text + '80'}
+            keyboardType="number-pad"
+            maxLength={8}
+          />
+          {expiryError ? (
+            <Text style={styles.error}>{expiryError}</Text>
+          ) : (
+            <Text style={styles.hint}>{t('mrzManual.expiryHint')}</Text>
+          )}
+        </View>
+
+        {/* The camera, for the passport flow where typing is the main path.
+            It used to sit below "Valider" in the same faint outline as
+            "Retour au scanner", and neither tester on 2026-09-09 saw it was
+            there. It now comes straight after the last field, in the accent
+            colour, so the alternative is offered before the user commits to
+            what they typed. `onClose` is what reveals the camera — closing
+            the form IS the camera — so this replaces the bottom button
+            rather than being added next to it. */}
+        {secondaryLabel ? (
+          <TouchableOpacity
+            style={styles.cameraButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.cameraButtonText}>{secondaryLabel}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!isValid}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.submitButtonText}>{t('mrzManual.submit')}</Text>
+          </TouchableOpacity>
+
+          {secondaryLabel ? null : (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={onClose}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelButtonText}>{t('common.backToScanner')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+};
+
+export default ManualMRZInput;

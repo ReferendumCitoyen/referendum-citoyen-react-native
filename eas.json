@@ -1,0 +1,125 @@
+{
+  "cli": {
+    "version": ">= 16.19.3",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development:simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "APP_FLAVOUR": "production"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "APP_FLAVOUR": "production"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    // This is the STORE app's repository (referendum-citoyen-react-native), so
+    // EVERY profile here builds the store app: bundle app.referendumcitoyen.fr,
+    // EAS project referendum-citoyen, its signing credentials and its App
+    // Store Connect record. APP_FLAVOUR=production on each profile is what
+    // tells EAS servers so (the archive there has no git remote to read);
+    // locally app.config.ts reads the same answer off the checkout's origin
+    // and refuses a profile that says otherwise. The beta's repository carries
+    // its own eas.json with APP_FLAVOUR=beta on every profile — do not copy
+    // this file across; the guard would refuse every build until it was fixed.
+    //
+    //   preview     internal APK / ad-hoc build of the store app.
+    //   testflight  the store app to App Store Connect — the same binary that
+    //               ships.
+    //   production  identical, plus the Android .aab for Play.
+    //
+    // No `channel` on any profile: the app carries no over-the-air updater
+    // (expo-updates was removed in 2.0.1 — see the `updates` note in
+    // app.config.ts), so there is nothing for a channel to address. Every
+    // change reaches phones as a store release.
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "APP_FLAVOUR": "production"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    // The store app on TestFlight. Build numbers come from the store
+    // project's remote counter, shared with `production`.
+    // EXPO_NO_CAPABILITY_SYNC on the store profiles too, for the record: the
+    // NFC entitlement carries PACE (plugins/withNfc.plugin — needed for the
+    // ID-card `.pace` polling), which eas-cli's App ID capability sync rejects
+    // as an unknown value although Apple's profiles grant it. NOTE a profile
+    // `env` entry only reaches config evaluation and the build server — the
+    // sync runs in the local CLI process, which reads the flag from the shell
+    // at start-up. The package.json build:ios:* scripts and scripts/eas-build.sh
+    // export it; a bare `eas build --platform ios` must be prefixed with
+    // EXPO_NO_CAPABILITY_SYNC=1 or it aborts on the entitlement.
+    "testflight": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "APP_FLAVOUR": "production"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      }
+    },
+    // The release build: iOS to App Store Connect, Android as an .aab for
+    // Play. Build numbers auto-increment from the store project's remote
+    // counter, i.e. from where the 1.2.x releases left off.
+    "production": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "env": {
+        "EXPO_NO_CAPABILITY_SYNC": "1",
+        "APP_FLAVOUR": "production"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        // "large" (vs the default "medium") gives the D8 dex-merge step more
+        // headroom — this app's combined Noir + Groth16 + RN/Hermes class graph
+        // already needs an increased Gradle JVM heap (see
+        // scripts/ci/inject-android-gradle-tuning.mjs). Requires a paid EAS
+        // plan; delete this line to fall back to "medium".
+        "resourceClass": "large"
+      }
+    }
+  },
+  "submit": {
+    // "_comment": "Org account. Both profiles pin the STORE app's App Store Connect record (bundle id app.referendumcitoyen.fr) so EAS skips the create step — org accounts need a companyName the CLI can't supply. Nothing identifying that record is written into this file: eas-cli substitutes the four $RC_ASC_* variables at submit time, and scripts/eas-submit.sh refuses to run until they are set, naming the ones that are missing. Set them from the private checkout (a .env the shell sources, or the CI secret store); the beta repository has its own record and sets the same variables to its own values. The ASC API key is a Team key: the private .p8 stays in ./secrets, which is gitignored, and RC_ASC_API_KEY_PATH points at it.",
+    "testflight": {
+      "ios": {
+        "ascAppId": "$RC_ASC_APP_ID",
+        "ascApiKeyPath": "$RC_ASC_API_KEY_PATH",
+        "ascApiKeyId": "$RC_ASC_API_KEY_ID",
+        "ascApiKeyIssuerId": "$RC_ASC_API_KEY_ISSUER_ID"
+      }
+    },
+    // Same record, same Team key. Android has no service account on file, so
+    // the .aab is uploaded to the Play Console by hand (internal track).
+    "production": {
+      "ios": {
+        "ascAppId": "$RC_ASC_APP_ID",
+        "ascApiKeyPath": "$RC_ASC_API_KEY_PATH",
+        "ascApiKeyId": "$RC_ASC_API_KEY_ID",
+        "ascApiKeyIssuerId": "$RC_ASC_API_KEY_ISSUER_ID"
+      }
+    }
+  }
+}
