@@ -1,9 +1,17 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-15T17:30:00Z",
+  "updatedAt": "2026-09-29T16:30:00Z",
   "min_supported_app_versions": {
-    "android": "1.6.0",
-    "ios": "1.6.0"
+    "android": "2.0.2",
+    "ios": "2.0.2",
+    "production": {
+      "android": "2.0.2",
+      "ios": "2.0.2"
+    },
+    "beta": {
+      "android": "1.6.0",
+      "ios": "1.6.0"
+    }
   },
   "mainnet": {
     "active": [
