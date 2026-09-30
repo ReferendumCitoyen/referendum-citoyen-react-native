@@ -1,0 +1,273 @@
+import React, { useEffect } from 'react';
+import { StyleSheet, ScrollView, View, Text, useWindowDimensions, Linking } from 'react-native';
+import { VideoView } from 'expo-video';
+import Accordion from '@/components/Accordion';
+import { useColors, Typography, Spacing } from '@/constants/theme';
+import { useComprendreVideo } from '@/contexts/VideoContext';
+import { useTranslation } from 'react-i18next';
+import SettingsButton from '@/components/SettingsButton';
+import { CAP_BIG } from '@/utils/font-scale-cap';
+import { ABOUT_URL, NEWSLETTER_URL } from '@/constants/urls';
+import SiteLinkCard from '@/components/SiteLinkCard';
+import { useRouter } from 'expo-router';
+
+export default function ComprendreScreen() {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const colors = useColors();
+  const styles = createStyles(colors);
+  const player = useComprendreVideo();
+  // Scale the character animation in step with the welcome text so they grow
+  // together — never below the design size, never past CAP_BIG.
+  const { fontScale } = useWindowDimensions();
+  const welcomeMediaScale = Math.min(Math.max(fontScale, 1), CAP_BIG);
+  const sectionsRaw = t('comprendre.sections', { returnObjects: true });
+  const sections = Array.isArray(sectionsRaw)
+    ? (sectionsRaw as {
+        title: string;
+        intro?: string;
+        accordions: { title: string; content: string }[];
+      }[])
+    : [];
+
+  useEffect(() => {
+    if (!player) return;
+
+    // Start playing when screen is mounted
+    try {
+      player.play();
+    } catch (error) {
+      console.log('Error playing video:', error);
+    }
+
+    return () => {
+      // Pause when leaving screen. The player may already be released by its
+      // owning context during teardown — swallow that specific error since
+      // it's expected and non-actionable.
+      try {
+        player.pause();
+        player.currentTime = 0;
+      } catch (error: any) {
+        if (error?.code !== 'ERR_USING_RELEASED_SHARED_OBJECT') {
+          console.log('Error pausing video:', error);
+        }
+      }
+    };
+  }, [player]);
+
+  useEffect(() => {
+    if (!player) return;
+
+    let subscription: any;
+    try {
+      subscription = player.addListener('playingChange', (newStatus) => {
+        if (newStatus.isPlaying === false && player.currentTime >= player.duration - 0.1) {
+          // Video finished, wait 30 seconds before replaying
+          setTimeout(() => {
+            try {
+              player.currentTime = 0;
+              player.play();
+            } catch (error) {
+              console.log('Error replaying video:', error);
+            }
+          }, 30000);
+        }
+      });
+    } catch (error) {
+      console.log('Error adding listener:', error);
+    }
+
+    return () => {
+      if (subscription) {
+        try {
+          subscription.remove();
+        } catch (error) {
+          console.log('Error removing listener:', error);
+        }
+      }
+    };
+  }, [player]);
+
+  return (
+    <View style={styles.screenContainer}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer} bounces={false}>
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>{t('comprendre.welcome.title')}</Text>
+            <SettingsButton />
+          </View>
+          <View style={styles.welcomeContainer}>
+            <VideoView
+              style={[
+                styles.characterVideo,
+                {
+                  width: Spacing.video.characterWidth * welcomeMediaScale,
+                  height: Spacing.video.characterHeight * welcomeMediaScale,
+                },
+              ]}
+              player={player}
+              contentFit="cover"
+              nativeControls={false}
+              surfaceType="textureView"
+            />
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.welcomeText} maxFontSizeMultiplier={CAP_BIG}>
+                {t('comprendre.welcome.text')}
+              </Text>
+            </View>
+          </View>
+          {/* Sits at the foot of the Bienvenue block rather than directly
+              under the heading: the welcome paragraph says what we are
+              building, and this is the "and here is who we are" follow-on. */}
+          <Text
+            style={styles.aboutLink}
+            maxFontSizeMultiplier={CAP_BIG}
+            accessibilityRole="link"
+            onPress={() => Linking.openURL(ABOUT_URL)}
+          >
+            {t('comprendre.welcome.about')}
+          </Text>
+        </View>
+
+        {/* Sections — each with a pillar header, optional intro paragraph, and a list of Q/A accordions */}
+        {sections.map((section, sIdx) => (
+          <View key={sIdx} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {section.intro ? (
+              <Text style={styles.sectionIntro}>{section.intro}</Text>
+            ) : null}
+            {section.accordions.map((accordion, aIdx) => (
+              <Accordion
+                key={aIdx}
+                title={accordion.title}
+                content={accordion.content}
+                showBorder={true}
+              />
+            ))}
+          </View>
+        ))}
+
+        {/* The site's two e-mail services, linked but never hosted here: the
+            petitions (a page of their own, also reached from the vote list)
+            and the newsletter. */}
+        <View style={styles.siteLinks}>
+          <SiteLinkCard
+            title={t('petitions.title')}
+            text={t('petitions.entryText')}
+            buttonLabel={t('petitions.title')}
+            onPress={() => router.push('/petitions')}
+            variant="outlined"
+          />
+          <SiteLinkCard
+            title={t('newsletter.button')}
+            text={t('newsletter.text')}
+            buttonLabel={t('newsletter.button')}
+            url={NEWSLETTER_URL}
+            variant="outlined"
+          />
+        </View>
+
+        {/* Empty spacer for tab bar */}
+        <View style={styles.tabBarSpacer} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const createStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
+  screenContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: Spacing.tabBar.containerHeight,
+  },
+  headerSection: {
+    backgroundColor: colors.cardBackground,
+    paddingTop: Spacing.screen.top,
+    paddingHorizontal: Spacing.screen.horizontal,
+    paddingBottom: Spacing.screen.bottom,
+    gap: Spacing.screen.gap,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
+    letterSpacing: Typography.letterSpacing.h1,
+    color: colors.text,
+  },
+  welcomeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.screen.gap,
+    backgroundColor: colors.cardBackground,
+  },
+  aboutLink: {
+    fontFamily: Typography.fontFamily.semibold,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    color: colors.secondary,
+    textDecorationLine: 'underline',
+    alignSelf: 'flex-start',
+  },
+  characterVideo: {
+    width: Spacing.video.characterWidth,
+    height: Spacing.video.characterHeight,
+    borderRadius: Spacing.video.borderRadius,
+    margin: 12,
+  },
+  welcomeTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: colors.cardBackground,
+  },
+  welcomeText: {
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.medium,
+    fontSize: Typography.fontSize.small,
+    lineHeight: Typography.lineHeight.small,
+    letterSpacing: Typography.letterSpacing.small,
+    color: colors.text,
+  },
+  siteLinks: {
+    paddingHorizontal: Spacing.screen.horizontal,
+    paddingTop: Spacing.screen.sectionGap,
+    gap: 12,
+  },
+  section: {
+    backgroundColor: colors.cardBackground,
+    paddingTop: Spacing.accordion.padding,
+  },
+  sectionTitle: {
+    paddingHorizontal: Spacing.accordion.padding,
+    paddingBottom: Spacing.accordion.gap,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.h1,
+    lineHeight: Typography.lineHeight.h1,
+    letterSpacing: Typography.letterSpacing.h1,
+    color: colors.text,
+  },
+  sectionIntro: {
+    paddingHorizontal: Spacing.accordion.padding,
+    paddingBottom: Spacing.accordion.gap,
+    fontFamily: Typography.fontFamily.medium,
+    fontWeight: Typography.fontWeight.medium,
+    fontSize: Typography.fontSize.body,
+    lineHeight: Typography.lineHeight.body,
+    letterSpacing: Typography.letterSpacing.body,
+    color: colors.text,
+  },
+  tabBarSpacer: {
+    height: Spacing.tabBar.containerHeight,
+    backgroundColor: 'transparent',
+  },
+});

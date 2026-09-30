@@ -1,0 +1,58 @@
+name: PR Validate
+
+# Required status check on PRs targeting `develop`. Runs the same checks
+# CONTRIBUTING.md asks contributors to run locally before opening a PR,
+# so drift gets caught at PR time rather than in a maintainer's review.
+#
+# Note: `tsc --noEmit` is intentionally NOT gated here. The repo currently
+# has pre-existing type errors in QA/diagnostic screens and exported
+# reference folders that block a clean tsc run. Add a separate workflow
+# (or extend this one) once those are cleaned up.
+
+on:
+  pull_request:
+    branches: [develop]
+
+# Default GITHUB_TOKEN scopes are read-write across most APIs on private
+# repos. Pin the workflow to read-only so a compromised third-party action
+# can't push, open issues, or rewrite branches via the chain of trust.
+# Jobs that need to write (cache, comment, release) must add the specific
+# permission they need at the job level.
+permissions: read-all
+
+concurrency:
+  group: pr-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install JS dependencies
+        run: npm ci
+      - name: ESLint
+        run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Setup Node 20
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install JS dependencies
+        run: npm ci
+      - name: Jest
+        run: npm test -- --ci

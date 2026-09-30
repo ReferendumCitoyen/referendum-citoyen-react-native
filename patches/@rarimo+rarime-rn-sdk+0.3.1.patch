@@ -1,0 +1,3805 @@
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.d.ts
+index d10400f..3909ede 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.d.ts
+@@ -2,6 +2,8 @@ import { ProposalInfo } from "./types/proposal";
+ import { Rarime } from "./Rarime";
+ import { RarimePassport } from "./RarimePassport";
+ export declare const MRZ_ZERO_DATE = 52983525027888n;
++/** Bound on the vote POST and its body read (dossier 2.0.2, 3 e). */
++export declare const VOTE_POST_TIMEOUT_MS = 90000;
+ export interface FreedomToolAPIConfiguration {
+     ipfsUrl: string;
+     votingRelayerUrl: string;
+@@ -12,6 +14,9 @@ export interface SubmitProposalParams {
+     proposalInfo: ProposalInfo;
+     rarime: Rarime;
+     passport: RarimePassport;
++    /** YYMMDD (UTC) this attempt uses for the age pre-check and the proof's
++     * current_date. Defaults to today in UTC, read once. */
++    currentDate?: string;
+ }
+ export interface FreedomToolContractsConfiguration {
+     proposalStateAddress: string;
+@@ -19,14 +24,16 @@ export interface FreedomToolContractsConfiguration {
+ export interface FreedomToolConfiguration {
+     contracts: FreedomToolContractsConfiguration;
+     api: FreedomToolAPIConfiguration;
++    /** IPFS metadata by CID, used when the IPFS fetch fails. */
++    fallbackMetadata?: Readonly<Record<string, unknown>>;
+ }
+ export declare class FreedomTool {
+     private config;
+     constructor(config: FreedomToolConfiguration);
+     getProposalInfo(proposalId: string): Promise<ProposalInfo>;
+     isAlreadyVoted(proposalInfo: ProposalInfo, rarime: Rarime): Promise<boolean>;
+-    verify(proposalInfo: ProposalInfo, passport: RarimePassport, rarime: Rarime): Promise<void>;
+-    submitProposal({ answers, proposalInfo: proposalInfo, rarime, passport, }: SubmitProposalParams): Promise<string>;
++    verify(proposalInfo: ProposalInfo, passport: RarimePassport, rarime: Rarime, currentDate?: string): Promise<void>;
++    submitProposal({ answers, proposalInfo: proposalInfo, rarime, passport, currentDate, }: SubmitProposalParams): Promise<string>;
+     private getProposalRules;
+     private getProposalInfoFromContracts;
+     private getProposalMetadata;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
+index 2719106..83ca9aa 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Freedomtool.js
+@@ -2,19 +2,113 @@ import { AbiCoder, JsonRpcProvider, keccak256, toBeHex, toBigInt, zeroPadValue,
+ import { IDCardVoting__factory, PoseidonSMT__factory, ProposalsState__factory, } from "./types";
+ import { Time } from "@distributedlab/tools";
+ import { createIDCardVotingContract } from "./helpers/contracts";
++import { mrzDateOrUtcToday } from "./Rarime";
+ const ROOT_VALIDITY = 3600n;
+ const UINT32_MAX = 2n ** 32n - 1n;
+ const UINT64_MAX = 2n ** 64n - 1n;
+ export const MRZ_ZERO_DATE = 52983525027888n; // "000000"
++/** Bound on the vote POST and its body read (dossier 2.0.2, 3 e). */
++export const VOTE_POST_TIMEOUT_MS = 90000;
+ export class FreedomTool {
+     config;
+     constructor(config) {
+         this.config = config;
+     }
+     async getProposalInfo(proposalId) {
+-        const contractData = await this.getProposalInfoFromContracts(proposalId);
+-        const ipfsData = await this.getProposalMetadata(contractData[2][4]);
+-        const proposalCriteria = await this.getProposalRules(proposalId, contractData[2][5][0]);
++        // [DBG] Step-by-step logging so we can see which of the 3 sub-calls
++        // rejects when Promise.allSettled swallows the error upstream (the
++        // home screen wrapper hides per-id failures behind an empty list).
++        let contractData, ipfsData, proposalCriteria;
++        try {
++            contractData = await this.getProposalInfoFromContracts(proposalId);
++        } catch (e) {
++            console.error(`[SDK][getProposalInfo] #${proposalId} STEP1 getProposalInfoFromContracts FAILED:`, e?.shortMessage ?? e?.message ?? e);
++            throw e;
++        }
++        // A metadata failure (IPFS "Unable to resolve data for blob", "The
++        // specified blob is invalid", a malformed file) must never hide an open
++        // question: fall back to the copy the app bundles for that CID
++        // (config.fallbackMetadata). Content-addressed, so a bundled entry can
++        // only stand for the very file the chain points to. The log names the
++        // proposal and a constant code, nothing from the error or the CID.
++        try {
++            ipfsData = await this.getProposalMetadata(contractData[2][4]);
++            if (!ipfsData || typeof ipfsData.title !== "string" || !Array.isArray(ipfsData.acceptedOptions)) {
++                throw new Error("malformed metadata");
++            }
++        } catch (e) {
++            const bundled = this.config.fallbackMetadata?.[contractData?.[2]?.[4]];
++            if (!bundled) {
++                console.error(`[SDK][getProposalInfo] #${proposalId} METADATA_FETCH_FAILED no-bundled-copy`);
++                throw new Error(`[SDK] METADATA_FETCH_FAILED #${proposalId}`);
++            }
++            console.warn(`[SDK][getProposalInfo] #${proposalId} METADATA_FETCH_FAILED bundled-copy-used`);
++            ipfsData = bundled;
++        }
++        // BALLOT INTEGRITY (wave 4b, C3). A vote is an INDEX into
++        // `questions[q].variants`, so permuting that array silently inverts
++        // the meaning of every vote cast, and nothing downstream can notice:
++        // the proof is valid, the nullifier burns, and the Verify tab reads
++        // its labels back from the same source. The metadata is fetched from
++        // an IPFS gateway over TLS and used as it comes; nothing recomputes
++        // the multihash, so the gateway operator, or anyone who can present a
++        // certificate the device trusts (a managed fleet, a proxy), chooses
++        // what "Oui" means.
++        //
++        // The app ships a copy of the metadata for every question of its
++        // index, keyed BY CID, which is the hash of the content: an entry can
++        // only ever stand for the exact file the chain points to. So when a
++        // bundled copy exists, it decides the OPTION ORDER, and the fetched
++        // file may only supply display text. A fetched order that differs is
++        // not a reason to hide the question, it is a reason to ignore it, and
++        // it is logged under a constant code (no CID, no gateway body).
++        //
++        // For a CID with no bundled copy there is nothing to compare against,
++        // so the shape is bounded by the chain instead: `acceptedOptions` on
++        // the proposal config carries one bitmask per question, and a file
++        // that claims more questions, or more variants in a question, than the
++        // contract accepts is refused rather than shown.
++        //
++        // NOT a full fix, and the missing half is named in
++        // constants/bundled-proposal-metadata.ts: the signed proposal index
++        // carries no metadata CID, so a question published after this build
++        // has no trusted reference at all.
++        const bundledForCid = this.config.fallbackMetadata?.[contractData?.[2]?.[4]];
++        if (bundledForCid && ipfsData !== bundledForCid) {
++            const fetched = JSON.stringify(ipfsData.acceptedOptions ?? null);
++            if (fetched !== JSON.stringify(bundledForCid.acceptedOptions)) {
++                console.warn(`[SDK][getProposalInfo] #${proposalId} BALLOT_OPTIONS_MISMATCH bundled-order-used`);
++            }
++            ipfsData = {
++                ...ipfsData,
++                acceptedOptions: bundledForCid.acceptedOptions,
++                rankingBased: bundledForCid.rankingBased ?? false,
++            };
++        } else if (!bundledForCid) {
++            const onChainMasks = contractData?.[2]?.[3];
++            if (Array.isArray(onChainMasks) && onChainMasks.length > 0) {
++                const popcount = (mask) => {
++                    let n = BigInt(mask), c = 0;
++                    while (n > 0n) { c += Number(n & 1n); n >>= 1n; }
++                    return c;
++                };
++                const fits = ipfsData.acceptedOptions.length === onChainMasks.length
++                    && ipfsData.acceptedOptions.every((q, i) => Array.isArray(q?.variants)
++                        && q.variants.length > 0
++                        && q.variants.length <= popcount(onChainMasks[i]));
++                if (!fits) {
++                    console.error(`[SDK][getProposalInfo] #${proposalId} BALLOT_OPTIONS_REFUSED off-chain-shape`);
++                    throw new Error(`[SDK] BALLOT_OPTIONS_REFUSED #${proposalId}`);
++                }
++            }
++        }
++        try {
++            proposalCriteria = await this.getProposalRules(proposalId, contractData[2][5][0]);
++        } catch (e) {
++            console.error(`[SDK][getProposalInfo] #${proposalId} STEP3 getProposalRules FAILED (voter=${contractData?.[2]?.[5]?.[0]}):`, e?.shortMessage ?? e?.message ?? e);
++            throw e;
++        }
++        console.log(`[SDK][getProposalInfo] #${proposalId} OK — selector=${proposalCriteria[0]} whitelist=${proposalCriteria[1]?.length}`);
+         const proposalInfo = {
+             id: proposalId,
+             proposalSmtAddress: contractData[0],
+@@ -32,6 +126,11 @@ export class FreedomTool {
+             startTimestamp: contractData[2][0],
+             duration: contractData[2][1],
+             imageCID: ipfsData.imageCid ?? "",
++            // The CID the chain points at, carried so the app can re-impose
++            // the bundled option order after reading the proposal back from
++            // its own AsyncStorage cache, which is not authenticated either
++            // (utils/proposal-cache.ts, wave 4b C3 variant).
++            metadataCid: contractData[2][4],
+             sendVoteContractAddress: contractData[2][5][0],
+             title: ipfsData.title,
+             questions: ipfsData.acceptedOptions,
+@@ -49,7 +148,7 @@ export class FreedomTool {
+         const smtProof = await poseidonSmt.getProof(nullifier);
+         return smtProof[2];
+     }
+-    async verify(proposalInfo, passport, rarime) {
++    async verify(proposalInfo, passport, rarime, currentDate) {
+         let nowTimestamp = new Time().timestamp;
+         if (nowTimestamp < proposalInfo.startTimestamp) {
+             throw new Error("Voting has not started.");
+@@ -57,24 +156,105 @@ export class FreedomTool {
+         if (nowTimestamp > proposalInfo.startTimestamp + proposalInfo.duration) {
+             throw new Error("Voting has ended.");
+         }
+-        passport.verifyPassport(proposalInfo);
++        passport.verifyPassport(proposalInfo, currentDate);
+         if (await this.isAlreadyVoted(proposalInfo, rarime)) {
+             throw new Error("User has already voted");
+         }
+     }
+-    async submitProposal({ answers, proposalInfo: proposalInfo, rarime, passport, }) {
+-        await this.verify(proposalInfo, passport, rarime);
+-        const passportInfo = await rarime.getPassportInfo(passport);
+-        const queryProofParams = await this.buildQueryProofParams(answers, proposalInfo, passportInfo);
+-        const queryProof = await rarime.generateQueryProof(queryProofParams, passport);
+-        const txCallData = await this.buildProposalCallData(answers, proposalInfo, rarime, passport, queryProof, passportInfo);
+-        const txHash = await this.sendProposalRequest(txCallData, proposalInfo);
++    async submitProposal({ answers, proposalInfo: proposalInfo, rarime, passport, currentDate, }) {
++        // Everything this attempt votes with is fixed here, once: the proposal,
++        // the document, the answers, the SDK instance and one UTC date. The age
++        // pre-check, the proof's current_date and (through the proof's own
++        // public signal) the calldata all read that date, never a second clock
++        // read; a caller refreshing its proposal object mid-proof changes nothing.
++        const attempt = Object.freeze({
++            proposalInfo,
++            passport,
++            rarime,
++            answers: Object.freeze([...answers]),
++            currentDate: mrzDateOrUtcToday(currentDate),
++        });
++        await this.verify(attempt.proposalInfo, attempt.passport, attempt.rarime, attempt.currentDate);
++        const passportInfo = await attempt.rarime.getPassportInfo(attempt.passport);
++        const queryProofParams = await this.buildQueryProofParams(attempt.answers, attempt.proposalInfo, passportInfo, attempt.currentDate);
++        // The proof and its root, bound and frozen for this attempt.
++        const boundProof = await attempt.rarime.generateQueryProof(queryProofParams, attempt.passport);
++        const txCallData = await this.buildProposalCallData(attempt.answers, attempt.proposalInfo, attempt.rarime, attempt.passport, boundProof, passportInfo);
++        const txHash = await this.sendProposalRequest(txCallData, attempt.proposalInfo);
+         return txHash;
+     }
+     async getProposalRules(proposalId, sendVoteContractAddress) {
+         const provider = new JsonRpcProvider(this.config.api.votingRpcUrl);
+-        const contract = IDCardVoting__factory.connect(sendVoteContractAddress, provider);
+-        return contract.getProposalRules(proposalId);
++        // Try the on-chain view function first. This works on testnet (IDCardVoting
++        // has getProposalRules in its public ABI), but reverts on the deployed
++        // Mainnet BioPassportVoting at 0x8Dea8065… — the live implementation at
++        // 0x22556A82 doesn't include this view (only `vote()` + getters), so a
++        // direct call fails with BAD_DATA / "no data present". We fall back to
++        // decoding the rules ourselves from ProposalsState.getProposalConfig
++        // (votingWhitelistData[thisId]) — which is exactly what
++        // BaseVoting.sol::getProposalRules does internally on chain.
++        try {
++            const contract = IDCardVoting__factory.connect(sendVoteContractAddress, provider);
++            return await contract.getProposalRules(proposalId);
++        } catch (e) {
++            // Fall through to client-side decode.
++            console.log('[SDK][getProposalRules] on-chain call failed, decoding from votingWhitelistData. err=', e?.shortMessage ?? e?.message ?? e);
++        }
++        const proposalsState = ProposalsState__factory.connect(this.config.contracts.proposalStateAddress, provider);
++        // Bypass the typed factory — its getProposalConfig assumes an older
++        // struct layout. Use ethers.Contract with the deployed shape.
++        const { Contract, AbiCoder } = await import('ethers');
++        const configAbi = ['function getProposalConfig(uint256) view returns (tuple(uint64 startTimestamp, uint64 duration, uint256 multichoice, uint256[] acceptedOptions, string description, address[] votingWhitelist, bytes[] votingWhitelistData))'];
++        const cfgContract = new Contract(this.config.contracts.proposalStateAddress, configAbi, provider);
++        const cfg = await cfgContract.getProposalConfig(proposalId);
++        const target = sendVoteContractAddress.toLowerCase();
++        const whitelist = Array.from(cfg.votingWhitelist).map((a) => a.toLowerCase());
++        const thisId = whitelist.indexOf(target);
++        if (thisId === -1) {
++            throw new Error(`[SDK][getProposalRules] sendVoteContract ${sendVoteContractAddress} not in proposal ${proposalId} votingWhitelist [${whitelist.join(', ')}]`);
++        }
++        // Defensive access — some ProposalConfig reads come back as a Result
++        // that throws "out of result range" on certain index/property combos
++        // even when the chain data is valid (seen on Mainnet for some older
++        // proposals). Wrap each step so a single bad proposal doesn't kill
++        // its getProposalInfo() and we still show it in the list with empty
++        // rules (which lets isFrenchCompatible default to permissive and the
++        // on-chain verifier remains the source of truth for vote eligibility).
++        let rulesBytes;
++        try {
++            rulesBytes = cfg.votingWhitelistData[thisId];
++        } catch (e) {
++            console.log(`[SDK][getProposalRules][DBG] #${proposalId} cfg.votingWhitelistData[${thisId}] access FAILED:`, e?.shortMessage ?? e?.message ?? e, '— returning empty stub');
++            return [0n, [], 0n, 0n, 0n, 0n, 0n, 0n];
++        }
++        console.log(`[SDK][getProposalRules][DBG] #${proposalId} thisId=${thisId} rulesBytes.length=${(rulesBytes.length - 2) / 2} first128=${rulesBytes.slice(0, 130)}`);
++        const rulesType = ['tuple(uint256 selector, uint256[] citizenshipWhitelist, uint256 identityCreationTimestampUpperBound, uint256 identityCounterUpperBound, uint256 sex, uint256 birthDateLowerbound, uint256 birthDateUpperbound, uint256 expirationDateLowerBound)'];
++        let decoded;
++        try {
++            [decoded] = AbiCoder.defaultAbiCoder().decode(rulesType, rulesBytes);
++        } catch (e) {
++            console.log(`[SDK][getProposalRules][DBG] #${proposalId} decode FAILED:`, e?.shortMessage ?? e?.message ?? e, '— returning empty stub');
++            return [0n, [], 0n, 0n, 0n, 0n, 0n, 0n];
++        }
++        // NOTE: never access ctz[0] when ctz is empty — ethers v6 Result.[0]
++        // throws "out of result range" instead of returning undefined, and
++        // an uncaught throw from this log line was killing decode for every
++        // proposal with an empty citizenshipWhitelist (#38, #43, #45, #46…).
++        const ctzLen = decoded.citizenshipWhitelist.length;
++        const ctzFirst = ctzLen > 0 ? decoded.citizenshipWhitelist[0] : '<empty>';
++        console.log(`[SDK][getProposalRules][DBG] #${proposalId} decoded.selector=${decoded.selector} ctz.length=${ctzLen} ctz[0]=${ctzFirst}`);
++        // Re-emit as a positional array so existing call sites in
++        // getProposalInfo (proposalCriteria[0]…[7]) keep working unchanged.
++        return [
++            decoded.selector,
++            decoded.citizenshipWhitelist,
++            decoded.identityCreationTimestampUpperBound,
++            decoded.identityCounterUpperBound,
++            decoded.sex,
++            decoded.birthDateLowerbound,
++            decoded.birthDateUpperbound,
++            decoded.expirationDateLowerBound,
++        ];
+     }
+     async getProposalInfoFromContracts(proposalId) {
+         const provider = new JsonRpcProvider(this.config.api.votingRpcUrl);
+@@ -112,7 +292,7 @@ export class FreedomTool {
+         const proposalsState = ProposalsState__factory.connect(this.config.contracts.proposalStateAddress, provider);
+         return proposalsState.getProposalEventId(proposalInfo.id);
+     }
+-    async buildQueryProofParams(answers, proposalInfo, passportInfo) {
++    async buildQueryProofParams(answers, proposalInfo, passportInfo, currentDate) {
+         const eventId = await this.getEventId(proposalInfo);
+         const eventData = this.getEventData(answers);
+         let timestampUpperbound = proposalInfo.criteria.timestampUpperbound - ROOT_VALIDITY;
+@@ -134,10 +314,34 @@ export class FreedomTool {
+             expirationDateLowerbound: proposalInfo.criteria.expirationDateLowerbound.toString(),
+             expirationDateUpperbound: MRZ_ZERO_DATE.toString(),
+             citizenshipMask: "0",
++            // Read by Rarime.generateQueryProof for current_date; absent means
++            // "today in UTC" there.
++            ...(currentDate !== undefined ? { currentDate } : {}),
+         };
+         return queryProofParams;
+     }
+-    async buildProposalCallData(answers, proposalInfo, rarime, passport, queryProof, passportInfo) {
++    async buildProposalCallData(answers, proposalInfo, rarime, passport, boundProof, passportInfo) {
++        // The proof and the root it was generated against arrive together
++        // (Rarime.generateQueryProof). No root, no vote: nothing here falls back
++        // to a fresh SMT read or to state kept on the Rarime instance.
++        //
++        // Why the root matters: the contract rebuilds the public signals from
++        // the calldata root (AQueryProofExecutor -> withIdStateRoot) and verifies
++        // the proof against them. 2.0.0 read the SMT a second time here, 7-86 s
++        // after the proof, so any registration mined in between made the two
++        // disagree and the vote reverted (the relayer's 400 "failed to estimate
++        // gas", six refused votes on 2026-09-18). 2.0.1 kept the proof's root on
++        // the instance, a mutable field shared by every proof made on it, with
++        // a fallback to the fresh read. Both are gone: one request less, and the
++        // association cannot drift. Needs Rarimo validation.
++        const queryProof = boundProof?.proof;
++        const registrationRoot = boundProof?.idStateRoot;
++        if (!queryProof || !Array.isArray(queryProof.pub_signals) || !queryProof.proof) {
++            throw new Error("[SDK] no query proof for the vote");
++        }
++        if (typeof registrationRoot !== "string" || !/^0x[0-9a-fA-F]{1,64}$/.test(registrationRoot)) {
++            throw new Error("[SDK] no registration root bound to the proof");
++        }
+         let identityCreationTimestamp = 0n;
+         if (passportInfo[1][1] > proposalInfo.criteria.timestampUpperbound) {
+             identityCreationTimestamp = UINT64_MAX - 1n;
+@@ -149,16 +353,46 @@ export class FreedomTool {
+             // votes mask
+             answers.map((v) => 1 << Number(v)),
+             // User payload: (nullifier, citizenship, identity_creation_timestamp)
++            // TD1 main.nr returns tmp.0..tmp.9 (10 query outputs) before passthroughs;
++            // TD3 returns tmp.0..tmp.8 (9 outputs). Citizenship is the last element of
++            // the query tuple — index 9 for TD1, index 8 for TD3 — but the SDK reads
++            // pub_signals[5]/[6] which corresponds to the *citizenship* field within
++            // the query tuple (5th in TD1, 6th in TD3). See main.nr in the
++            // passport-zk-circuits-noir repo.
+             [
+                 "0x" + queryProof.pub_signals[0],
+-                "0x" + queryProof.pub_signals[6],
++                "0x" + queryProof.pub_signals[passport.dataGroup1.length === 95 ? 5 : 6],
+                 identityCreationTimestamp,
+             ],
+         ]);
+-        const smtProof = await rarime.getSMTProof(passport);
+-        const txCallData = idCardVoting.contractInterface.encodeFunctionData("executeTD1Noir", [
+-            smtProof.root,
+-            "0x" + queryProof.pub_signals[14],
++        // current_date passthrough: TD1 has 10 query outputs + event_id + event_data +
++        // id_state_root + selector → current_date at index 14. TD3 has 9 query outputs
++        // → current_date at index 13. Taken from the proof itself, never from a
++        // new clock read: a proof made at 23:58 UTC and sent at 00:01 keeps its
++        // own date.
++        const isTD3 = passport.dataGroup1.length === 93;
++        const currentDateIdx = isTD3 ? 13 : 14;
++        // Consistency check against the proof's own id_state_root public signal:
++        // index 12 for TD1, 11 for TD3 - the slot PublicSignalsTD1Builder writes
++        // on chain. A warning only, guarded, because a diagnostic must never be
++        // the thing that breaks a vote. No root value in the line.
++        const rootIdx = isTD3 ? 11 : 12;
++        const proofRootSignal = queryProof.pub_signals[rootIdx];
++        if (proofRootSignal) {
++            try {
++                if (BigInt("0x" + proofRootSignal) !== BigInt(registrationRoot)) {
++                    console.warn('[SDK][vote] registration root differs from the proof public signal');
++                }
++            }
++            catch (e) { }
++        }
++        // TD1 uses executeTD1Noir on IDCardVoting; TD3 uses executeNoir on
++        // BioPassportVoting (sendVoteContractAddress determines which contract).
++        // Both have the same 4-arg signature.
++        const fnName = isTD3 ? "executeNoir" : "executeTD1Noir";
++        const txCallData = idCardVoting.contractInterface.encodeFunctionData(fnName, [
++            registrationRoot,
++            "0x" + queryProof.pub_signals[currentDateIdx],
+             userDataEncoded,
+             "0x" + queryProof.proof,
+         ]);
+@@ -173,19 +407,75 @@ export class FreedomTool {
+                 },
+             },
+         };
+-        const sendVoteResponse = await fetch(this.config.api.votingRelayerUrl +
+-            "/integrations/proof-verification-relayer/v3/vote", {
+-            method: "POST",
+-            headers: {
+-                "Content-Type": "application/json",
+-            },
+-            body: JSON.stringify(sendVoteRequest),
++        // From here on the vote may have left the phone. Every failure below is
++        // tagged votePostSent so the app treats a lost answer as "sent, outcome
++        // unknown" (re-read the status, never re-send blindly), not as "not
++        // recorded". A relayer that answered with an HTTP status also carries it.
++        const postSent = (message, status) => {
++            const err = new Error(message);
++            err.votePostSent = true;
++            err.code = "VOTE_POST_SENT";
++            if (status !== undefined)
++                err.status = status;
++            return err;
++        };
++        // Bounded (dossier 2.0.2, 3 e; plan D10): one report
++        // waited minutes on this POST. The bound covers the request AND the
++        // body read. A timeout is "sent, outcome unknown" like any other lost
++        // answer (R4): the app re-reads the status once and never re-sends.
++        const controller = new AbortController();
++        let timer;
++        const deadline = new Promise((_, reject) => {
++            timer = setTimeout(() => {
++                controller.abort();
++                // votePostBoundFired, not just votePostSent: asking the chain
++                // once at the instant a bound fires is asking at the worst
++                // moment, because the bound firing says the relayer is still
++                // working. The app re-reads over a bounded window instead
++                // (REG-11, utils/vote-attempt.ts).
++                reject(Object.assign(postSent(`[SDK] vote POST without answer within ${VOTE_POST_TIMEOUT_MS / 1000} s`), { votePostBoundFired: true }));
++            }, VOTE_POST_TIMEOUT_MS);
+         });
+-        if (!sendVoteResponse.ok) {
+-            throw new Error(`HTTP error ${sendVoteResponse.status}`);
++        const exchange = async () => {
++            let sendVoteResponse;
++            try {
++                sendVoteResponse = await fetch(this.config.api.votingRelayerUrl +
++                    "/integrations/proof-verification-relayer/v3/vote", {
++                    method: "POST",
++                    headers: {
++                        "Content-Type": "application/json",
++                    },
++                    body: JSON.stringify(sendVoteRequest),
++                    signal: controller.signal,
++                });
++            }
++            catch (e) {
++                throw postSent(`[SDK] vote POST without answer: ${e?.message ?? e}`);
++            }
++            if (!sendVoteResponse.ok) {
++                const errBody = await sendVoteResponse.text().catch(() => '(unreadable)');
++                console.error(`[SDK] sendProposalRequest failed: ${sendVoteResponse.status} ${sendVoteResponse.statusText}\nURL: ${this.config.api.votingRelayerUrl}/integrations/proof-verification-relayer/v3/vote\nRequest: tx_data len=${txCallData.length}, destination=${proposalInfo.sendVoteContractAddress}\nResponse: ${errBody}`);
++                throw postSent(`HTTP error ${sendVoteResponse.status}: ${errBody}`, sendVoteResponse.status);
++            }
++            let sendVoteResponseParsed;
++            try {
++                sendVoteResponseParsed = await sendVoteResponse.json();
++            }
++            catch (e) {
++                throw postSent(`[SDK] vote accepted but its answer was unreadable: ${e?.message ?? e}`);
++            }
++            const txId = sendVoteResponseParsed?.data?.id;
++            if (!txId) {
++                throw postSent("[SDK] vote accepted without a transaction id");
++            }
++            return txId;
++        };
++        try {
++            return await Promise.race([exchange(), deadline]);
++        }
++        finally {
++            clearTimeout(timer);
+         }
+-        const sendVoteResponseParsed = await sendVoteResponse.json();
+-        return sendVoteResponseParsed.data.id;
+     }
+ }
+ //# sourceMappingURL=Freedomtool.js.map
+\ No newline at end of file
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
+index 9655e7b..8fa7fbd 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.d.ts
+@@ -20,8 +20,15 @@ export interface RarimeConfiguration {
+     apiConfiguration: RarimeAPIConfiguration;
+     userConfiguration: RarimeUserConfiguration;
+ }
++/** A query proof and the registration root it was generated against. */
++export interface BoundQueryProof {
++    readonly proof: NoirZKProof;
++    readonly idStateRoot: string;
++}
+ export declare class Rarime {
+     private config;
++    static registerBundledCircuit(name: string, jsonObjectOrString: object | string): void;
++    static getBundledCircuit(name: string): string | null;
+     constructor(config: RarimeConfiguration);
+     getPassportInfo(passport: RarimePassport): Promise<[
+         StateKeeper.PassportInfoStructOutput,
+@@ -30,7 +37,8 @@ export declare class Rarime {
+     getDocumentStatus(passport: RarimePassport): Promise<DocumentStatus>;
+     registerIdentity(passport: RarimePassport): Promise<String>;
+     getSMTProof(passport: RarimePassport): Promise<SparseMerkleTree.ProofStruct>;
+-    generateQueryProof(queryProofParams: QueryProofParams, passport: RarimePassport): Promise<NoirZKProof>;
++    /** The proof and the registration root it commits to, bound together. */
++    generateQueryProof(queryProofParams: QueryProofParams, passport: RarimePassport): Promise<BoundQueryProof>;
+     getEventNullifier(eventId: bigint): string;
+     private buildLiteRegisterCalldata;
+     private generateLiteRegisterProof;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
+index fd0ba76..3846cf4 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/Rarime.js
+@@ -11,8 +11,36 @@ import { toPaddedHex32, wrapPem } from "./utils";
+ import { Poseidon } from "@iden3/js-crypto";
+ import { Time } from "@distributedlab/tools";
+ const ZERO_BYTES = new Uint8Array(64);
++/** Today in UTC as YYMMDD, or the attempt's own date when one is given. */
++export function mrzDateOrUtcToday(currentDate) {
++    if (currentDate === undefined || currentDate === null) {
++        return new Time().utc().format("YYMMDD");
++    }
++    if (!/^\d{6}$/.test(String(currentDate))) {
++        throw new Error("[SDK] invalid current date for the proof");
++    }
++    return String(currentDate);
++}
++// Registry of pre-bundled circuit bytecode JSON strings, keyed by circuit name.
++// Populated by the host app at startup via Rarime.registerBundledCircuit() so the
++// SDK can use circuits that aren't published on Rarimo's GCS bucket — currently
++// only the TD3 (passport) query circuit, self-compiled from
++// rarimo/passport-zk-circuits-noir and shipped in app assets.
++const bundledCircuits = {};
+ export class Rarime {
+     config;
++    static registerBundledCircuit(name, jsonObjectOrString) {
++        bundledCircuits[name] = typeof jsonObjectOrString === "string"
++            ? jsonObjectOrString
++            : JSON.stringify(jsonObjectOrString);
++    }
++    // Read the bundled bytecode for a previously-registered circuit. Returns
++    // null if nothing is registered under that name. Exposed so host apps
++    // can drive their own prove() flows (heavy register circuits with
++    // bespoke inputs) without re-implementing the bundle lookup.
++    static getBundledCircuit(name) {
++        return bundledCircuits[name] ?? null;
++    }
+     constructor(config) {
+         if (config.userConfiguration.userPrivateKey.startsWith("0x")) {
+             config.userConfiguration.userPrivateKey =
+@@ -41,95 +69,148 @@ export class Rarime {
+         if (activeIdentity === ZERO_BYTES_STRING) {
+             return DocumentStatus.NotRegistered;
+         }
+-        if (activeIdentity === this.config.userConfiguration.userPrivateKey) {
++        // Chain stores the profileKey (Poseidon hash of the BJJ pubPoint),
++        // not the private key itself. Compare apples to apples.
++        const profileKey = "0x" + RarimeUtils.getProfileKey(this.config.userConfiguration.userPrivateKey);
++        if (activeIdentity === profileKey) {
+             return DocumentStatus.RegisteredWithThisPk;
+         }
+         return DocumentStatus.RegisteredWithOtherPk;
+     }
+     async registerIdentity(passport) {
+-        const passportStatus = await this.getDocumentStatus(passport);
+-        if (passportStatus === DocumentStatus.RegisteredWithOtherPk) {
+-            throw new Error("This document was registered with other Private Key");
+-        }
+-        if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
+-            throw new Error("This document was registered with this Private Key");
+-        }
++        // Throws for RegisteredWithOtherPk / RegisteredWithThisPk removed — the
++        // app layer (components/voting-modal/Step7.tsx) decides the policy.
++        // Dev builds allow rotation so a single passport can be re-tested
++        // after a SecureStore wipe; prod builds block at the app level so a
++        // double-vote isn't possible by silently rotating keys.
++        const isTD3 = passport.dataGroup1.length === 93;
++        console.log(`[SDK][REG] === registerIdentity START — docType=${isTD3 ? 'TD3 passport' : 'TD1 ID card'} dg1Len=${passport.dataGroup1.length} ===`);
+         const hashAlgoOID = passport.extractDGHashAlgo();
+         const hashAlgo = HashAlgorithm.fromOID(hashAlgoOID);
+         const hashLength = hashAlgo.getByteLength();
+-        const proof = await this.generateLiteRegisterProof(hashLength, passport);
+-        const verifySodResponse = await this.verifySodRequest(passport, proof);
+-        const verifySodResponseParsed = await verifySodResponse.json();
+-        const txCallData = this.buildLiteRegisterCalldata(verifySodResponseParsed, proof, passport);
+-        const liteRegisterResponse = await this.sendRegisterLiteTransaction(txCallData);
+-        const liteRegisterResponseParsed = await liteRegisterResponse.json();
++        console.log(`[SDK][REG] hashAlgo OID=${hashAlgoOID} → name=${hashAlgo.toString()} byteLen=${hashLength}`);
++        console.log('[SDK][REG] STEP 1/4: generateLiteRegisterProof (Noir circuit)…');
++        const tProofStart = Date.now();
++        let proof;
++        try {
++            proof = await this.generateLiteRegisterProof(hashLength, passport);
++        } catch (e) {
++            console.error(`[SDK][REG] FAIL @ STEP 1 generateLiteRegisterProof after ${Date.now() - tProofStart}ms:`, e?.message ?? e);
++            throw e;
++        }
++        console.log(`[SDK][REG] STEP 1 OK in ${Date.now() - tProofStart}ms; pubSignals=${proof.pub_signals?.length ?? 0} proofLen=${proof.proof?.length ?? 0}`);
++        console.log('[SDK][REG] STEP 2/4: verifySodRequest (POST /register|/registerid)…');
++        const tVerifyStart = Date.now();
++        let verifySodResponseParsed;
++        try {
++            const verifySodResponse = await this.verifySodRequest(passport, proof);
++            verifySodResponseParsed = await verifySodResponse.json();
++        } catch (e) {
++            console.error(`[SDK][REG] FAIL @ STEP 2 verifySodRequest after ${Date.now() - tVerifyStart}ms:`, e?.message ?? e);
++            throw e;
++        }
++        const attrs = verifySodResponseParsed?.data?.attributes ?? {};
++        console.log(`[SDK][REG] STEP 2 OK in ${Date.now() - tVerifyStart}ms; verifier=${attrs.verifier ?? '<none>'} pubKeyLen=${attrs.public_key?.length ?? 0} sigLen=${attrs.signature?.length ?? 0}`);
++        console.log('[SDK][REG] STEP 3/4: buildLiteRegisterCalldata…');
++        let txCallData;
++        try {
++            txCallData = this.buildLiteRegisterCalldata(verifySodResponseParsed, proof, passport);
++        } catch (e) {
++            console.error('[SDK][REG] FAIL @ STEP 3 buildLiteRegisterCalldata:', e?.message ?? e);
++            throw e;
++        }
++        console.log(`[SDK][REG] STEP 3 OK; txCallDataLen=${txCallData.length}`);
++        console.log('[SDK][REG] STEP 4/4: sendRegisterLiteTransaction (POST relayer /v1/register)…');
++        const tRelayerStart = Date.now();
++        let liteRegisterResponseParsed;
++        try {
++            const liteRegisterResponse = await this.sendRegisterLiteTransaction(txCallData);
++            liteRegisterResponseParsed = await liteRegisterResponse.json();
++        } catch (e) {
++            console.error(`[SDK][REG] FAIL @ STEP 4 sendRegisterLiteTransaction after ${Date.now() - tRelayerStart}ms:`, e?.message ?? e);
++            throw e;
++        }
++        console.log(`[SDK][REG] STEP 4 OK in ${Date.now() - tRelayerStart}ms; tx id=${liteRegisterResponseParsed?.data?.id ?? '<none>'}`);
++        console.log('[SDK][REG] === registerIdentity SUCCESS ===');
+         return liteRegisterResponseParsed.data.id;
+     }
+     async getSMTProof(passport) {
+         const provider = new JsonRpcProvider(this.config.apiConfiguration.jsonRpcEvmUrl);
+         const contract = PoseidonSMT__factory.connect(this.config.contractsConfiguration.poseidonSmtAddress, provider);
+         const smtProofIndex = this.getSMTProofIndex(passport);
+-        return contract.getProof(smtProofIndex);
++        console.log(`[SDK][getSMTProof] poseidonSmt=${this.config.contractsConfiguration.poseidonSmtAddress} rpc=${this.config.apiConfiguration.jsonRpcEvmUrl} smtProofIndex=${smtProofIndex}`);
++        try {
++            const result = await contract.getProof(smtProofIndex);
++            console.log(`[SDK][getSMTProof] OK: root=${result.root} existence=${result.existence} siblings=${result.siblings.length}`);
++            return result;
++        } catch (e) {
++            console.error(`[SDK][getSMTProof] FAIL: ${e?.message ?? e}`);
++            // Retry once — ethers v6 occasionally returns BAD_DATA on transient RPC
++            // hiccups even when a subsequent call succeeds. Cheap insurance.
++            try {
++                console.log('[SDK][getSMTProof] retrying once after 1s…');
++                await new Promise(r => setTimeout(r, 1000));
++                const retry = await contract.getProof(smtProofIndex);
++                console.log(`[SDK][getSMTProof] retry OK: root=${retry.root} existence=${retry.existence} siblings=${retry.siblings.length}`);
++                return retry;
++            } catch (e2) {
++                console.error(`[SDK][getSMTProof] retry FAILED: ${e2?.message ?? e2}`);
++                throw e;
++            }
++        }
+     }
+     async generateQueryProof(queryProofParams, passport) {
+-        const circuit = NoirCircuitParams.fromName("query_identity");
++        // TD1 ID-card DG1 = 95 bytes, TD3 passport DG1 = 93 bytes. The published
++        // Rarimo Noir circuits only cover TD1; the TD3 query circuit is self-compiled
++        // and shipped in-app via Rarime.registerBundledCircuit().
++        const isTD3 = passport.dataGroup1.length === 93;
++        const circuitName = isTD3 ? "query_identity_td3" : "query_identity";
++        const circuit = NoirCircuitParams.fromName(circuitName);
+         await NoirCircuitParams.downloadTrustedSetup();
+-        const byteCode = await circuit.downloadByteCode();
++        const byteCode = bundledCircuits[circuitName] ?? (await circuit.downloadByteCode());
+         const profileKey = "0x" +
+             RarimeUtils.getProfileKey(this.config.userConfiguration.userPrivateKey);
+         const passportInfo = await this.getPassportInfo(passport);
+         if (profileKey !== passportInfo[0].activeIdentity) {
+             throw new Error(`profile key mismatch. profileKey = ${profileKey}, passportInfo.activeIdentity = ${passportInfo[0].activeIdentity}`);
+         }
++        // Read once. The root committed to the circuit as id_state_root travels
++        // WITH the proof (the return value below), never through a field of this
++        // instance: a mutable "last root" was shared by every proof generated on
++        // the instance, and the calldata must carry exactly this proof's root.
+         const smtProof = await this.getSMTProof(passport);
+-        const isAndroid = Platform.OS === "android";
++        const idStateRoot = smtProof.root;
+         const inputs = {
+-            event_id: isAndroid
+-                ? toPaddedHex32(queryProofParams.eventId)
+-                : queryProofParams.eventId, //from input
+-            event_data: isAndroid
+-                ? toPaddedHex32(queryProofParams.eventData)
+-                : queryProofParams.eventData,
+-            id_state_root: smtProof.root, //from SMT
+-            selector: isAndroid
+-                ? toPaddedHex32(queryProofParams.selector)
+-                : queryProofParams.selector, //from input
+-            current_date: hexlify(toUtf8Bytes(new Time().format("YYMMDD"))),
+-            timestamp_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.timestampLowerbound)
+-                : queryProofParams.timestampLowerbound, //from input
+-            timestamp_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.timestampUpperbound)
+-                : queryProofParams.timestampUpperbound, //from input
+-            identity_count_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.identityCountLowerbound)
+-                : queryProofParams.identityCountLowerbound, //from input
+-            identity_count_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.identityCountUpperbound)
+-                : queryProofParams.identityCountUpperbound, //from input
+-            birth_date_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.birthDateLowerbound)
+-                : queryProofParams.birthDateLowerbound, //from input
+-            birth_date_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.birthDateUpperbound)
+-                : queryProofParams.birthDateUpperbound, //from input
+-            expiration_date_lowerbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.expirationDateLowerbound)
+-                : queryProofParams.expirationDateLowerbound, //from input
+-            expiration_date_upperbound: isAndroid
+-                ? toPaddedHex32(queryProofParams.expirationDateUpperbound)
+-                : queryProofParams.expirationDateUpperbound, //from input
+-            citizenship_mask: isAndroid
+-                ? toPaddedHex32(queryProofParams.citizenshipMask)
+-                : queryProofParams.citizenshipMask, //from input
++            event_id: toPaddedHex32(queryProofParams.eventId),
++            event_data: toPaddedHex32(queryProofParams.eventData),
++            id_state_root: idStateRoot,
++            selector: toPaddedHex32(queryProofParams.selector),
++            // UTC, not the phone's local date: the contract turns current_date
++            // into midnight UTC of that day and requires it within 24 h of the
++            // block time (PublicSignalsTD1Builder.validateDate), so a local date
++            // behind UTC (Antilles after 20:00, Polynesia after 14:00) reverted.
++            // One date per attempt: the caller may pass the one it already used
++            // for its own pre-checks (FreedomTool.submitProposal does).
++            current_date: hexlify(toUtf8Bytes(mrzDateOrUtcToday(queryProofParams.currentDate))),
++            timestamp_lowerbound: toPaddedHex32(queryProofParams.timestampLowerbound),
++            timestamp_upperbound: toPaddedHex32(queryProofParams.timestampUpperbound),
++            identity_count_lowerbound: toPaddedHex32(queryProofParams.identityCountLowerbound),
++            identity_count_upperbound: toPaddedHex32(queryProofParams.identityCountUpperbound),
++            birth_date_lowerbound: toPaddedHex32(queryProofParams.birthDateLowerbound),
++            birth_date_upperbound: toPaddedHex32(queryProofParams.birthDateUpperbound),
++            expiration_date_lowerbound: toPaddedHex32(queryProofParams.expirationDateLowerbound),
++            expiration_date_upperbound: toPaddedHex32(queryProofParams.expirationDateUpperbound),
++            citizenship_mask: toPaddedHex32(queryProofParams.citizenshipMask),
+             sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+             pk_passport_hash: toPaddedHex32(passport.getPassportKey()),
+-            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), isAndroid),
+-            siblings: smtProof.siblings, //from SMT
++            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), true),
++            siblings: smtProof.siblings,
+             timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
+             identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
+         };
+-        return circuit.prove(JSON.stringify(inputs), byteCode);
++        const proof = await circuit.prove(JSON.stringify(inputs), byteCode);
++        // Frozen: the pair is what FreedomTool.buildProposalCallData consumes.
++        return Object.freeze({ proof, idStateRoot });
+     }
+     getEventNullifier(eventId) {
+         const privateKeyPoseidonHash = Poseidon.hash([
+@@ -161,15 +242,39 @@ export class Rarime {
+         return txCallData;
+     }
+     async generateLiteRegisterProof(hashLength, passport) {
+-        const circuit = NoirCircuitParams.fromName("register_light_" + hashLength);
++        // TD3 (passport, DG1=93) and TD1 (ID card, DG1=95) use the same lite-register
++        // circuit shape but a different compile-time DG1 length. The TD3 variants are
++        // self-compiled and bundled in-app — URL fallback won't work since Rarimo
++        // doesn't host them.
++        const isTD3 = passport.dataGroup1.length === 93;
++        const circuitName = (isTD3 ? "register_light_td3_" : "register_light_") + hashLength;
++        console.log(`[SDK][REG][PROOF] circuit=${circuitName} hashLength=${hashLength}`);
++        const circuit = NoirCircuitParams.fromName(circuitName);
++        console.log('[SDK][REG][PROOF] downloading trusted setup…');
+         await NoirCircuitParams.downloadTrustedSetup();
+-        const byteCode = await circuit.downloadByteCode();
+-        const isAndroid = Platform.OS === "android";
++        const bundled = bundledCircuits[circuitName];
++        console.log(`[SDK][REG][PROOF] bytecode source: ${bundled ? 'BUNDLED (' + bundled.length + ' chars)' : 'remote download'}`);
++        let byteCode;
++        try {
++            byteCode = bundled ?? (await circuit.downloadByteCode());
++        } catch (e) {
++            console.error('[SDK][REG][PROOF] bytecode acquisition failed:', e?.message ?? e);
++            throw e;
++        }
+         let inputs = {
+-            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), isAndroid),
++            dg1: NoirCircuitParams.formatArray(Array.from(passport.dataGroup1).map((byteValue) => byteValue.toString()), true),
+             sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+         };
+-        return circuit.prove(JSON.stringify(inputs), byteCode);
++        console.log(`[SDK][REG][PROOF] dg1_len=${passport.dataGroup1.length} sk_len=${this.config.userConfiguration.userPrivateKey.length}`);
++        console.log('[SDK][REG][PROOF] calling circuit.prove()…');
++        try {
++            const result = await circuit.prove(JSON.stringify(inputs), byteCode);
++            console.log(`[SDK][REG][PROOF] prove() returned; pubSignals=${result.pub_signals?.length ?? 0}`);
++            return result;
++        } catch (e) {
++            console.error('[SDK][REG][PROOF] prove() threw:', e?.message ?? e);
++            throw e;
++        }
+     }
+     getSMTProofIndex(passport) {
+         const passportKey = passport.getPassportKey();
+@@ -187,7 +292,11 @@ export class Rarime {
+         const verifySodRequest = {
+             data: {
+                 id: "",
+-                type_field: "register",
++                // JSON:API standard field name is "type". The SDK originally shipped
++                // "type_field" which /registerid accepts leniently but /register
++                // (foreign passport) rejects with a generic 400. Matches the
++                // official rarime-android-app schema (LightRegistration.kt).
++                type: "register",
+                 attributes: {
+                     document_sod: {
+                         hash_algorithm: HashAlgorithm.fromOID(passport.extractDGHashAlgo()).toString(),
+@@ -210,8 +319,13 @@ export class Rarime {
+                 },
+             },
+         };
+-        const verifySodResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl +
+-            "/integrations/incognito-light-registrator/v1/registerid", {
++        // TD1 ID-card → /registerid; TD3 passport → /register. Same body shape,
++        // dispatched to different on-chain verifiers (DG1=95 vs DG1=93 VK).
++        const isTD3 = passport.dataGroup1.length === 93;
++        const verifySodPath = isTD3
++            ? "/integrations/incognito-light-registrator/v1/register"
++            : "/integrations/incognito-light-registrator/v1/registerid";
++        const verifySodResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl + verifySodPath, {
+             method: "POST",
+             headers: {
+                 "Content-Type": "application/json",
+@@ -219,7 +333,9 @@ export class Rarime {
+             body: JSON.stringify(verifySodRequest),
+         });
+         if (!verifySodResponse.ok) {
+-            throw new Error(`HTTP error ${verifySodResponse.status}`);
++            const errBody = await verifySodResponse.text().catch(() => "(unreadable)");
++            console.error(`[SDK] verifySodRequest failed: ${verifySodResponse.status} ${verifySodResponse.statusText}\nURL: ${this.config.apiConfiguration.rarimeApiUrl}${verifySodPath}\nDocument SOD: hash=${verifySodRequest.data.attributes.document_sod.hash_algorithm} sig=${verifySodRequest.data.attributes.document_sod.signature_algorithm} dg15Len=${verifySodRequest.data.attributes.document_sod.dg15.length} sodLen=${verifySodRequest.data.attributes.document_sod.sod.length}\nResponse: ${errBody}`);
++            throw new Error(`HTTP error ${verifySodResponse.status}: ${errBody}`);
+         }
+         return verifySodResponse;
+     }
+@@ -231,8 +347,10 @@ export class Rarime {
+                 destination: this.config.contractsConfiguration.registerSimpleContractAddress,
+             },
+         };
+-        const liteRegisterResponse = await fetch(this.config.apiConfiguration.rarimeApiUrl +
+-            "/integrations/registration-relayer/v1/register", {
++        const url = this.config.apiConfiguration.rarimeApiUrl +
++            "/integrations/registration-relayer/v1/register";
++        console.log(`[SDK][REG][RELAYER] POST ${url} destination=${this.config.contractsConfiguration.registerSimpleContractAddress} txDataLen=${txCallData.length}`);
++        const liteRegisterResponse = await fetch(url, {
+             method: "POST",
+             headers: {
+                 "Content-Type": "application/json",
+@@ -240,8 +358,9 @@ export class Rarime {
+             body: JSON.stringify(lite_register_request),
+         });
+         if (!liteRegisterResponse.ok) {
+-            const errorData = await liteRegisterResponse.json();
+-            throw new Error(`HTTP error ${liteRegisterResponse.status}: ${JSON.stringify(errorData)}`);
++            const errBody = await liteRegisterResponse.text().catch(() => '(unreadable)');
++            console.error(`[SDK][REG][RELAYER] FAIL ${liteRegisterResponse.status} ${liteRegisterResponse.statusText}\nURL: ${url}\nRequest: ${JSON.stringify(lite_register_request)}\nResponse: ${errBody}`);
++            throw new Error(`HTTP error ${liteRegisterResponse.status}: ${errBody}`);
+         }
+         return liteRegisterResponse;
+     }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
+index e4b2f67..3aeef2d 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.d.ts
+@@ -53,7 +53,11 @@ export declare class RarimePassport {
+     extractSignature(): Uint8Array;
+     getMRZData(): MRZData;
+     getCertificate(): CertificateSet;
+-    verifyPassport(proposalInfo: ProposalInfo): void;
++    extractCircuitSuite(): {
++        suite: import("./helpers/CircuitSuite").RegisterIdentityCircuitType;
++        name: string;
++    };
++    verifyPassport(proposalInfo: ProposalInfo, currentDate?: string): void;
+     private extractEcdsaPassportKey;
+     private extractRsaPassportKey;
+     private parseDg15Pubkey;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
+index c63669b..c2d37b0 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RarimePassport.js
+@@ -5,6 +5,9 @@ import { HashAlgorithm } from "./helpers/HashAlgorithm";
+ import { Sod } from "./utils";
+ import { DG1, DG15, SOD } from "@li0ard/tsemrtd";
+ import { MRZ_ZERO_DATE } from "./Freedomtool";
++import { buildCircuitName } from "./helpers/CircuitSuite";
++import { pickSlaveCertificate, resolveCircuitSuite, hashWith } from "./helpers/SuiteResolver";
++import { passportHashTypeFromOID } from "./helpers/SODAlgorithm";
+ export var DocumentStatus;
+ (function (DocumentStatus) {
+     DocumentStatus["NotRegistered"] = "NOT_REGISTERED";
+@@ -95,35 +98,30 @@ export class RarimePassport {
+     }
+     getMRZData() {
+         const mrz = DG1.load(this.dataGroup1);
+-        /**
+-         * Example of MRZ String
+-         *
+-         * IDUTO<<<<<<<<<<<<<<<<<<<<<<<<<<
+-         * 1234567897UTO9001019M3001018<<
+-         * JOHN<<DOE<<<<<<<<<<<<<<<<<<<
+-         *
+-         */
++
++        if (mrz.length >= 88 && mrz.length < 90) {
++            // TD3 passport (2 lines x 44 chars)
++            const documentType = mrz.slice(0, 2);
++            const namesPart = mrz.slice(5, 44);
++            const [lastName = "", firstName = ""] = namesPart.split("<<");
++            const documentNumber = mrz.slice(44, 53);
++            const issuingCountry = mrz.slice(54, 57);
++            const birthDate = mrz.slice(57, 63);
++            const sex = mrz.charAt(64);
++            const expiryDate = mrz.slice(65, 71);
++            return { documentType, issuingCountry, documentNumber, birthDate, sex, expiryDate, lastName, firstName };
++        }
++
++        // TD1 ID card (3 lines x 30 chars)
+         const documentType = mrz.slice(0, 2);
+         const issuingCountry = mrz.slice(2, 5);
+         const documentNumber = mrz.slice(5, 14);
+         const birthDate = mrz.slice(30, 36);
+-        const sexChar = mrz.charAt(37);
+-        const sex = sexChar;
++        const sex = mrz.charAt(37);
+         const expiryDate = mrz.slice(38, 44);
+         const namesPart = mrz.slice(60);
+-        // split by '<<' like in Rust .split("<<")
+         const [firstName = "", lastName = ""] = namesPart.split("<<");
+-        const result = {
+-            documentType,
+-            issuingCountry,
+-            documentNumber,
+-            birthDate,
+-            sex,
+-            expiryDate,
+-            lastName: firstName,
+-            firstName: lastName,
+-        };
+-        return result;
++        return { documentType, issuingCountry, documentNumber, birthDate, sex, expiryDate, lastName: firstName, firstName: lastName };
+     }
+     getCertificate() {
+         const buffer = Buffer.from(this.sod);
+@@ -131,7 +129,36 @@ export class RarimePassport {
+         const certificates = sod.certificates;
+         return certificates;
+     }
+-    verifyPassport(proposalInfo) {
++    // Resolve this passport's SOD into a Rarimo registerIdentity_<suite> name.
++    // Throws with a structured reason if the passport's signature suite isn't
++    // covered by SUPPORTED_SIGNATURE_TYPES (Rarimo hasn't published a heavy
++    // register circuit for it). See helpers/SuiteResolver.ts.
++    extractCircuitSuite() {
++        const certs = this.getCertificate();
++        const slaveCert = pickSlaveCertificate(certs);
++        if (!slaveCert)
++            throw new Error("SOD has no slave certificate");
++        const dgHashOid = this.extractDGHashAlgo();
++        const passportHashType = passportHashTypeFromOID(dgHashOid);
++        const encapsulatedContent = this.extractEncapsulatedContent();
++        const signedAttributes = this.extractSignedAttributes();
++        const ecHash = hashWith(passportHashType, encapsulatedContent);
++        const result = resolveCircuitSuite({
++            slaveCert,
++            sodSignatureOid: this.getSignatureAlgorithm(),
++            dgHashOid,
++            encapsulatedContent,
++            signedAttributes,
++            dg1: this.dataGroup1,
++            dg15: this.dataGroup15,
++            ecHash,
++        });
++        if ("error" in result) {
++            throw new Error(`Cannot resolve circuit suite for this passport: ${result.error}`);
++        }
++        return { suite: result.suite, name: buildCircuitName(result.suite) };
++    }
++    verifyPassport(proposalInfo, currentDate) {
+         const mrz = this.getMRZData();
+         if (proposalInfo.criteria.citizenshipWhitelist.length &&
+             !proposalInfo.criteria.citizenshipWhitelist.includes(BigInt("0x" + Buffer.from(mrz.issuingCountry).toString("hex")))) {
+@@ -141,12 +168,26 @@ export class RarimePassport {
+             proposalInfo.criteria.sex !== BigInt(mrz.sex)) {
+             throw new Error(`Sex mismatch, expected ${proposalInfo.criteria.sex}, received ${BigInt(mrz.sex)}`);
+         }
++        // Birth-date bounds as the query circuit applies them
++        // (dateComparisonEncodedNormalized.circom): the two-digit year reads
++        // as 20xx when the date is before today's YYMMDD and as 19xx
++        // otherwise, and both comparisons are strict. The packed bound used
++        // to be compared with the decimal MRZ number, which refused everyone
++        // as soon as a lower bound was set and never enforced the upper one.
++        const toMrz = (encoded) => Buffer.from(encoded.toString(16).padStart(12, "0"), "hex").toString("ascii");
++        // Today in UTC, as the proof's current_date is built (Rarime.js), or the
++        // attempt's own date: the century rule must read the same day the proof
++        // and the contract will.
++        const now = new Date();
++        const current = Number(currentDate ?? `${String(now.getUTCFullYear() % 100).padStart(2, "0")}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}`);
++        const normalized = (yymmdd) => { const raw = Number(yymmdd); return raw + (raw < current ? 1000000 : 0); };
++        const birth = normalized(mrz.birthDate);
+         if (proposalInfo.criteria.birthDateLowerbound !== MRZ_ZERO_DATE &&
+-            proposalInfo.criteria.birthDateLowerbound > BigInt(mrz.birthDate)) {
++            !(normalized(toMrz(proposalInfo.criteria.birthDateLowerbound)) < birth)) {
+             throw new Error("Birth date is lower than lowerbound");
+         }
+         if (proposalInfo.criteria.birthDateUpperbound !== MRZ_ZERO_DATE &&
+-            proposalInfo.criteria.birthDateUpperbound < BigInt(mrz.birthDate)) {
++            !(birth < normalized(toMrz(proposalInfo.criteria.birthDateUpperbound)))) {
+             throw new Error("Birth date is higher than upperbound");
+         }
+         if (proposalInfo.criteria.expirationDateLowerbound !== MRZ_ZERO_DATE &&
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
+index 741f34f..b3a57f3 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/RnNoirModule.js
+@@ -1,4 +1,5 @@
+-import * as FileSystem from 'expo-file-system';
++import * as FileSystem from 'expo-file-system/legacy';
++import { atomicCircuitDownload } from './helpers/circuitFiles';
+ import { default as NoirModule } from './src/NoirModule';
+ export class NoirCircuitParams {
+     name;
+@@ -34,21 +35,9 @@ export class NoirCircuitParams {
+         // Preparing path
+         const fileUri = `${dir}/ultraPlonkTrustedSetup.dat`;
+         const url = 'https://storage.googleapis.com/rarimo-store/trusted-setups/ultraPlonkTrustedSetup.dat';
+-        // Continue downloading
+-        const downloadResumable = FileSystem.createDownloadResumable(url, fileUri, {}, (progress) => {
+-            // DEBUG DOWNLOADING
+-            // console.log(
+-            //   `Progress: ${((progress.totalBytesWritten / progress.totalBytesExpectedToWrite) * 100).toFixed(1)}%`,
+-            // )
+-            opts?.onDownloadingProgress?.(progress);
+-        });
+-        if (!(await NoirCircuitParams.getTrustedSetupUri())) {
+-            await downloadResumable.downloadAsync();
+-        }
+-        const uri = await NoirCircuitParams.getTrustedSetupUri();
+-        if (!uri) {
+-            throw new Error('Failed to download trusted setup');
+-        }
++        // Downloaded to a temporary name, size-checked, then renamed; a cached
++        // file is trusted only against its size marker (dossier 2.0.2, 15).
++        const uri = await atomicCircuitDownload(url, fileUri, false, opts?.onDownloadingProgress);
+         return uri;
+     }
+     static formatArray(arr = [], useHex) {
+@@ -74,16 +63,9 @@ export class NoirCircuitParams {
+     }
+     async downloadByteCode(opts) {
+         const fileName = `${FileSystem.documentDirectory}/noir/${this.name}-bytecode.json`;
+-        const downloadResumable = FileSystem.createDownloadResumable(this.byteCodeUri, fileName, {}, (downloadProgress) => {
+-            opts?.onDownloadingProgress?.(downloadProgress);
+-        });
+-        if (!(await NoirCircuitParams.getByteCodeUri(fileName))) {
+-            await downloadResumable.downloadAsync();
+-        }
+-        const uri = await NoirCircuitParams.getByteCodeUri(fileName);
+-        if (!uri) {
+-            throw new Error(`Failed to download bytecode for noir circuit ${this.name}`);
+-        }
++        // A truncated cached bytecode is never trusted: validated (or its .ok
++        // marker checked), else downloaded again atomically (dossier 2.0.2, 15).
++        const uri = await atomicCircuitDownload(this.byteCodeUri, fileName, true, opts?.onDownloadingProgress);
+         const byteCode = await FileSystem.readAsStringAsync(uri);
+         if (!byteCode) {
+             throw new Error(`Failed to read bytecode for noir circuit ${this.name}`);
+@@ -115,11 +97,41 @@ export class NoirCircuitParams {
+ }
+ const supportedNoirCircuits = [
+     new NoirCircuitParams('query_identity', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/query_identity_td1.json', 24),
++    // TD3 (passport) query circuit is self-compiled from rarimo/passport-zk-circuits-noir
++    // and bundled in the app at assets/circuits/query_identity_td3.json. URL is unused
++    // because the bytecode is provided via Rarime.registerBundledCircuit() at app startup.
++    new NoirCircuitParams('query_identity_td3', 'bundled://query_identity_td3', 23),
+     new NoirCircuitParams('register_light_160', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_160.json', 3),
+     new NoirCircuitParams('register_light_224', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_224.json', 3),
+     new NoirCircuitParams('register_light_256', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_256.json', 3),
+     new NoirCircuitParams('register_light_384', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_384.json', 3),
+     new NoirCircuitParams('register_light_512', 'https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/id_cards/register_lite_512.json', 3),
++    // TD3 (passport) lite register circuits — self-compiled from
++    // rarimo/passport-zk-circuits-noir/register_identity_light_td1, with
++    // dg1: [u8; 95] swapped for [u8; 93] and the same hash-byte generic.
++    // Bundled in app assets; URLs unused. Same 3 pub_signals as TD1.
++    new NoirCircuitParams('register_light_td3_160', 'bundled://register_light_td3_160', 3),
++    new NoirCircuitParams('register_light_td3_224', 'bundled://register_light_td3_224', 3),
++    new NoirCircuitParams('register_light_td3_256', 'bundled://register_light_td3_256', 3),
++    new NoirCircuitParams('register_light_td3_384', 'bundled://register_light_td3_384', 3),
++    new NoirCircuitParams('register_light_td3_512', 'bundled://register_light_td3_512', 3),
++    // TD3 heavy register circuit for French passports (RSA-2048 SHA-256, no AA).
++    // Compiled bytecode hosted at
++    // https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.9-fix/registerIdentity_1_256_3_5_576_248_NA.json
++    // but bundled into the app at assets/circuits/ so registration works
++    // offline (citizen voting app, low-bandwidth-friendly). 5 pub_signals:
++    // [passportKey, passportHash, dgCommit, identityKey, certificatesRoot].
++    new NoirCircuitParams('registerIdentity_1_256_3_5_576_248_NA', 'bundled://registerIdentity_1_256_3_5_576_248_NA', 5),
++    // TD1 heavy register circuit for French national ID cards / CNIe
++    // (RSA-2048 SHA-256, no AA). Same suite as the TD3 entry above but with
++    // dg1 [u8; 95], ec [u8; 313], sa [u8; 152] — fixed-size Noir arrays, so
++    // TD1 cannot be proved with the TD3 bytecode. NOT published on Rarimo's
++    // GCS bucket (they never shipped a heavy TD1 register circuit); supplied
++    // directly by the circuit author and bundled at assets/circuits/, hence
++    // the deliberately unfetchable bundled:// URI. Same 5 pub_signals — the
++    // artifact's return_type is a public 5-Field tuple, identical to TD3, and
++    // this count is what slices the prover output into signals vs. proof.
++    new NoirCircuitParams('registerIdentity_1_256_1_6_960_248_NA', 'bundled://registerIdentity_1_256_1_6_960_248_NA', 5),
+ ];
+ export default NoirModule;
+ //# sourceMappingURL=RnNoirModule.js.map
+\ No newline at end of file
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts
+new file mode 100644
+index 0000000..897c0cd
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.d.ts
+@@ -0,0 +1,104 @@
++export declare enum CircuitAlgorithm {
++    RSA = "RSA",
++    RSAPSS = "RSAPSS",
++    ECDSA = "ECDSA"
++}
++export declare enum CircuitKeySize {
++    B160 = "B160",
++    B192 = "B192",
++    B224 = "B224",
++    B256 = "B256",
++    B320 = "B320",
++    B384 = "B384",
++    B512 = "B512",
++    B521 = "B521",
++    B1024 = "B1024",
++    B2048 = "B2048",
++    B3072 = "B3072",
++    B4096 = "B4096"
++}
++export declare enum CircuitExponent {
++    E3 = "E3",
++    E65537 = "E65537",
++    E37187 = "E37187",
++    E58333 = "E58333",
++    E45347 = "E45347",
++    E46271 = "E46271"
++}
++export declare enum CircuitSalt {
++    S32 = "S32",
++    S48 = "S48",
++    S64 = "S64"
++}
++export declare enum CircuitCurve {
++    SECP160R1 = "SECP160R1",
++    SECP192R1 = "SECP192R1",
++    SECP224R1 = "SECP224R1",
++    SECP256R1 = "SECP256R1",
++    SECP384R1 = "SECP384R1",
++    SECP512R1 = "SECP512R1",
++    SECP521R1 = "SECP521R1",
++    BRAINPOOLP160R1 = "BRAINPOOLP160R1",
++    BRAINPOOLP192R1 = "BRAINPOOLP192R1",
++    BRAINPOOLP224R1 = "BRAINPOOLP224R1",
++    BRAINPOOLP256R1 = "BRAINPOOLP256R1",
++    BRAINPOOLP320R1 = "BRAINPOOLP320R1",
++    BRAINPOOLP384R1 = "BRAINPOOLP384R1",
++    BRAINPOOLP512R1 = "BRAINPOOLP512R1"
++}
++export declare enum CircuitHashAlgorithm {
++    HA160 = "HA160",
++    HA192 = "HA192",
++    HA224 = "HA224",
++    HA256 = "HA256",
++    HA384 = "HA384",
++    HA512 = "HA512"
++}
++export declare enum CircuitDocumentType {
++    TD1 = "TD1",
++    TD3 = "TD3"
++}
++export declare function documentTypeId(t: CircuitDocumentType): number;
++export declare enum CircuitPassportHashType {
++    SHA1 = "sha1",
++    SHA224 = "sha224",
++    SHA256 = "sha256",
++    SHA384 = "sha384",
++    SHA512 = "sha512"
++}
++export declare function passportHashId(h: CircuitPassportHashType): number;
++export declare function passportHashChunkSize(h: CircuitPassportHashType): number;
++export interface CircuitSignatureType {
++    staticId: number;
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++    hashAlgorithm: CircuitHashAlgorithm;
++}
++export interface CircuitAAAlgorithm {
++    staticId: number;
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize | null;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++    hashAlgorithm: CircuitHashAlgorithm | null;
++}
++export interface CircuitAAType {
++    aaAlgorithm: CircuitAAAlgorithm;
++    dg15DigestPositionShift: number;
++    dg15ChunkNumber: number;
++    aaKeyPositionShift: number;
++}
++export interface RegisterIdentityCircuitType {
++    signatureType: CircuitSignatureType;
++    passportHashType: CircuitPassportHashType;
++    documentType: CircuitDocumentType;
++    ecChunkNumber: number;
++    ecDigestPosition: number;
++    dg1DigestPositionShift: number;
++    aaType: CircuitAAType | null;
++}
++export declare function buildCircuitName(suite: RegisterIdentityCircuitType): string;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js
+new file mode 100644
+index 0000000..75800de
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/CircuitSuite.js
+@@ -0,0 +1,135 @@
++// Type definitions for resolving a passport's SOD signature suite to a
++// Rarimo registerIdentity_<suite> circuit variant.
++//
++// Ported from rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++// (original 482 lines Swift). We mirror the staticId tables exactly so the
++// resulting suite string composes the same filename as the iOS app uses, e.g.
++//   registerIdentity_20_256_3_5_336_248_NA   (ECDSA-P256, SHA256, TD3, no AA)
++//
++// The 30+ pre-compiled variants live at
++//   https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/registerIdentity_<suite>.json
++// and have on-chain UltraPlonk verifier contracts deployed on Q-testnet.
++export var CircuitAlgorithm;
++(function (CircuitAlgorithm) {
++    CircuitAlgorithm["RSA"] = "RSA";
++    CircuitAlgorithm["RSAPSS"] = "RSAPSS";
++    CircuitAlgorithm["ECDSA"] = "ECDSA";
++})(CircuitAlgorithm || (CircuitAlgorithm = {}));
++export var CircuitKeySize;
++(function (CircuitKeySize) {
++    CircuitKeySize["B160"] = "B160";
++    CircuitKeySize["B192"] = "B192";
++    CircuitKeySize["B224"] = "B224";
++    CircuitKeySize["B256"] = "B256";
++    CircuitKeySize["B320"] = "B320";
++    CircuitKeySize["B384"] = "B384";
++    CircuitKeySize["B512"] = "B512";
++    CircuitKeySize["B521"] = "B521";
++    CircuitKeySize["B1024"] = "B1024";
++    CircuitKeySize["B2048"] = "B2048";
++    CircuitKeySize["B3072"] = "B3072";
++    CircuitKeySize["B4096"] = "B4096";
++})(CircuitKeySize || (CircuitKeySize = {}));
++export var CircuitExponent;
++(function (CircuitExponent) {
++    CircuitExponent["E3"] = "E3";
++    CircuitExponent["E65537"] = "E65537";
++    CircuitExponent["E37187"] = "E37187";
++    CircuitExponent["E58333"] = "E58333";
++    CircuitExponent["E45347"] = "E45347";
++    CircuitExponent["E46271"] = "E46271";
++})(CircuitExponent || (CircuitExponent = {}));
++export var CircuitSalt;
++(function (CircuitSalt) {
++    CircuitSalt["S32"] = "S32";
++    CircuitSalt["S48"] = "S48";
++    CircuitSalt["S64"] = "S64";
++})(CircuitSalt || (CircuitSalt = {}));
++export var CircuitCurve;
++(function (CircuitCurve) {
++    CircuitCurve["SECP160R1"] = "SECP160R1";
++    CircuitCurve["SECP192R1"] = "SECP192R1";
++    CircuitCurve["SECP224R1"] = "SECP224R1";
++    CircuitCurve["SECP256R1"] = "SECP256R1";
++    CircuitCurve["SECP384R1"] = "SECP384R1";
++    CircuitCurve["SECP512R1"] = "SECP512R1";
++    CircuitCurve["SECP521R1"] = "SECP521R1";
++    CircuitCurve["BRAINPOOLP160R1"] = "BRAINPOOLP160R1";
++    CircuitCurve["BRAINPOOLP192R1"] = "BRAINPOOLP192R1";
++    CircuitCurve["BRAINPOOLP224R1"] = "BRAINPOOLP224R1";
++    CircuitCurve["BRAINPOOLP256R1"] = "BRAINPOOLP256R1";
++    CircuitCurve["BRAINPOOLP320R1"] = "BRAINPOOLP320R1";
++    CircuitCurve["BRAINPOOLP384R1"] = "BRAINPOOLP384R1";
++    CircuitCurve["BRAINPOOLP512R1"] = "BRAINPOOLP512R1";
++})(CircuitCurve || (CircuitCurve = {}));
++export var CircuitHashAlgorithm;
++(function (CircuitHashAlgorithm) {
++    CircuitHashAlgorithm["HA160"] = "HA160";
++    CircuitHashAlgorithm["HA192"] = "HA192";
++    CircuitHashAlgorithm["HA224"] = "HA224";
++    CircuitHashAlgorithm["HA256"] = "HA256";
++    CircuitHashAlgorithm["HA384"] = "HA384";
++    CircuitHashAlgorithm["HA512"] = "HA512";
++})(CircuitHashAlgorithm || (CircuitHashAlgorithm = {}));
++export var CircuitDocumentType;
++(function (CircuitDocumentType) {
++    CircuitDocumentType["TD1"] = "TD1";
++    CircuitDocumentType["TD3"] = "TD3";
++})(CircuitDocumentType || (CircuitDocumentType = {}));
++// Returns the integer encoded into the circuit name. TD1→1, TD3→3.
++export function documentTypeId(t) {
++    return t === CircuitDocumentType.TD1 ? 1 : 3;
++}
++// Hash byte/bit length used for the encapsulated-content padded chunking.
++export var CircuitPassportHashType;
++(function (CircuitPassportHashType) {
++    CircuitPassportHashType["SHA1"] = "sha1";
++    CircuitPassportHashType["SHA224"] = "sha224";
++    CircuitPassportHashType["SHA256"] = "sha256";
++    CircuitPassportHashType["SHA384"] = "sha384";
++    CircuitPassportHashType["SHA512"] = "sha512";
++})(CircuitPassportHashType || (CircuitPassportHashType = {}));
++// Bit length encoded into the circuit name (160/224/256/384/512).
++export function passportHashId(h) {
++    switch (h) {
++        case CircuitPassportHashType.SHA1: return 160;
++        case CircuitPassportHashType.SHA224: return 224;
++        case CircuitPassportHashType.SHA256: return 256;
++        case CircuitPassportHashType.SHA384: return 384;
++        case CircuitPassportHashType.SHA512: return 512;
++    }
++}
++// SHA block size in bits. Used by smartChunking to compute ec chunk count.
++export function passportHashChunkSize(h) {
++    switch (h) {
++        case CircuitPassportHashType.SHA1:
++        case CircuitPassportHashType.SHA224:
++        case CircuitPassportHashType.SHA256:
++            return 512;
++        case CircuitPassportHashType.SHA384:
++        case CircuitPassportHashType.SHA512:
++            return 1024;
++    }
++}
++// Compose the variant name in the iOS-canonical format. Mirrors
++// RegisterIdentityCircuitType.buildName() in Swift.
++//   registerIdentity_<sigId>_<hashBits>_<docId>_<ecChunks>_<ecDigestPos>_<dg1Shift>_<NA | aaId_dg15Shift_dg15Chunks_aaKeyShift>
++export function buildCircuitName(suite) {
++    let name = "registerIdentity";
++    name += `_${suite.signatureType.staticId}`;
++    name += `_${passportHashId(suite.passportHashType)}`;
++    name += `_${documentTypeId(suite.documentType)}`;
++    name += `_${suite.ecChunkNumber}`;
++    name += `_${suite.ecDigestPosition}`;
++    name += `_${suite.dg1DigestPositionShift}`;
++    if (suite.aaType) {
++        name += `_${suite.aaType.aaAlgorithm.staticId}`;
++        name += `_${suite.aaType.dg15DigestPositionShift}`;
++        name += `_${suite.aaType.dg15ChunkNumber}`;
++        name += `_${suite.aaType.aaKeyPositionShift}`;
++    }
++    else {
++        name += "_NA";
++    }
++    return name;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts
+new file mode 100644
+index 0000000..ff0e631
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.d.ts
+@@ -0,0 +1,9 @@
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++export interface SodAlgorithmInfo {
++    circuitSignature: CircuitAlgorithm;
++    circuitHash: CircuitHashAlgorithm;
++}
++export declare function fromSodSignatureOID(oid: string): SodAlgorithmInfo;
++export declare function fromHashOID(oid: string): CircuitHashAlgorithm;
++import { CircuitPassportHashType } from "./CircuitSuite";
++export declare function passportHashTypeFromOID(oid: string): CircuitPassportHashType;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js
+new file mode 100644
+index 0000000..7b98f3a
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SODAlgorithm.js
+@@ -0,0 +1,92 @@
++// Maps SOD signature-algorithm OIDs to the (CircuitAlgorithm, CircuitHashAlgorithm)
++// pair used to look up a row in SUPPORTED_SIGNATURE_TYPES.
++//
++// Mirrors rarime-ios-app/Rarime/Code/Models/Circuits/SODAlgorithm.swift, but
++// keyed by OID instead of human-readable algo name (Swift's X.509 lib gives
++// names like "ecdsa-with-SHA256"; @peculiar/asn1 gives raw OIDs).
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++// SOD signature algorithm OIDs (the OID of `signerInfo.signatureAlgorithm`)
++const SHA1_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.5";
++const SHA224_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.14";
++const SHA256_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.11";
++const SHA384_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.12";
++const SHA512_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.13";
++const RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++const RSASSA_PSS = "1.2.840.113549.1.1.10";
++const ECDSA_WITH_SHA1 = "1.2.840.10045.4.1";
++const ECDSA_WITH_SHA224 = "1.2.840.10045.4.3.1";
++const ECDSA_WITH_SHA256 = "1.2.840.10045.4.3.2";
++const ECDSA_WITH_SHA384 = "1.2.840.10045.4.3.3";
++const ECDSA_WITH_SHA512 = "1.2.840.10045.4.3.4";
++// Hash algorithm OIDs (used as the `algorithm` of `ldsObject.algorithm` for DG
++// hashes, or as `digestAlgorithm` of signerInfo for signed-attributes digest)
++const ID_SHA1 = "1.3.14.3.2.26";
++const ID_SHA224 = "2.16.840.1.101.3.4.2.4";
++const ID_SHA256 = "2.16.840.1.101.3.4.2.1";
++const ID_SHA384 = "2.16.840.1.101.3.4.2.2";
++const ID_SHA512 = "2.16.840.1.101.3.4.2.3";
++// Resolve SOD's signerInfo.signatureAlgorithm OID into a (signature, hash) pair.
++// The hash component is what appears in the `_<hashBits>_` slot of the suite
++// name only when the signature OID encodes its own hash (e.g. ecdsa-with-SHA256);
++// for bare RSA / RSA-PSS the hash comes from the cert's signatureAlgorithm
++// instead and the caller has to overlay it.
++export function fromSodSignatureOID(oid) {
++    switch (oid) {
++        case RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case SHA1_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA160 };
++        case SHA224_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA224 };
++        case SHA256_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case SHA384_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA384 };
++        case SHA512_WITH_RSA_ENCRYPTION:
++            return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA512 };
++        case RSASSA_PSS:
++            // RSA-PSS hash comes from the PSS parameters; iOS defaults to SHA-256
++            // when not set, but real passports always set it. The caller should
++            // overlay the actual hash from the parsed PSS params.
++            return { circuitSignature: CircuitAlgorithm.RSAPSS, circuitHash: CircuitHashAlgorithm.HA256 };
++        case ECDSA_WITH_SHA1:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA160 };
++        case ECDSA_WITH_SHA224:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA224 };
++        case ECDSA_WITH_SHA256:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA256 };
++        case ECDSA_WITH_SHA384:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA384 };
++        case ECDSA_WITH_SHA512:
++            return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA512 };
++        default:
++            throw new Error(`Unsupported SOD signature OID: ${oid}`);
++    }
++}
++// Resolve a hash-algorithm OID (e.g. ldsObject.algorithm.algorithm) to the
++// CircuitHashAlgorithm enum used by the suite. Throws on unknown OIDs.
++export function fromHashOID(oid) {
++    switch (oid) {
++        case ID_SHA1: return CircuitHashAlgorithm.HA160;
++        case ID_SHA224: return CircuitHashAlgorithm.HA224;
++        case ID_SHA256: return CircuitHashAlgorithm.HA256;
++        case ID_SHA384: return CircuitHashAlgorithm.HA384;
++        case ID_SHA512: return CircuitHashAlgorithm.HA512;
++        default:
++            throw new Error(`Unsupported hash algorithm OID: ${oid}`);
++    }
++}
++// CircuitPassportHashType raw-string variant of fromHashOID. Pads the
++// passportHashType field of the suite (used for SHA-block-size lookups).
++import { CircuitPassportHashType } from "./CircuitSuite";
++export function passportHashTypeFromOID(oid) {
++    switch (oid) {
++        case ID_SHA1: return CircuitPassportHashType.SHA1;
++        case ID_SHA224: return CircuitPassportHashType.SHA224;
++        case ID_SHA256: return CircuitPassportHashType.SHA256;
++        case ID_SHA384: return CircuitPassportHashType.SHA384;
++        case ID_SHA512: return CircuitPassportHashType.SHA512;
++        default:
++            throw new Error(`Unsupported passport hash OID: ${oid}`);
++    }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts
+new file mode 100644
+index 0000000..c061c26
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.d.ts
+@@ -0,0 +1,29 @@
++import { Certificate } from "@peculiar/asn1-x509";
++import { CertificateSet } from "@peculiar/asn1-cms";
++import { CircuitAlgorithm, CircuitExponent, CircuitKeySize, CircuitPassportHashType, CircuitSalt, CircuitCurve, RegisterIdentityCircuitType } from "./CircuitSuite";
++export declare function pickSlaveCertificate(certificates: CertificateSet): Certificate | null;
++export declare function extractSignatureSuiteFromCert(cert: Certificate): {
++    algorithm: CircuitAlgorithm;
++    keySize: CircuitKeySize | null;
++    exponent: CircuitExponent | null;
++    salt: CircuitSalt | null;
++    curve: CircuitCurve | null;
++};
++export declare function findSubarrayIndex(haystack: Uint8Array, needle: Uint8Array): number;
++export declare function getChunkNumber(byteLen: number, chunkSizeBits: number): number;
++export declare function hashWith(algo: CircuitPassportHashType, data: Uint8Array): Uint8Array;
++export declare function resolveCircuitSuite(args: {
++    slaveCert: Certificate;
++    sodSignatureOid: string;
++    dgHashOid: string;
++    encapsulatedContent: Uint8Array;
++    signedAttributes: Uint8Array;
++    dg1: Uint8Array;
++    dg15?: Uint8Array;
++    ecHash: Uint8Array;
++}): {
++    suite: RegisterIdentityCircuitType;
++    signatureTypeId: number;
++} | {
++    error: string;
++};
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
+new file mode 100644
+index 0000000..85a3973
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SuiteResolver.js
+@@ -0,0 +1,313 @@
++// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
++// composes into one of the published `registerIdentity_<suite>.json` filenames
++// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
++//
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++//     (the Passport.getRegisterIdentityCircuitType() extension at lines 162-273)
++//
++// The resolver returns null when the passport's signature suite isn't in
++// SUPPORTED_SIGNATURE_TYPES — that's the bail-out signal that Rarimo doesn't
++// have a published heavy-register circuit for this document.
++import { Buffer } from "buffer";
++import { sha1 } from "@noble/hashes/sha1";
++import { sha224, sha256 } from "@noble/hashes/sha256";
++import { sha384, sha512 } from "@noble/hashes/sha512";
++import { AsnConvert } from "@peculiar/asn1-schema";
++import { RSAPublicKey, RsaSaPssParams } from "@peculiar/asn1-rsa";
++import { ECParameters } from "@peculiar/asn1-ecc";
++import { id_ecPublicKey } from "@peculiar/asn1-ecc";
++import { CircuitAlgorithm, CircuitDocumentType, CircuitExponent, CircuitKeySize, CircuitPassportHashType, CircuitSalt, CircuitCurve, passportHashChunkSize, } from "./CircuitSuite";
++import { getSupportedSignatureTypeId, } from "./SupportedCircuits";
++import { fromSodSignatureOID, passportHashTypeFromOID, } from "./SODAlgorithm";
++// OIDs we discriminate on for the slave-cert publicKey algorithm.
++const ID_RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++// Map ECDSA named-curve OIDs to CircuitCurve. Source: RFC 5480 + Brainpool RFC 5639.
++// Mirrors iOS RegisterIdentityCircuitType.getPublicKeyCurve()'s switch table.
++const CURVE_OID_MAP = {
++    "1.3.132.0.7": CircuitCurve.SECP160R1, // secp160r1
++    "1.2.840.10045.3.1.1": CircuitCurve.SECP192R1, // prime192v1 / P-192
++    "1.3.132.0.33": CircuitCurve.SECP224R1, // secp224r1 / P-224
++    "1.2.840.10045.3.1.7": CircuitCurve.SECP256R1, // prime256v1 / P-256
++    "1.3.132.0.34": CircuitCurve.SECP384R1, // secp384r1 / P-384
++    "1.3.132.0.35": CircuitCurve.SECP521R1, // secp521r1 / P-521
++    "1.3.36.3.3.2.8.1.1.1": CircuitCurve.BRAINPOOLP160R1,
++    "1.3.36.3.3.2.8.1.1.3": CircuitCurve.BRAINPOOLP192R1,
++    "1.3.36.3.3.2.8.1.1.5": CircuitCurve.BRAINPOOLP224R1,
++    "1.3.36.3.3.2.8.1.1.7": CircuitCurve.BRAINPOOLP256R1,
++    "1.3.36.3.3.2.8.1.1.9": CircuitCurve.BRAINPOOLP320R1,
++    "1.3.36.3.3.2.8.1.1.11": CircuitCurve.BRAINPOOLP384R1,
++    "1.3.36.3.3.2.8.1.1.13": CircuitCurve.BRAINPOOLP512R1,
++};
++// Round modulus bit length to the nearest CircuitKeySize bucket. iOS only
++// supports a fixed set; off-spec sizes return null and bubble up as "no row".
++function bitsToCircuitKeySize(bits) {
++    switch (bits) {
++        case 160: return CircuitKeySize.B160;
++        case 192: return CircuitKeySize.B192;
++        case 224: return CircuitKeySize.B224;
++        case 256: return CircuitKeySize.B256;
++        case 320: return CircuitKeySize.B320;
++        case 384: return CircuitKeySize.B384;
++        case 512: return CircuitKeySize.B512;
++        case 521: return CircuitKeySize.B521;
++        case 1024: return CircuitKeySize.B1024;
++        case 2048: return CircuitKeySize.B2048;
++        case 3072: return CircuitKeySize.B3072;
++        case 4096: return CircuitKeySize.B4096;
++        default: return null;
++    }
++}
++// Map raw RSA public exponent integer to the closed CircuitExponent set.
++function bigintToCircuitExponent(e) {
++    switch (e) {
++        case 3n: return CircuitExponent.E3;
++        case 65537n: return CircuitExponent.E65537;
++        case 37187n: return CircuitExponent.E37187;
++        case 58333n: return CircuitExponent.E58333;
++        case 45347n: return CircuitExponent.E45347;
++        case 46271n: return CircuitExponent.E46271;
++        default: return null;
++    }
++}
++function saltLengthToCircuitSalt(salt) {
++    switch (salt) {
++        case 32: return CircuitSalt.S32;
++        case 48: return CircuitSalt.S48;
++        case 64: return CircuitSalt.S64;
++        default: return null;
++    }
++}
++// Pick the document signer cert out of the CMS CertificateSet. SOD usually
++// has exactly one cert (the DSC); we take the first one with a `.certificate`
++// field. Returns null if none.
++export function pickSlaveCertificate(certificates) {
++    for (const choice of certificates) {
++        if (choice.certificate)
++            return choice.certificate;
++    }
++    return null;
++}
++// Extract (algorithm, keySize, exponent, salt, curve) from the slave cert's
++// public key + signature algorithm. The hash component is overlaid by the
++// caller (it comes from the SOD's signing OID, not the cert's pubkey info).
++export function extractSignatureSuiteFromCert(cert) {
++    const spkAlgoOid = cert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm;
++    const sigAlgoOid = cert.signatureAlgorithm.algorithm;
++    // RSA family — the cert's signatureAlgorithm OID encodes RSA vs RSA-PSS.
++    // Note: iOS treats all of {rsaEncryption, sha*WithRSAEncryption} as RSA;
++    // RSA-PSS is only when sigAlgoOid === "1.2.840.113549.1.1.10".
++    if (spkAlgoOid === ID_RSA_ENCRYPTION) {
++        const rsaPub = AsnConvert.parse(cert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey, RSAPublicKey);
++        const modulusBytes = new Uint8Array(rsaPub.modulus);
++        // Strip leading zero (ASN.1 INTEGER sign byte) before measuring bit length.
++        const stripped = modulusBytes[0] === 0x00 ? modulusBytes.subarray(1) : modulusBytes;
++        const bitLen = stripped.length * 8;
++        const exponent = BigInt("0x" + Buffer.from(rsaPub.publicExponent).toString("hex"));
++        let algorithm = CircuitAlgorithm.RSA;
++        let salt = null;
++        if (sigAlgoOid === "1.2.840.113549.1.1.10") {
++            algorithm = CircuitAlgorithm.RSAPSS;
++            // Salt length lives in the cert's signatureAlgorithm.parameters.
++            if (cert.signatureAlgorithm.parameters) {
++                try {
++                    const pssParams = AsnConvert.parse(cert.signatureAlgorithm.parameters, RsaSaPssParams);
++                    salt = saltLengthToCircuitSalt(pssParams.saltLength);
++                }
++                catch (_) {
++                    // Defaults: PKCS#1 v2.1 says missing salt = 20, but no published
++                    // variant uses 20-byte salt; treat as unknown.
++                    salt = null;
++                }
++            }
++        }
++        const keySize = bitsToCircuitKeySize(bitLen);
++        if (!keySize) {
++            throw new Error(`Unsupported RSA modulus length ${bitLen} bits `
++                + `(supported: 1024/2048/3072/4096); extend bitsToCircuitKeySize in SuiteResolver.ts`);
++        }
++        return {
++            algorithm,
++            keySize,
++            exponent: bigintToCircuitExponent(exponent),
++            salt,
++            curve: null,
++        };
++    }
++    // ECDSA — public key algorithm is id-ecPublicKey; named curve in parameters.
++    if (spkAlgoOid === id_ecPublicKey) {
++        if (!cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
++            throw new Error("ECDSA public key has no parameters");
++        }
++        const ecParams = AsnConvert.parse(cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters, ECParameters);
++        const curveOid = ecParams.namedCurve ?? null;
++        const curve = curveOid ? CURVE_OID_MAP[curveOid] ?? null : null;
++        // Key size in bits derived from the named curve's field size.
++        let keySize = null;
++        switch (curve) {
++            case CircuitCurve.SECP160R1:
++            case CircuitCurve.BRAINPOOLP160R1:
++                keySize = CircuitKeySize.B160;
++                break;
++            case CircuitCurve.SECP192R1:
++            case CircuitCurve.BRAINPOOLP192R1:
++                keySize = CircuitKeySize.B192;
++                break;
++            case CircuitCurve.SECP224R1:
++            case CircuitCurve.BRAINPOOLP224R1:
++                keySize = CircuitKeySize.B224;
++                break;
++            case CircuitCurve.SECP256R1:
++            case CircuitCurve.BRAINPOOLP256R1:
++                keySize = CircuitKeySize.B256;
++                break;
++            case CircuitCurve.BRAINPOOLP320R1:
++                keySize = CircuitKeySize.B320;
++                break;
++            case CircuitCurve.SECP384R1:
++            case CircuitCurve.BRAINPOOLP384R1:
++                keySize = CircuitKeySize.B384;
++                break;
++            case CircuitCurve.BRAINPOOLP512R1:
++                keySize = CircuitKeySize.B512;
++                break;
++            case CircuitCurve.SECP521R1:
++                keySize = CircuitKeySize.B521;
++                break;
++        }
++        if (!curve) {
++            throw new Error(`Unsupported ECDSA named curve OID "${curveOid ?? "<missing>"}" `
++                + `(specifiedCurve=${ecParams.specifiedCurve ? "yes" : "no"}); `
++                + `extend CURVE_OID_MAP in SuiteResolver.ts`);
++        }
++        if (!keySize) {
++            throw new Error(`Curve ${curve} has no CircuitKeySize mapping`);
++        }
++        return {
++            algorithm: CircuitAlgorithm.ECDSA,
++            keySize,
++            exponent: null,
++            salt: null,
++            curve,
++        };
++    }
++    throw new Error(`Unsupported public key OID: ${spkAlgoOid}`);
++}
++// Find a contiguous Uint8Array within another. Returns -1 if not found.
++// Used to locate DG1 hash inside encapsulatedContent and EC hash inside
++// signedAttributes — those byte offsets become the dg1DigestPositionShift
++// and ecDigestPosition fields of the suite (× 8 for bit-units).
++export function findSubarrayIndex(haystack, needle) {
++    if (needle.length === 0)
++        return 0;
++    outer: for (let i = 0; i <= haystack.length - needle.length; i++) {
++        for (let j = 0; j < needle.length; j++) {
++            if (haystack[i + j] !== needle[j])
++                continue outer;
++        }
++        return i;
++    }
++    return -1;
++}
++// Number of SHA chunks needed to hash `len` bytes (including the SHA padding
++// byte 0x80 + 64-bit length suffix). Mirrors iOS getChunkNumber():
++//   length = byteLen*8 + 1 + 64
++//   chunks = ceil(length / chunkSize)
++export function getChunkNumber(byteLen, chunkSizeBits) {
++    const lengthBits = byteLen * 8 + 1 + 64;
++    return Math.ceil(lengthBits / chunkSizeBits);
++}
++// Compute hash bytes for a CircuitPassportHashType. Used to find DG1 / DG15
++// hashes inside the encapsulated content.
++export function hashWith(algo, data) {
++    switch (algo) {
++        case CircuitPassportHashType.SHA1: return sha1(data);
++        case CircuitPassportHashType.SHA224: return sha224(data);
++        case CircuitPassportHashType.SHA256: return sha256(data);
++        case CircuitPassportHashType.SHA384: return sha384(data);
++        case CircuitPassportHashType.SHA512: return sha512(data);
++    }
++}
++// The complete resolver. Given the parsed components, produces a fully-named
++// suite or returns null with a reason if the passport isn't supported.
++//
++// Inputs the caller must extract from the SOD using existing SDK methods:
++//   - slaveCert            : pickSlaveCertificate(passport.getCertificate())
++//   - sodSignatureOid      : passport.getSignatureAlgorithm()
++//   - dgHashOid            : passport.extractDGHashAlgo()
++//   - encapsulatedContent  : passport.extractEncapsulatedContent()
++//   - signedAttributes     : passport.extractSignedAttributes()
++//   - dg1                  : passport.dataGroup1
++//   - dg15                 : passport.dataGroup15 (or undefined)
++//
++// Note on AA: Active-Authentication suite resolution is more involved (DG15
++// pubkey type depends on the AA algorithm). For Phase A.1 we resolve only the
++// non-AA path; passports with DG15 will return null until Phase A.3.
++export function resolveCircuitSuite(args) {
++    // 1) Hash algorithm used for DG hashes (passport hash type)
++    const passportHashType = passportHashTypeFromOID(args.dgHashOid);
++    // 2) Signature algorithm + cert pubkey details
++    const sodSig = fromSodSignatureOID(args.sodSignatureOid);
++    const certPubkey = extractSignatureSuiteFromCert(args.slaveCert);
++    // Reconcile algorithm — sodSig.circuitSignature should match certPubkey.algorithm.
++    if (sodSig.circuitSignature !== certPubkey.algorithm) {
++        return { error: `algorithm mismatch: sod=${sodSig.circuitSignature}, cert=${certPubkey.algorithm}` };
++    }
++    if (certPubkey.keySize === null) {
++        return { error: "cert key size not in supported set" };
++    }
++    // For RSA/ECDSA the hash comes from the SOD signing OID; for RSA-PSS it
++    // comes from the PSS params (which we don't fully parse yet — overlay later).
++    const hashAlgorithm = sodSig.circuitHash;
++    const candidate = {
++        algorithm: certPubkey.algorithm,
++        keySize: certPubkey.keySize,
++        exponent: certPubkey.exponent,
++        salt: certPubkey.salt,
++        curve: certPubkey.curve,
++        hashAlgorithm,
++    };
++    const signatureTypeId = getSupportedSignatureTypeId(candidate);
++    if (signatureTypeId === null) {
++        return { error: `no supported signature type row matches: ${JSON.stringify(candidate)}` };
++    }
++    // 3) Document type — TD1 = 95-byte DG1, TD3 = 93-byte DG1
++    let documentType;
++    if (args.dg1.length === 95)
++        documentType = CircuitDocumentType.TD1;
++    else if (args.dg1.length === 93)
++        documentType = CircuitDocumentType.TD3;
++    else
++        return { error: `unsupported DG1 length: ${args.dg1.length}` };
++    // 4) ec chunk number = SHA-padded chunk count of encapsulatedContent
++    const ecChunkNumber = getChunkNumber(args.encapsulatedContent.length, passportHashChunkSize(passportHashType));
++    // 5) ecDigestPosition = bit offset of the EC hash inside signedAttributes
++    const ecHashByteOffset = findSubarrayIndex(args.signedAttributes, args.ecHash);
++    if (ecHashByteOffset < 0) {
++        return { error: "EC hash not found inside signedAttributes" };
++    }
++    const ecDigestPosition = ecHashByteOffset * 8;
++    // 6) dg1DigestPositionShift = bit offset of DG1 hash inside encapsulatedContent
++    const dg1Hash = hashWith(passportHashType, args.dg1);
++    const dg1HashByteOffset = findSubarrayIndex(args.encapsulatedContent, dg1Hash);
++    if (dg1HashByteOffset < 0) {
++        return { error: "DG1 hash not found inside encapsulatedContent" };
++    }
++    const dg1DigestPositionShift = dg1HashByteOffset * 8;
++    // 7) AA — only if DG15 present. Punted to Phase A.3; for now treat as no AA.
++    const aaType = args.dg15 && args.dg15.length > 0
++        ? null // TODO Phase A.3: parse DG15 SPKI, build AA suite
++        : null;
++    return {
++        suite: {
++            signatureType: { ...candidate, staticId: signatureTypeId },
++            passportHashType,
++            documentType,
++            ecChunkNumber,
++            ecDigestPosition,
++            dg1DigestPositionShift,
++            aaType,
++        },
++        signatureTypeId,
++    };
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts
+new file mode 100644
+index 0000000..4ada5cf
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.d.ts
+@@ -0,0 +1,5 @@
++import { CircuitSignatureType, CircuitAAAlgorithm } from "./CircuitSuite";
++export declare const SUPPORTED_SIGNATURE_TYPES: CircuitSignatureType[];
++export declare function getSupportedSignatureTypeId(candidate: Omit<CircuitSignatureType, "staticId">): number | null;
++export declare const SUPPORTED_AA_TYPES: CircuitAAAlgorithm[];
++export declare function getSupportedAATypeId(candidate: Pick<CircuitAAAlgorithm, "algorithm" | "hashAlgorithm" | "curve">): number | null;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js
+new file mode 100644
+index 0000000..d5edc02
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/SupportedCircuits.js
+@@ -0,0 +1,77 @@
++// Static lookup tables for the Rarimo registerIdentity circuit family.
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitSignatureType.swift
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitAAType.swift
++//
++// Adding a new row here only matters if Rarimo publishes a new Noir circuit
++// for that signature suite — until then, these IDs aren't valid filename
++// components.
++import { CircuitAlgorithm, CircuitKeySize, CircuitExponent, CircuitSalt, CircuitCurve, CircuitHashAlgorithm, } from "./CircuitSuite";
++// 28 entries: 8 RSA + 6 RSA-PSS + 14 ECDSA. The numbering is owned by Rarimo
++// and shows up in every registerIdentity_<id>_... filename.
++export const SUPPORTED_SIGNATURE_TYPES = [
++    // ── RSA (PKCS#1 v1.5) ──────────────────────────────────────────────────
++    { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 2, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B4096, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 3, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 4, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E37187, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 5, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 6, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E58333, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 7, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E45347, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 8, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E46271, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    // ── RSA-PSS ────────────────────────────────────────────────────────────
++    { staticId: 10, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E3, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 11, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 12, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 13, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S48, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++    { staticId: 14, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 15, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    // ── ECDSA ──────────────────────────────────────────────────────────────
++    { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.SECP256R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B320, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B192, exponent: null, salt: null, curve: CircuitCurve.SECP192R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B224, exponent: null, salt: null, curve: CircuitCurve.SECP224R1, hashAlgorithm: CircuitHashAlgorithm.HA224 },
++    { staticId: 25, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++    { staticId: 26, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B512, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP512R1, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 27, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B521, exponent: null, salt: null, curve: CircuitCurve.SECP521R1, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++    { staticId: 28, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.SECP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++// Lookup the staticId for a given (algo, keySize, exponent, salt, curve, hashAlgo)
++// tuple. Returns null if no row matches — that means the passport's signature
++// suite isn't supported by Rarimo's published heavy-register circuits.
++export function getSupportedSignatureTypeId(candidate) {
++    const match = SUPPORTED_SIGNATURE_TYPES.find((row) => row.algorithm === candidate.algorithm &&
++        row.keySize === candidate.keySize &&
++        row.exponent === candidate.exponent &&
++        row.salt === candidate.salt &&
++        row.curve === candidate.curve &&
++        row.hashAlgorithm === candidate.hashAlgorithm);
++    return match ? match.staticId : null;
++}
++// 5 entries (1 RSA + 4 ECDSA) for Active Authentication algorithms. Used only
++// when the passport has a non-empty DG15.
++export const SUPPORTED_AA_TYPES = [
++    // RSA fallback
++    { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B1024, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: null },
++    // ECDSA AA variants
++    { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++    { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP192R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++    { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP384R1, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++// Match an AA row by (algorithm, hashAlgorithm, curve). Mirrors the iOS
++// SupportRegisterIdentityCircuitAAType.getSupportedSignatureTypeId logic,
++// including its RSA fallback to staticId=1 when no other row matches.
++export function getSupportedAATypeId(candidate) {
++    const match = SUPPORTED_AA_TYPES.find((row) => row.algorithm === candidate.algorithm &&
++        row.hashAlgorithm === candidate.hashAlgorithm &&
++        row.curve === candidate.curve);
++    if (match)
++        return match.staticId;
++    // iOS fallback: any RSA AA without an exact row defaults to staticId=1.
++    if (candidate.algorithm === CircuitAlgorithm.RSA)
++        return 1;
++    return null;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.d.ts
+new file mode 100644
+index 0000000..2364b10
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.d.ts
+@@ -0,0 +1,5 @@
++import * as FileSystem from "expo-file-system/legacy";
++/** True when the file at `uri` can be handed to the prover as is. */
++export declare function validCircuitFile(uri: string, bytecode: boolean): Promise<boolean>;
++/** The file at `uri`, downloaded atomically from `url` if missing or invalid. */
++export declare function atomicCircuitDownload(url: string, uri: string, bytecode: boolean, progress?: (event: FileSystem.DownloadProgressData) => void): Promise<string>;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.js
+new file mode 100644
+index 0000000..a4919f3
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitFiles.js
+@@ -0,0 +1,125 @@
++// Atomic, validated circuit cache (dossier 2.0.2, item 15 / R9; plan D12,
++// merged with the app's markers).
++//
++// The SDK used to download straight to the final name and trust any file
++// present there, so a download interrupted at 670 KB left a bytecode file that
++// every later launch reported as cached and the proof failed on for ever
++// (2026-09-19T17-02-53-549Z). Now:
++//   - a download goes to `<name>.partial`, is checked, and only then renamed;
++//   - a cached bytecode is trusted when its `.ok` marker holds its size (the
++//     marker the app's utils/circuit-preload.ts writes too), else validated
++//     once and the marker written; a bytecode that fails is deleted and
++//     fetched again;
++//   - the trusted setup (150 to 300 MB) is never read in JavaScript: its size
++//     is compared with the `.size` marker. A setup from before the markers,
++//     without one, is kept if it is at least 50 MB (the app's rule), so no
++//     one downloads 300 MB again because of this update.
++import * as FileSystem from "expo-file-system/legacy";
++import { validateCircuitJson } from "./circuitValidation";
++const MIN_TRUSTED_SETUP_BYTES = 50 * 1024 * 1024;
++const downloads = new Map();
++const okMarker = (uri) => uri + ".ok";
++const sizeMarker = (uri) => uri + ".size";
++async function readSmall(uri) {
++    try {
++        const info = await FileSystem.getInfoAsync(uri);
++        if (!info.exists)
++            return null;
++        return await FileSystem.readAsStringAsync(uri);
++    }
++    catch {
++        return null;
++    }
++}
++async function removeQuietly(uri) {
++    try {
++        await FileSystem.deleteAsync(uri, { idempotent: true });
++    }
++    catch { }
++}
++/** True when the file at `uri` can be handed to the prover as is. */
++export async function validCircuitFile(uri, bytecode) {
++    const info = await FileSystem.getInfoAsync(uri);
++    if (!info.exists)
++        return false;
++    const size = info.size ?? 0;
++    try {
++        if (!bytecode) {
++            const recorded = parseInt((await readSmall(sizeMarker(uri))) ?? "", 10);
++            return Number.isFinite(recorded) && recorded > 0
++                ? size === recorded
++                : size >= MIN_TRUSTED_SETUP_BYTES;
++        }
++        if ((await readSmall(okMarker(uri))) === String(size))
++            return true;
++        await validateCircuitJson(await FileSystem.readAsStringAsync(uri));
++        await FileSystem.writeAsStringAsync(okMarker(uri), String(size));
++        return true;
++    }
++    catch {
++        return false;
++    }
++}
++/**
++ * The file at `uri`, downloaded from `url` if the cached one is missing or
++ * invalid. Concurrent calls for the same file share one download. Throws
++ * [CIRCUIT_UNAVAILABLE] when the download is incomplete or invalid; nothing
++ * is published under `uri` then.
++ */
++export async function atomicCircuitDownload(url, uri, bytecode, progress) {
++    const running = downloads.get(uri);
++    if (running)
++        return running;
++    const work = (async () => {
++        if (await validCircuitFile(uri, bytecode))
++            return uri;
++        await removeQuietly(uri);
++        await removeQuietly(bytecode ? okMarker(uri) : sizeMarker(uri));
++        const temporary = uri + ".partial";
++        await removeQuietly(temporary);
++        let expected = 0;
++        try {
++            const result = await FileSystem.createDownloadResumable(url, temporary, {}, (p) => {
++                if (p.totalBytesExpectedToWrite > 0)
++                    expected = p.totalBytesExpectedToWrite;
++                progress?.(p);
++            }).downloadAsync();
++            if (!result || result.status !== 200)
++                throw new Error("[CIRCUIT_UNAVAILABLE] download failed");
++            const headers = result.headers || {};
++            expected = Number(headers["Content-Length"] || headers["content-length"]) || expected;
++            const info = await FileSystem.getInfoAsync(temporary);
++            const size = info.exists ? info.size ?? 0 : 0;
++            if (!info.exists || (expected > 0 && size !== expected)) {
++                throw new Error("[CIRCUIT_UNAVAILABLE] download truncated");
++            }
++            if (bytecode) {
++                try {
++                    await validateCircuitJson(await FileSystem.readAsStringAsync(temporary));
++                }
++                catch {
++                    throw new Error("[CIRCUIT_UNAVAILABLE] bytecode invalid");
++                }
++            }
++            else if (size < MIN_TRUSTED_SETUP_BYTES) {
++                throw new Error("[CIRCUIT_UNAVAILABLE] trusted setup too small");
++            }
++            // Marker first: a crash between the two leaves a marker without a
++            // file, which reads as "not cached".
++            await FileSystem.writeAsStringAsync(bytecode ? okMarker(uri) : sizeMarker(uri), String(size));
++            await FileSystem.moveAsync({ from: temporary, to: uri });
++            return uri;
++        }
++        finally {
++            await removeQuietly(temporary);
++        }
++    })();
++    downloads.set(uri, work);
++    try {
++        return await work;
++    }
++    finally {
++        if (downloads.get(uri) === work)
++            downloads.delete(uri);
++    }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.d.ts
+new file mode 100644
+index 0000000..1da8036
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.d.ts
+@@ -0,0 +1,3 @@
++/** The app sets this once: validation pauses while it returns false. */
++export declare const setCircuitValidationGate: (fn: () => boolean) => void;
++export declare function validateCircuitJson(text: string): Promise<void>;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.js b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.js
+new file mode 100644
+index 0000000..c80a378
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/helpers/circuitValidation.js
+@@ -0,0 +1,111 @@
++// Circuit JSON validation for the atomic circuit cache (dossier 2.0.2, item
++// 15 / R9; plan D12).
++//
++// Validates the whole JSON incrementally and requires a non-empty top-level
++// "bytecode" string, without building the parsed object beside its source.
++// Yields a macrotask every 16 ms, and pauses entirely while the gate says no
++// (the app closes it while an NFC read owns the phone). Nothing from the file
++// is ever logged.
++let gate = () => true;
++/** The app sets this once: validation pauses while it returns false. */
++export const setCircuitValidationGate = (fn) => {
++    gate = fn;
++};
++const fail = () => {
++    throw new Error("CIRCUIT_UNAVAILABLE");
++};
++export async function validateCircuitJson(text) {
++    let i = 0;
++    let lastYield = Date.now();
++    let bytecode = false;
++    const whitespace = () => {
++        while (i < text.length && /[ \t\r\n]/.test(text[i]))
++            i++;
++    };
++    async function yieldIfNeeded() {
++        if (!gate() || Date.now() - lastYield >= 16) {
++            do {
++                await new Promise((r) => setTimeout(r, gate() ? 0 : 50));
++            } while (!gate());
++            lastYield = Date.now();
++        }
++    }
++    async function string(capture = false) {
++        if (text[i++] !== '"')
++            fail();
++        const start = i - 1;
++        while (i < text.length) {
++            const c = text[i++];
++            if (c === '"')
++                return capture ? JSON.parse(text.slice(start, i)) : i - start > 2;
++            if (c.charCodeAt(0) < 32)
++                fail();
++            if (c === "\\") {
++                const escape = text[i++];
++                if (escape === "u") {
++                    if (!/^[\da-f]{4}$/i.test(text.slice(i, i + 4)))
++                        fail();
++                    i += 4;
++                }
++                else if (!escape || !'"\\/bfnrt'.includes(escape))
++                    fail();
++            }
++            if (i % 4096 < 6)
++                await yieldIfNeeded();
++        }
++        return fail();
++    }
++    async function value(depth = 0, isBytecode = false) {
++        if (depth > 200)
++            fail();
++        await yieldIfNeeded();
++        whitespace();
++        const c = text[i];
++        if (c === '"') {
++            const nonEmpty = await string();
++            if (isBytecode)
++                bytecode = nonEmpty === true;
++            return;
++        }
++        if (isBytecode)
++            fail();
++        if (c === "{" || c === "[") {
++            const object = c === "{";
++            const end = object ? "}" : "]";
++            i++;
++            whitespace();
++            if (text[i] === end) {
++                i++;
++                return;
++            }
++            for (;;) {
++                let key;
++                if (object) {
++                    whitespace();
++                    key = await string(depth === 0);
++                    whitespace();
++                    if (text[i++] !== ":")
++                        fail();
++                }
++                await value(depth + 1, depth === 0 && key === "bytecode");
++                whitespace();
++                if (text[i] === end) {
++                    i++;
++                    return;
++                }
++                if (text[i++] !== ",")
++                    fail();
++            }
++        }
++        const match = text
++            .slice(i, i + 128)
++            .match(/^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/);
++        if (!match)
++            fail();
++        i += match[0].length;
++    }
++    await value();
++    whitespace();
++    if (i !== text.length || !bytecode)
++        fail();
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/index.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/index.d.ts
+index c807e64..9c2f78f 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/index.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/index.d.ts
+@@ -3,4 +3,6 @@ export * from "./RarimeUtils";
+ export * from "./RarimePassport";
+ export * from "./Freedomtool";
+ export { QueryProofParams } from "./types";
++export { NoirCircuitParams, NoirZKProof } from "./RnNoirModule";
++export type { ProposalInfo, ProposalCriteria, ProposalQuestion } from "./types/proposal";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/index.js b/node_modules/@rarimo/rarime-rn-sdk/build/index.js
+index 47888a8..36df7b6 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/index.js
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/index.js
+@@ -2,4 +2,8 @@ export * from "./Rarime";
+ export * from "./RarimeUtils";
+ export * from "./RarimePassport";
+ export * from "./Freedomtool";
++// Expose NoirCircuitParams + NoirZKProof so host apps can call
++// circuit.prove(...) directly for circuits not covered by the SDK's
++// built-in flows (heavy register circuits with custom inputs).
++export { NoirCircuitParams } from "./RnNoirModule";
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/build/types/proposal.d.ts b/node_modules/@rarimo/rarime-rn-sdk/build/types/proposal.d.ts
+index c7344c4..d4fe949 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/build/types/proposal.d.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/build/types/proposal.d.ts
+@@ -20,6 +20,10 @@ export interface ProposalInfo {
+     startTimestamp: bigint;
+     duration: bigint;
+     imageCID: string;
++    /** The IPFS CID the chain points at for this proposal's metadata. Carried
++     * so the app can re-impose the bundled option order after an
++     * unauthenticated cache read (wave 4b, C3). */
++    metadataCid?: string;
+     sendVoteContractAddress: string;
+     title: string;
+     description?: string;
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
+index dea6423..00490d6 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
++++ b/node_modules/@rarimo/rarime-rn-sdk/ios/RnNoirModule.swift
+@@ -66,15 +66,18 @@ public class RnNoirModule: Module {
+       }
+ 
+       // Generate proof
++      print("[RnNoir] === Attempting circuit.prove() ===")
+       do {
+         let proof = try circuit.prove(inputsMap, proof_type: "plonk")
+ 
+-        print("Generated proof: \(proof)")
++        print("[RnNoir] Proof generated successfully")
+         let hexProof = proof.proof.map { String(format: "%02x", $0) }.joined()
+ 
+         return hexProof
+       } catch {
+-        print("Error generating proof: \(error)")
++        print("[RnNoir] Prove FAILED: \(error)")
++        print("[RnNoir] Prove error type: \(type(of: error))")
++        print("[RnNoir] Prove error description: \(error.localizedDescription)")
+         throw error
+       }
+     }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/ios/Swoir/SwoirCore.swift b/node_modules/@rarimo/rarime-rn-sdk/ios/Swoir/SwoirCore.swift
+index a5a769e..9f54394 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/ios/Swoir/SwoirCore.swift
++++ b/node_modules/@rarimo/rarime-rn-sdk/ios/Swoir/SwoirCore.swift
+@@ -33,3 +33,34 @@ public enum SwoirCore {
+       static func execute(bytecode: Data, witnessMap: [String]) throws -> [String]
+   }
+ }
++
++// Patched (patches/@rarimo+rarime-rn-sdk+0.3.1.patch). A bare Swift enum has
++// no localizedDescription, so every one of the cases above reached JS as
++// "The operation couldn't be completed. (RnNoir.SwoirCore.SwoirBackendError
++// error 0.)" — the ordinal of the case and nothing else. The String each case
++// carries is the only thing that says WHICH constraint the circuit failed, and
++// it was being thrown away at the bridge.
++//
++// That cost a night: on 2026-09-09 two circuits failed on two phones and the
++// error reports could say only "error 0", which is `errorProving`. Conforming
++// to LocalizedError makes the payload the localizedDescription, so it survives
++// into the report and names the assert. Android already behaves this way — a
++// JVM exception keeps its message.
++extension SwoirCore.SwoirBackendError: LocalizedError {
++    public var errorDescription: String? {
++        switch self {
++        case .errorProving(let detail): return "proving failed: \(detail)"
++        case .errorVerifying(let detail): return "verifying failed: \(detail)"
++        case .errorExecuting(let detail): return "witness solving failed: \(detail)"
++        case .networkError(let detail): return "network error: \(detail)"
++        case .memoryLimitExceeded: return "memory limit exceeded"
++        case .invalidBytecode: return "invalid circuit bytecode"
++        case .emptyBytecode: return "empty circuit bytecode"
++        case .emptyWitnessMap: return "empty witness map"
++        case .emptyProofData: return "empty proof data"
++        case .emptyVerificationKey: return "empty verification key"
++        case .emptyProofType: return "empty proof type"
++        case .errorSettingUpSRS: return "could not set up the SRS"
++        }
++    }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
+index e7a8d48..8e8f7ba 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/Freedomtool.ts
+@@ -27,6 +27,8 @@ const UINT32_MAX = 2n ** 32n - 1n;
+ const UINT64_MAX = 2n ** 64n - 1n;
+ 
+ export const MRZ_ZERO_DATE = 52983525027888n; // "000000"
++/** Bound on the vote POST and its body read (dossier 2.0.2, 3 e). */
++export const VOTE_POST_TIMEOUT_MS = 90_000;
+ export interface FreedomToolAPIConfiguration {
+   ipfsUrl: string;
+   votingRelayerUrl: string;
+@@ -367,24 +369,68 @@ export class FreedomTool {
+       },
+     };
+ 
+-    const sendVoteResponse = await fetch(
+-      this.config.api.votingRelayerUrl +
+-        "/integrations/proof-verification-relayer/v3/vote",
+-      {
+-        method: "POST",
+-        headers: {
+-          "Content-Type": "application/json",
+-        },
+-        body: JSON.stringify(sendVoteRequest),
++    // From here on the vote may have left the phone. Every failure below is
++    // tagged votePostSent so the app treats a lost answer as "sent, outcome
++    // unknown" (re-read the status, never re-send blindly), not as "not
++    // recorded". A relayer that answered with an HTTP status also carries it.
++    const postSent = (message: string, status?: number) =>
++      Object.assign(new Error(message), {
++        votePostSent: true,
++        code: "VOTE_POST_SENT",
++        ...(status !== undefined ? { status } : {}),
++      });
++
++    // Bounded (dossier 2.0.2, 3 e): the request AND the body read. A timeout
++    // is "sent, outcome unknown" like any other lost answer (R4).
++    const controller = new AbortController();
++    let timer: ReturnType<typeof setTimeout> | undefined;
++    const deadline = new Promise<never>((_, reject) => {
++      timer = setTimeout(() => {
++        controller.abort();
++        reject(postSent(`[SDK] vote POST without answer within ${VOTE_POST_TIMEOUT_MS / 1000} s`));
++      }, VOTE_POST_TIMEOUT_MS);
++    });
++    const exchange = async (): Promise<string> => {
++      let sendVoteResponse: Response;
++      try {
++        sendVoteResponse = await fetch(
++          this.config.api.votingRelayerUrl +
++            "/integrations/proof-verification-relayer/v3/vote",
++          {
++            method: "POST",
++            headers: {
++              "Content-Type": "application/json",
++            },
++            body: JSON.stringify(sendVoteRequest),
++            signal: controller.signal,
++          }
++        );
++      } catch (e: any) {
++        throw postSent(`[SDK] vote POST without answer: ${e?.message ?? e}`);
+       }
+-    );
+ 
+-    if (!sendVoteResponse.ok) {
+-      throw new Error(`HTTP error ${sendVoteResponse.status}`);
+-    }
++      if (!sendVoteResponse.ok) {
++        const errBody = await sendVoteResponse.text().catch(() => "(unreadable)");
++        throw postSent(`HTTP error ${sendVoteResponse.status}: ${errBody}`, sendVoteResponse.status);
++      }
+ 
+-    const sendVoteResponseParsed = await sendVoteResponse.json();
++      let sendVoteResponseParsed: any;
++      try {
++        sendVoteResponseParsed = await sendVoteResponse.json();
++      } catch (e: any) {
++        throw postSent(`[SDK] vote accepted but its answer was unreadable: ${e?.message ?? e}`);
++      }
++      const txId = sendVoteResponseParsed?.data?.id;
++      if (!txId) {
++        throw postSent("[SDK] vote accepted without a transaction id");
++      }
++      return txId;
++    };
+ 
+-    return sendVoteResponseParsed.data.id;
++    try {
++      return await Promise.race([exchange(), deadline]);
++    } finally {
++      clearTimeout(timer);
++    }
+   }
+ }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
+index 02b4873..3ac21fb 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/Rarime.ts
+@@ -20,6 +20,24 @@ import { Time } from "@distributedlab/tools";
+ 
+ const ZERO_BYTES = new Uint8Array(64);
+ 
++/** Today in UTC as YYMMDD, or the attempt's own date when one is given. */
++export function mrzDateOrUtcToday(currentDate?: string | null): string {
++  if (currentDate === undefined || currentDate === null) {
++    return new Time().utc().format("YYMMDD");
++  }
++  if (!/^\d{6}$/.test(String(currentDate))) {
++    throw new Error("[SDK] invalid current date for the proof");
++  }
++  return String(currentDate);
++}
++
++/** A query proof and the registration root it was generated against. The
++ * vote calldata must carry exactly this root; it is never re-read. */
++export interface BoundQueryProof {
++  readonly proof: NoirZKProof;
++  readonly idStateRoot: string;
++}
++
+ export interface RarimeUserConfiguration {
+   userPrivateKey: string;
+ }
+@@ -95,7 +113,10 @@ export class Rarime {
+       return DocumentStatus.NotRegistered;
+     }
+ 
+-    if (activeIdentity === this.config.userConfiguration.userPrivateKey) {
++    // Chain stores the profileKey (Poseidon hash of the BJJ pubPoint),
++    // not the private key itself. Compare apples to apples.
++    const profileKey = "0x" + RarimeUtils.getProfileKey(this.config.userConfiguration.userPrivateKey);
++    if (activeIdentity === profileKey) {
+       return DocumentStatus.RegisteredWithThisPk;
+     }
+ 
+@@ -103,16 +124,11 @@ export class Rarime {
+   }
+ 
+   public async registerIdentity(passport: RarimePassport): Promise<String> {
+-    const passportStatus = await this.getDocumentStatus(passport);
+-
+-    if (passportStatus === DocumentStatus.RegisteredWithOtherPk) {
+-      throw new Error("This document was registered with other Private Key");
+-    }
+-
+-    if (passportStatus === DocumentStatus.RegisteredWithThisPk) {
+-      throw new Error("This document was registered with this Private Key");
+-    }
+-
++    // Throws for RegisteredWithOtherPk / RegisteredWithThisPk removed — the
++    // app layer (components/voting-modal/Step7.tsx) decides the policy.
++    // Dev builds allow rotation so a single passport can be re-tested after
++    // a SecureStore wipe; prod builds block at the app level so a double-vote
++    // isn't possible by silently rotating keys.
+     const hashAlgoOID = passport.extractDGHashAlgo();
+ 
+     const hashAlgo = HashAlgorithm.fromOID(hashAlgoOID);
+@@ -160,7 +176,7 @@ export class Rarime {
+   public async generateQueryProof(
+     queryProofParams: QueryProofParams,
+     passport: RarimePassport
+-  ): Promise<NoirZKProof> {
++  ): Promise<BoundQueryProof> {
+     const circuit = NoirCircuitParams.fromName("query_identity");
+ 
+     await NoirCircuitParams.downloadTrustedSetup();
+@@ -179,62 +195,49 @@ export class Rarime {
+       );
+     }
+ 
++    // Read once; the root travels with the proof (see the build copy).
+     const smtProof = await this.getSMTProof(passport);
++    const idStateRoot = smtProof.root as string;
+ 
+-    const isAndroid = Platform.OS === "android";
+     const inputs = {
+-      event_id: isAndroid
+-        ? toPaddedHex32(queryProofParams.eventId)
+-        : queryProofParams.eventId, //from input
+-      event_data: isAndroid
+-        ? toPaddedHex32(queryProofParams.eventData)
+-        : queryProofParams.eventData,
+-      id_state_root: smtProof.root, //from SMT
+-      selector: isAndroid
+-        ? toPaddedHex32(queryProofParams.selector)
+-        : queryProofParams.selector, //from input
+-      current_date: hexlify(toUtf8Bytes(new Time().format("YYMMDD"))),
+-      timestamp_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.timestampLowerbound)
+-        : queryProofParams.timestampLowerbound, //from input
+-      timestamp_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.timestampUpperbound)
+-        : queryProofParams.timestampUpperbound, //from input
+-      identity_count_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.identityCountLowerbound)
+-        : queryProofParams.identityCountLowerbound, //from input
+-      identity_count_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.identityCountUpperbound)
+-        : queryProofParams.identityCountUpperbound, //from input
+-      birth_date_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.birthDateLowerbound)
+-        : queryProofParams.birthDateLowerbound, //from input
+-      birth_date_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.birthDateUpperbound)
+-        : queryProofParams.birthDateUpperbound, //from input
+-      expiration_date_lowerbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.expirationDateLowerbound)
+-        : queryProofParams.expirationDateLowerbound, //from input
+-      expiration_date_upperbound: isAndroid
+-        ? toPaddedHex32(queryProofParams.expirationDateUpperbound)
+-        : queryProofParams.expirationDateUpperbound, //from input
+-      citizenship_mask: isAndroid
+-        ? toPaddedHex32(queryProofParams.citizenshipMask)
+-        : queryProofParams.citizenshipMask, //from input
++      event_id: toPaddedHex32(queryProofParams.eventId),
++      event_data: toPaddedHex32(queryProofParams.eventData),
++      id_state_root: idStateRoot,
++      selector: toPaddedHex32(queryProofParams.selector),
++      // UTC, not the phone's local date: the contract reads current_date as
++      // midnight UTC and requires it within 24 h of the block time. See the
++      // build copy for the full note.
++      current_date: hexlify(
++        toUtf8Bytes(
++          mrzDateOrUtcToday(
++            (queryProofParams as QueryProofParams & { currentDate?: string }).currentDate
++          )
++        )
++      ),
++      timestamp_lowerbound: toPaddedHex32(queryProofParams.timestampLowerbound),
++      timestamp_upperbound: toPaddedHex32(queryProofParams.timestampUpperbound),
++      identity_count_lowerbound: toPaddedHex32(queryProofParams.identityCountLowerbound),
++      identity_count_upperbound: toPaddedHex32(queryProofParams.identityCountUpperbound),
++      birth_date_lowerbound: toPaddedHex32(queryProofParams.birthDateLowerbound),
++      birth_date_upperbound: toPaddedHex32(queryProofParams.birthDateUpperbound),
++      expiration_date_lowerbound: toPaddedHex32(queryProofParams.expirationDateLowerbound),
++      expiration_date_upperbound: toPaddedHex32(queryProofParams.expirationDateUpperbound),
++      citizenship_mask: toPaddedHex32(queryProofParams.citizenshipMask),
+       sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+       pk_passport_hash: toPaddedHex32(passport.getPassportKey()),
+       dg1: NoirCircuitParams.formatArray(
+         Array.from(passport.dataGroup1).map((byteValue) =>
+           byteValue.toString()
+         ),
+-        isAndroid
++        true
+       ),
+-      siblings: smtProof.siblings, //from SMT
++      siblings: smtProof.siblings,
+       timestamp: toPaddedHex32(passportInfo[1].issueTimestamp),
+       identity_counter: toPaddedHex32(passportInfo[0].identityReissueCounter),
+     };
+ 
+-    return circuit.prove(JSON.stringify(inputs), byteCode);
++    const proof = await circuit.prove(JSON.stringify(inputs), byteCode);
++    return Object.freeze({ proof, idStateRoot });
+   }
+ 
+   public getEventNullifier(eventId: bigint): string {
+@@ -296,13 +299,12 @@ export class Rarime {
+ 
+     const byteCode = await circuit.downloadByteCode();
+ 
+-    const isAndroid = Platform.OS === "android";
+     let inputs = {
+       dg1: NoirCircuitParams.formatArray(
+         Array.from(passport.dataGroup1).map((byteValue) =>
+           byteValue.toString()
+         ),
+-        isAndroid
++        true
+       ),
+       sk_identity: "0x" + this.config.userConfiguration.userPrivateKey,
+     };
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts b/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
+index 22e2e25..215584f 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/RarimePassport.ts
+@@ -7,6 +7,16 @@ import { DG1, DG15, SOD } from "@li0ard/tsemrtd";
+ import { CertificateSet } from "@peculiar/asn1-cms";
+ import { ProposalInfo } from "./types";
+ import { MRZ_ZERO_DATE } from "./Freedomtool";
++import {
++  buildCircuitName,
++  RegisterIdentityCircuitType,
++} from "./helpers/CircuitSuite";
++import {
++  pickSlaveCertificate,
++  resolveCircuitSuite,
++  hashWith,
++} from "./helpers/SuiteResolver";
++import { passportHashTypeFromOID } from "./helpers/SODAlgorithm";
+ 
+ export interface MRZData {
+   documentType: string;
+@@ -195,7 +205,48 @@ export class RarimePassport {
+     return certificates;
+   }
+ 
+-  public verifyPassport(proposalInfo: ProposalInfo) {
++  // Resolve this passport's SOD into a Rarimo registerIdentity_<suite> name.
++  // Returns the full RegisterIdentityCircuitType plus the composed circuit
++  // name string; throws with a structured reason if the passport's signature
++  // suite isn't covered by SUPPORTED_SIGNATURE_TYPES (i.e. Rarimo hasn't
++  // published a heavy-register circuit for it).
++  //
++  // Used by Rarime.registerIdentityHeavy() to pick which hosted JSON to
++  // download as bytecode.
++  public extractCircuitSuite(): { suite: RegisterIdentityCircuitType; name: string } {
++    const certs = this.getCertificate();
++    const slaveCert = pickSlaveCertificate(certs);
++    if (!slaveCert) throw new Error("SOD has no slave certificate");
++
++    const dgHashOid = this.extractDGHashAlgo();
++    const passportHashType = passportHashTypeFromOID(dgHashOid);
++    const encapsulatedContent = this.extractEncapsulatedContent();
++    const signedAttributes = this.extractSignedAttributes();
++
++    // ecHash = digest of encapsulatedContent using the LDS object's hash algo.
++    // The same value is stored as the messageDigest signed attribute, so this
++    // recompute matches what's in signedAttributes byte-for-byte.
++    const ecHash = hashWith(passportHashType, encapsulatedContent);
++
++    const result = resolveCircuitSuite({
++      slaveCert,
++      sodSignatureOid: this.getSignatureAlgorithm(),
++      dgHashOid,
++      encapsulatedContent,
++      signedAttributes,
++      dg1: this.dataGroup1,
++      dg15: this.dataGroup15,
++      ecHash,
++    });
++
++    if ("error" in result) {
++      throw new Error(`Cannot resolve circuit suite for this passport: ${result.error}`);
++    }
++
++    return { suite: result.suite, name: buildCircuitName(result.suite) };
++  }
++
++  public verifyPassport(proposalInfo: ProposalInfo, currentDate?: string) {
+     const mrz = this.getMRZData();
+ 
+     if (
+@@ -218,16 +269,37 @@ export class RarimePassport {
+       );
+     }
+ 
++    // Birth-date bounds as the query circuit applies them
++    // (dateComparisonEncodedNormalized.circom): the two-digit year reads as
++    // 20xx when the date is before today's YYMMDD and as 19xx otherwise, and
++    // both comparisons are strict. The packed bound used to be compared with
++    // the decimal MRZ number, which refused everyone as soon as a lower bound
++    // was set and never enforced the upper one.
++    const toMrz = (encoded: bigint): string =>
++      Buffer.from(encoded.toString(16).padStart(12, "0"), "hex").toString("ascii");
++    // Today in UTC, as the proof's current_date is built, or the attempt's
++    // own date: the century rule must read the same day the proof will.
++    const now = new Date();
++    const current = Number(
++      currentDate ??
++        `${String(now.getUTCFullYear() % 100).padStart(2, "0")}${String(now.getUTCMonth() + 1).padStart(2, "0")}${String(now.getUTCDate()).padStart(2, "0")}`
++    );
++    const normalized = (yymmdd: string): number => {
++      const raw = Number(yymmdd);
++      return raw + (raw < current ? 1000000 : 0);
++    };
++    const birth = normalized(mrz.birthDate);
++
+     if (
+       proposalInfo.criteria.birthDateLowerbound !== MRZ_ZERO_DATE &&
+-      proposalInfo.criteria.birthDateLowerbound > BigInt(mrz.birthDate)
++      !(normalized(toMrz(proposalInfo.criteria.birthDateLowerbound)) < birth)
+     ) {
+       throw new Error("Birth date is lower than lowerbound");
+     }
+ 
+     if (
+       proposalInfo.criteria.birthDateUpperbound !== MRZ_ZERO_DATE &&
+-      proposalInfo.criteria.birthDateUpperbound < BigInt(mrz.birthDate)
++      !(birth < normalized(toMrz(proposalInfo.criteria.birthDateUpperbound)))
+     ) {
+       throw new Error("Birth date is higher than upperbound");
+     }
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts b/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
+index a1aae99..c84612d 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/RnNoirModule.ts
+@@ -1,4 +1,5 @@
+-import * as FileSystem from 'expo-file-system';
++import * as FileSystem from 'expo-file-system/legacy';
++import {atomicCircuitDownload} from './helpers/circuitFiles';
+ import {default as NoirModule} from './src/NoirModule';
+ 
+ export type NoirZKProof = {
+@@ -54,29 +55,9 @@ export class NoirCircuitParams {
+         const url =
+             'https://storage.googleapis.com/rarimo-store/trusted-setups/ultraPlonkTrustedSetup.dat';
+ 
+-        // Continue downloading
+-        const downloadResumable = FileSystem.createDownloadResumable(
+-            url,
+-            fileUri,
+-            {},
+-            (progress) => {
+-                // DEBUG DOWNLOADING
+-                // console.log(
+-                //   `Progress: ${((progress.totalBytesWritten / progress.totalBytesExpectedToWrite) * 100).toFixed(1)}%`,
+-                // )
+-                opts?.onDownloadingProgress?.(progress);
+-            },
+-        );
+-
+-        if (!(await NoirCircuitParams.getTrustedSetupUri())) {
+-            await downloadResumable.downloadAsync();
+-        }
+-
+-        const uri = await NoirCircuitParams.getTrustedSetupUri();
+-
+-        if (!uri) {
+-            throw new Error('Failed to download trusted setup');
+-        }
++        // Downloaded to a temporary name, size-checked, then renamed; a cached
++        // file is trusted only against its size marker (dossier 2.0.2, 15).
++        const uri = await atomicCircuitDownload(url, fileUri, false, opts?.onDownloadingProgress);
+ 
+         return uri;
+     }
+@@ -116,26 +97,9 @@ export class NoirCircuitParams {
+         ) => void;
+     }): Promise<string> {
+         const fileName = `${FileSystem.documentDirectory}/noir/${this.name}-bytecode.json`;
+-        const downloadResumable = FileSystem.createDownloadResumable(
+-            this.byteCodeUri,
+-            fileName,
+-            {},
+-            (downloadProgress) => {
+-                opts?.onDownloadingProgress?.(downloadProgress);
+-            },
+-        );
+-
+-        if (!(await NoirCircuitParams.getByteCodeUri(fileName))) {
+-            await downloadResumable.downloadAsync();
+-        }
+-
+-        const uri = await NoirCircuitParams.getByteCodeUri(fileName);
+-
+-        if (!uri) {
+-            throw new Error(
+-                `Failed to download bytecode for noir circuit ${this.name}`,
+-            );
+-        }
++        // A truncated cached bytecode is never trusted: validated (or its .ok
++        // marker checked), else downloaded again atomically (dossier 2.0.2, 15).
++        const uri = await atomicCircuitDownload(this.byteCodeUri, fileName, true, opts?.onDownloadingProgress);
+ 
+         const byteCode = await FileSystem.readAsStringAsync(uri);
+ 
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts
+new file mode 100644
+index 0000000..9066c70
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/CircuitSuite.ts
+@@ -0,0 +1,182 @@
++// Type definitions for resolving a passport's SOD signature suite to a
++// Rarimo registerIdentity_<suite> circuit variant.
++//
++// Ported from rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++// (original 482 lines Swift). We mirror the staticId tables exactly so the
++// resulting suite string composes the same filename as the iOS app uses, e.g.
++//   registerIdentity_20_256_3_5_336_248_NA   (ECDSA-P256, SHA256, TD3, no AA)
++//
++// The 30+ pre-compiled variants live at
++//   https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/registerIdentity_<suite>.json
++// and have on-chain UltraPlonk verifier contracts deployed on Q-testnet.
++
++export enum CircuitAlgorithm {
++  RSA = "RSA",
++  RSAPSS = "RSAPSS",
++  ECDSA = "ECDSA",
++}
++
++export enum CircuitKeySize {
++  B160 = "B160",
++  B192 = "B192",
++  B224 = "B224",
++  B256 = "B256",
++  B320 = "B320",
++  B384 = "B384",
++  B512 = "B512",
++  B521 = "B521",
++  B1024 = "B1024",
++  B2048 = "B2048",
++  B3072 = "B3072",
++  B4096 = "B4096",
++}
++
++export enum CircuitExponent {
++  E3 = "E3",
++  E65537 = "E65537",
++  E37187 = "E37187",
++  E58333 = "E58333",
++  E45347 = "E45347",
++  E46271 = "E46271",
++}
++
++export enum CircuitSalt {
++  S32 = "S32",
++  S48 = "S48",
++  S64 = "S64",
++}
++
++export enum CircuitCurve {
++  SECP160R1 = "SECP160R1",
++  SECP192R1 = "SECP192R1",
++  SECP224R1 = "SECP224R1",
++  SECP256R1 = "SECP256R1",
++  SECP384R1 = "SECP384R1",
++  SECP512R1 = "SECP512R1",
++  SECP521R1 = "SECP521R1",
++  BRAINPOOLP160R1 = "BRAINPOOLP160R1",
++  BRAINPOOLP192R1 = "BRAINPOOLP192R1",
++  BRAINPOOLP224R1 = "BRAINPOOLP224R1",
++  BRAINPOOLP256R1 = "BRAINPOOLP256R1",
++  BRAINPOOLP320R1 = "BRAINPOOLP320R1",
++  BRAINPOOLP384R1 = "BRAINPOOLP384R1",
++  BRAINPOOLP512R1 = "BRAINPOOLP512R1",
++}
++
++export enum CircuitHashAlgorithm {
++  HA160 = "HA160",
++  HA192 = "HA192",
++  HA224 = "HA224",
++  HA256 = "HA256",
++  HA384 = "HA384",
++  HA512 = "HA512",
++}
++
++export enum CircuitDocumentType {
++  TD1 = "TD1",
++  TD3 = "TD3",
++}
++
++// Returns the integer encoded into the circuit name. TD1→1, TD3→3.
++export function documentTypeId(t: CircuitDocumentType): number {
++  return t === CircuitDocumentType.TD1 ? 1 : 3;
++}
++
++// Hash byte/bit length used for the encapsulated-content padded chunking.
++export enum CircuitPassportHashType {
++  SHA1 = "sha1",
++  SHA224 = "sha224",
++  SHA256 = "sha256",
++  SHA384 = "sha384",
++  SHA512 = "sha512",
++}
++
++// Bit length encoded into the circuit name (160/224/256/384/512).
++export function passportHashId(h: CircuitPassportHashType): number {
++  switch (h) {
++    case CircuitPassportHashType.SHA1: return 160;
++    case CircuitPassportHashType.SHA224: return 224;
++    case CircuitPassportHashType.SHA256: return 256;
++    case CircuitPassportHashType.SHA384: return 384;
++    case CircuitPassportHashType.SHA512: return 512;
++  }
++}
++
++// SHA block size in bits. Used by smartChunking to compute ec chunk count.
++export function passportHashChunkSize(h: CircuitPassportHashType): number {
++  switch (h) {
++    case CircuitPassportHashType.SHA1:
++    case CircuitPassportHashType.SHA224:
++    case CircuitPassportHashType.SHA256:
++      return 512;
++    case CircuitPassportHashType.SHA384:
++    case CircuitPassportHashType.SHA512:
++      return 1024;
++  }
++}
++
++// Identifies one row of the static signature-suite table. `staticId` is the
++// number that goes into the circuit filename (e.g. 20 for ECDSA-P256-SHA256).
++export interface CircuitSignatureType {
++  staticId: number;
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++  hashAlgorithm: CircuitHashAlgorithm;
++}
++
++// Identifies one row of the static AA (Active Authentication) table.
++export interface CircuitAAAlgorithm {
++  staticId: number;
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize | null;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++  hashAlgorithm: CircuitHashAlgorithm | null;
++}
++
++export interface CircuitAAType {
++  aaAlgorithm: CircuitAAAlgorithm;
++  dg15DigestPositionShift: number; // bit offset
++  dg15ChunkNumber: number;
++  aaKeyPositionShift: number; // bit offset
++}
++
++// The full resolved suite. Compose its name with `buildCircuitName` to get
++// the variant string used as the GCS filename and as the SDK circuit name.
++export interface RegisterIdentityCircuitType {
++  signatureType: CircuitSignatureType;
++  passportHashType: CircuitPassportHashType;
++  documentType: CircuitDocumentType;
++  ecChunkNumber: number;
++  ecDigestPosition: number; // bit offset
++  dg1DigestPositionShift: number; // bit offset
++  aaType: CircuitAAType | null;
++}
++
++// Compose the variant name in the iOS-canonical format. Mirrors
++// RegisterIdentityCircuitType.buildName() in Swift.
++//   registerIdentity_<sigId>_<hashBits>_<docId>_<ecChunks>_<ecDigestPos>_<dg1Shift>_<NA | aaId_dg15Shift_dg15Chunks_aaKeyShift>
++export function buildCircuitName(
++  suite: RegisterIdentityCircuitType,
++): string {
++  let name = "registerIdentity";
++  name += `_${suite.signatureType.staticId}`;
++  name += `_${passportHashId(suite.passportHashType)}`;
++  name += `_${documentTypeId(suite.documentType)}`;
++  name += `_${suite.ecChunkNumber}`;
++  name += `_${suite.ecDigestPosition}`;
++  name += `_${suite.dg1DigestPositionShift}`;
++  if (suite.aaType) {
++    name += `_${suite.aaType.aaAlgorithm.staticId}`;
++    name += `_${suite.aaType.dg15DigestPositionShift}`;
++    name += `_${suite.aaType.dg15ChunkNumber}`;
++    name += `_${suite.aaType.aaKeyPositionShift}`;
++  } else {
++    name += "_NA";
++  }
++  return name;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts
+new file mode 100644
+index 0000000..a463a75
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SODAlgorithm.ts
+@@ -0,0 +1,103 @@
++// Maps SOD signature-algorithm OIDs to the (CircuitAlgorithm, CircuitHashAlgorithm)
++// pair used to look up a row in SUPPORTED_SIGNATURE_TYPES.
++//
++// Mirrors rarime-ios-app/Rarime/Code/Models/Circuits/SODAlgorithm.swift, but
++// keyed by OID instead of human-readable algo name (Swift's X.509 lib gives
++// names like "ecdsa-with-SHA256"; @peculiar/asn1 gives raw OIDs).
++
++import { CircuitAlgorithm, CircuitHashAlgorithm } from "./CircuitSuite";
++
++// SOD signature algorithm OIDs (the OID of `signerInfo.signatureAlgorithm`)
++const SHA1_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.5";
++const SHA224_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.14";
++const SHA256_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.11";
++const SHA384_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.12";
++const SHA512_WITH_RSA_ENCRYPTION = "1.2.840.113549.1.1.13";
++const RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++const RSASSA_PSS = "1.2.840.113549.1.1.10";
++const ECDSA_WITH_SHA1 = "1.2.840.10045.4.1";
++const ECDSA_WITH_SHA224 = "1.2.840.10045.4.3.1";
++const ECDSA_WITH_SHA256 = "1.2.840.10045.4.3.2";
++const ECDSA_WITH_SHA384 = "1.2.840.10045.4.3.3";
++const ECDSA_WITH_SHA512 = "1.2.840.10045.4.3.4";
++
++// Hash algorithm OIDs (used as the `algorithm` of `ldsObject.algorithm` for DG
++// hashes, or as `digestAlgorithm` of signerInfo for signed-attributes digest)
++const ID_SHA1 = "1.3.14.3.2.26";
++const ID_SHA224 = "2.16.840.1.101.3.4.2.4";
++const ID_SHA256 = "2.16.840.1.101.3.4.2.1";
++const ID_SHA384 = "2.16.840.1.101.3.4.2.2";
++const ID_SHA512 = "2.16.840.1.101.3.4.2.3";
++
++export interface SodAlgorithmInfo {
++  circuitSignature: CircuitAlgorithm;
++  circuitHash: CircuitHashAlgorithm;
++}
++
++// Resolve SOD's signerInfo.signatureAlgorithm OID into a (signature, hash) pair.
++// The hash component is what appears in the `_<hashBits>_` slot of the suite
++// name only when the signature OID encodes its own hash (e.g. ecdsa-with-SHA256);
++// for bare RSA / RSA-PSS the hash comes from the cert's signatureAlgorithm
++// instead and the caller has to overlay it.
++export function fromSodSignatureOID(oid: string): SodAlgorithmInfo {
++  switch (oid) {
++    case RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case SHA1_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA160 };
++    case SHA224_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA224 };
++    case SHA256_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case SHA384_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA384 };
++    case SHA512_WITH_RSA_ENCRYPTION:
++      return { circuitSignature: CircuitAlgorithm.RSA, circuitHash: CircuitHashAlgorithm.HA512 };
++    case RSASSA_PSS:
++      // RSA-PSS hash comes from the PSS parameters; iOS defaults to SHA-256
++      // when not set, but real passports always set it. The caller should
++      // overlay the actual hash from the parsed PSS params.
++      return { circuitSignature: CircuitAlgorithm.RSAPSS, circuitHash: CircuitHashAlgorithm.HA256 };
++    case ECDSA_WITH_SHA1:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA160 };
++    case ECDSA_WITH_SHA224:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA224 };
++    case ECDSA_WITH_SHA256:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA256 };
++    case ECDSA_WITH_SHA384:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA384 };
++    case ECDSA_WITH_SHA512:
++      return { circuitSignature: CircuitAlgorithm.ECDSA, circuitHash: CircuitHashAlgorithm.HA512 };
++    default:
++      throw new Error(`Unsupported SOD signature OID: ${oid}`);
++  }
++}
++
++// Resolve a hash-algorithm OID (e.g. ldsObject.algorithm.algorithm) to the
++// CircuitHashAlgorithm enum used by the suite. Throws on unknown OIDs.
++export function fromHashOID(oid: string): CircuitHashAlgorithm {
++  switch (oid) {
++    case ID_SHA1: return CircuitHashAlgorithm.HA160;
++    case ID_SHA224: return CircuitHashAlgorithm.HA224;
++    case ID_SHA256: return CircuitHashAlgorithm.HA256;
++    case ID_SHA384: return CircuitHashAlgorithm.HA384;
++    case ID_SHA512: return CircuitHashAlgorithm.HA512;
++    default:
++      throw new Error(`Unsupported hash algorithm OID: ${oid}`);
++  }
++}
++
++// CircuitPassportHashType raw-string variant of fromHashOID. Pads the
++// passportHashType field of the suite (used for SHA-block-size lookups).
++import { CircuitPassportHashType } from "./CircuitSuite";
++export function passportHashTypeFromOID(oid: string): CircuitPassportHashType {
++  switch (oid) {
++    case ID_SHA1: return CircuitPassportHashType.SHA1;
++    case ID_SHA224: return CircuitPassportHashType.SHA224;
++    case ID_SHA256: return CircuitPassportHashType.SHA256;
++    case ID_SHA384: return CircuitPassportHashType.SHA384;
++    case ID_SHA512: return CircuitPassportHashType.SHA512;
++    default:
++      throw new Error(`Unsupported passport hash OID: ${oid}`);
++  }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
+new file mode 100644
+index 0000000..0b4cde3
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SuiteResolver.ts
+@@ -0,0 +1,383 @@
++// Resolves a passport's SOD into a RegisterIdentityCircuitType suite, which
++// composes into one of the published `registerIdentity_<suite>.json` filenames
++// at https://storage.googleapis.com/rarimo-store/passport-zk-circuits-noir/v0.1.x/.
++//
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/RegisterIdentityCircuitType.swift
++//     (the Passport.getRegisterIdentityCircuitType() extension at lines 162-273)
++//
++// The resolver returns null when the passport's signature suite isn't in
++// SUPPORTED_SIGNATURE_TYPES — that's the bail-out signal that Rarimo doesn't
++// have a published heavy-register circuit for this document.
++
++import { Buffer } from "buffer";
++import { sha1 } from "@noble/hashes/sha1";
++import { sha224, sha256 } from "@noble/hashes/sha256";
++import { sha384, sha512 } from "@noble/hashes/sha512";
++import { AsnConvert } from "@peculiar/asn1-schema";
++import { Certificate } from "@peculiar/asn1-x509";
++import { RSAPublicKey, RsaSaPssParams } from "@peculiar/asn1-rsa";
++import { ECParameters } from "@peculiar/asn1-ecc";
++import { id_ecPublicKey } from "@peculiar/asn1-ecc";
++import { CertificateSet } from "@peculiar/asn1-cms";
++
++import {
++  CircuitAlgorithm,
++  CircuitAAType,
++  CircuitDocumentType,
++  CircuitExponent,
++  CircuitHashAlgorithm,
++  CircuitKeySize,
++  CircuitPassportHashType,
++  CircuitSalt,
++  CircuitCurve,
++  CircuitSignatureType,
++  RegisterIdentityCircuitType,
++  passportHashChunkSize,
++} from "./CircuitSuite";
++import {
++  getSupportedSignatureTypeId,
++  getSupportedAATypeId,
++} from "./SupportedCircuits";
++import {
++  fromSodSignatureOID,
++  passportHashTypeFromOID,
++} from "./SODAlgorithm";
++
++// OIDs we discriminate on for the slave-cert publicKey algorithm.
++const ID_RSA_ENCRYPTION = "1.2.840.113549.1.1.1";
++
++// Map ECDSA named-curve OIDs to CircuitCurve. Source: RFC 5480 + Brainpool RFC 5639.
++// Mirrors iOS RegisterIdentityCircuitType.getPublicKeyCurve()'s switch table.
++const CURVE_OID_MAP: Record<string, CircuitCurve> = {
++  "1.3.132.0.7": CircuitCurve.SECP160R1,    // secp160r1
++  "1.2.840.10045.3.1.1": CircuitCurve.SECP192R1, // prime192v1 / P-192
++  "1.3.132.0.33": CircuitCurve.SECP224R1,   // secp224r1 / P-224
++  "1.2.840.10045.3.1.7": CircuitCurve.SECP256R1, // prime256v1 / P-256
++  "1.3.132.0.34": CircuitCurve.SECP384R1,   // secp384r1 / P-384
++  "1.3.132.0.35": CircuitCurve.SECP521R1,   // secp521r1 / P-521
++  "1.3.36.3.3.2.8.1.1.1":  CircuitCurve.BRAINPOOLP160R1,
++  "1.3.36.3.3.2.8.1.1.3":  CircuitCurve.BRAINPOOLP192R1,
++  "1.3.36.3.3.2.8.1.1.5":  CircuitCurve.BRAINPOOLP224R1,
++  "1.3.36.3.3.2.8.1.1.7":  CircuitCurve.BRAINPOOLP256R1,
++  "1.3.36.3.3.2.8.1.1.9":  CircuitCurve.BRAINPOOLP320R1,
++  "1.3.36.3.3.2.8.1.1.11": CircuitCurve.BRAINPOOLP384R1,
++  "1.3.36.3.3.2.8.1.1.13": CircuitCurve.BRAINPOOLP512R1,
++};
++
++// Round modulus bit length to the nearest CircuitKeySize bucket. iOS only
++// supports a fixed set; off-spec sizes return null and bubble up as "no row".
++function bitsToCircuitKeySize(bits: number): CircuitKeySize | null {
++  switch (bits) {
++    case 160: return CircuitKeySize.B160;
++    case 192: return CircuitKeySize.B192;
++    case 224: return CircuitKeySize.B224;
++    case 256: return CircuitKeySize.B256;
++    case 320: return CircuitKeySize.B320;
++    case 384: return CircuitKeySize.B384;
++    case 512: return CircuitKeySize.B512;
++    case 521: return CircuitKeySize.B521;
++    case 1024: return CircuitKeySize.B1024;
++    case 2048: return CircuitKeySize.B2048;
++    case 3072: return CircuitKeySize.B3072;
++    case 4096: return CircuitKeySize.B4096;
++    default: return null;
++  }
++}
++
++// Map raw RSA public exponent integer to the closed CircuitExponent set.
++function bigintToCircuitExponent(e: bigint): CircuitExponent | null {
++  switch (e) {
++    case 3n: return CircuitExponent.E3;
++    case 65537n: return CircuitExponent.E65537;
++    case 37187n: return CircuitExponent.E37187;
++    case 58333n: return CircuitExponent.E58333;
++    case 45347n: return CircuitExponent.E45347;
++    case 46271n: return CircuitExponent.E46271;
++    default: return null;
++  }
++}
++
++function saltLengthToCircuitSalt(salt: number): CircuitSalt | null {
++  switch (salt) {
++    case 32: return CircuitSalt.S32;
++    case 48: return CircuitSalt.S48;
++    case 64: return CircuitSalt.S64;
++    default: return null;
++  }
++}
++
++// Pick the document signer cert out of the CMS CertificateSet. SOD usually
++// has exactly one cert (the DSC); we take the first one with a `.certificate`
++// field. Returns null if none.
++export function pickSlaveCertificate(certificates: CertificateSet): Certificate | null {
++  for (const choice of certificates) {
++    if (choice.certificate) return choice.certificate;
++  }
++  return null;
++}
++
++// Extract (algorithm, keySize, exponent, salt, curve) from the slave cert's
++// public key + signature algorithm. The hash component is overlaid by the
++// caller (it comes from the SOD's signing OID, not the cert's pubkey info).
++export function extractSignatureSuiteFromCert(cert: Certificate): {
++  algorithm: CircuitAlgorithm;
++  keySize: CircuitKeySize | null;
++  exponent: CircuitExponent | null;
++  salt: CircuitSalt | null;
++  curve: CircuitCurve | null;
++} {
++  const spkAlgoOid = cert.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm;
++  const sigAlgoOid = cert.signatureAlgorithm.algorithm;
++
++  // RSA family — the cert's signatureAlgorithm OID encodes RSA vs RSA-PSS.
++  // Note: iOS treats all of {rsaEncryption, sha*WithRSAEncryption} as RSA;
++  // RSA-PSS is only when sigAlgoOid === "1.2.840.113549.1.1.10".
++  if (spkAlgoOid === ID_RSA_ENCRYPTION) {
++    const rsaPub = AsnConvert.parse(
++      cert.tbsCertificate.subjectPublicKeyInfo.subjectPublicKey,
++      RSAPublicKey,
++    );
++    const modulusBytes = new Uint8Array(rsaPub.modulus);
++    // Strip leading zero (ASN.1 INTEGER sign byte) before measuring bit length.
++    const stripped = modulusBytes[0] === 0x00 ? modulusBytes.subarray(1) : modulusBytes;
++    const bitLen = stripped.length * 8;
++    const exponent = BigInt("0x" + Buffer.from(rsaPub.publicExponent).toString("hex"));
++
++    let algorithm = CircuitAlgorithm.RSA;
++    let salt: CircuitSalt | null = null;
++
++    if (sigAlgoOid === "1.2.840.113549.1.1.10") {
++      algorithm = CircuitAlgorithm.RSAPSS;
++      // Salt length lives in the cert's signatureAlgorithm.parameters.
++      if (cert.signatureAlgorithm.parameters) {
++        try {
++          const pssParams = AsnConvert.parse(
++            cert.signatureAlgorithm.parameters,
++            RsaSaPssParams,
++          );
++          salt = saltLengthToCircuitSalt(pssParams.saltLength);
++        } catch (_) {
++          // Defaults: PKCS#1 v2.1 says missing salt = 20, but no published
++          // variant uses 20-byte salt; treat as unknown.
++          salt = null;
++        }
++      }
++    }
++
++    const keySize = bitsToCircuitKeySize(bitLen);
++    if (!keySize) {
++      throw new Error(
++        `Unsupported RSA modulus length ${bitLen} bits `
++        + `(supported: 1024/2048/3072/4096); extend bitsToCircuitKeySize in SuiteResolver.ts`,
++      );
++    }
++    return {
++      algorithm,
++      keySize,
++      exponent: bigintToCircuitExponent(exponent),
++      salt,
++      curve: null,
++    };
++  }
++
++  // ECDSA — public key algorithm is id-ecPublicKey; named curve in parameters.
++  if (spkAlgoOid === id_ecPublicKey) {
++    if (!cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters) {
++      throw new Error("ECDSA public key has no parameters");
++    }
++    const ecParams = AsnConvert.parse(
++      cert.tbsCertificate.subjectPublicKeyInfo.algorithm.parameters,
++      ECParameters,
++    );
++    const curveOid = ecParams.namedCurve ?? null;
++    const curve = curveOid ? CURVE_OID_MAP[curveOid] ?? null : null;
++
++    // Key size in bits derived from the named curve's field size.
++    let keySize: CircuitKeySize | null = null;
++    switch (curve) {
++      case CircuitCurve.SECP160R1:
++      case CircuitCurve.BRAINPOOLP160R1:
++        keySize = CircuitKeySize.B160; break;
++      case CircuitCurve.SECP192R1:
++      case CircuitCurve.BRAINPOOLP192R1:
++        keySize = CircuitKeySize.B192; break;
++      case CircuitCurve.SECP224R1:
++      case CircuitCurve.BRAINPOOLP224R1:
++        keySize = CircuitKeySize.B224; break;
++      case CircuitCurve.SECP256R1:
++      case CircuitCurve.BRAINPOOLP256R1:
++        keySize = CircuitKeySize.B256; break;
++      case CircuitCurve.BRAINPOOLP320R1:
++        keySize = CircuitKeySize.B320; break;
++      case CircuitCurve.SECP384R1:
++      case CircuitCurve.BRAINPOOLP384R1:
++        keySize = CircuitKeySize.B384; break;
++      case CircuitCurve.BRAINPOOLP512R1:
++        keySize = CircuitKeySize.B512; break;
++      case CircuitCurve.SECP521R1:
++        keySize = CircuitKeySize.B521; break;
++    }
++
++    if (!curve) {
++      throw new Error(
++        `Unsupported ECDSA named curve OID "${curveOid ?? "<missing>"}" `
++        + `(specifiedCurve=${ecParams.specifiedCurve ? "yes" : "no"}); `
++        + `extend CURVE_OID_MAP in SuiteResolver.ts`,
++      );
++    }
++    if (!keySize) {
++      throw new Error(
++        `Curve ${curve} has no CircuitKeySize mapping`,
++      );
++    }
++    return {
++      algorithm: CircuitAlgorithm.ECDSA,
++      keySize,
++      exponent: null,
++      salt: null,
++      curve,
++    };
++  }
++
++  throw new Error(`Unsupported public key OID: ${spkAlgoOid}`);
++}
++
++// Find a contiguous Uint8Array within another. Returns -1 if not found.
++// Used to locate DG1 hash inside encapsulatedContent and EC hash inside
++// signedAttributes — those byte offsets become the dg1DigestPositionShift
++// and ecDigestPosition fields of the suite (× 8 for bit-units).
++export function findSubarrayIndex(haystack: Uint8Array, needle: Uint8Array): number {
++  if (needle.length === 0) return 0;
++  outer: for (let i = 0; i <= haystack.length - needle.length; i++) {
++    for (let j = 0; j < needle.length; j++) {
++      if (haystack[i + j] !== needle[j]) continue outer;
++    }
++    return i;
++  }
++  return -1;
++}
++
++// Number of SHA chunks needed to hash `len` bytes (including the SHA padding
++// byte 0x80 + 64-bit length suffix). Mirrors iOS getChunkNumber():
++//   length = byteLen*8 + 1 + 64
++//   chunks = ceil(length / chunkSize)
++export function getChunkNumber(byteLen: number, chunkSizeBits: number): number {
++  const lengthBits = byteLen * 8 + 1 + 64;
++  return Math.ceil(lengthBits / chunkSizeBits);
++}
++
++// Compute hash bytes for a CircuitPassportHashType. Used to find DG1 / DG15
++// hashes inside the encapsulated content.
++export function hashWith(algo: CircuitPassportHashType, data: Uint8Array): Uint8Array {
++  switch (algo) {
++    case CircuitPassportHashType.SHA1: return sha1(data);
++    case CircuitPassportHashType.SHA224: return sha224(data);
++    case CircuitPassportHashType.SHA256: return sha256(data);
++    case CircuitPassportHashType.SHA384: return sha384(data);
++    case CircuitPassportHashType.SHA512: return sha512(data);
++  }
++}
++
++// The complete resolver. Given the parsed components, produces a fully-named
++// suite or returns null with a reason if the passport isn't supported.
++//
++// Inputs the caller must extract from the SOD using existing SDK methods:
++//   - slaveCert            : pickSlaveCertificate(passport.getCertificate())
++//   - sodSignatureOid      : passport.getSignatureAlgorithm()
++//   - dgHashOid            : passport.extractDGHashAlgo()
++//   - encapsulatedContent  : passport.extractEncapsulatedContent()
++//   - signedAttributes     : passport.extractSignedAttributes()
++//   - dg1                  : passport.dataGroup1
++//   - dg15                 : passport.dataGroup15 (or undefined)
++//
++// Note on AA: Active-Authentication suite resolution is more involved (DG15
++// pubkey type depends on the AA algorithm). For Phase A.1 we resolve only the
++// non-AA path; passports with DG15 will return null until Phase A.3.
++export function resolveCircuitSuite(args: {
++  slaveCert: Certificate;
++  sodSignatureOid: string;
++  dgHashOid: string;
++  encapsulatedContent: Uint8Array;
++  signedAttributes: Uint8Array;
++  dg1: Uint8Array;
++  dg15?: Uint8Array;
++  ecHash: Uint8Array; // already-computed digest of signedAttributes' MessageDigest signed attr
++}): { suite: RegisterIdentityCircuitType; signatureTypeId: number } | { error: string } {
++  // 1) Hash algorithm used for DG hashes (passport hash type)
++  const passportHashType = passportHashTypeFromOID(args.dgHashOid);
++
++  // 2) Signature algorithm + cert pubkey details
++  const sodSig = fromSodSignatureOID(args.sodSignatureOid);
++  const certPubkey = extractSignatureSuiteFromCert(args.slaveCert);
++
++  // Reconcile algorithm — sodSig.circuitSignature should match certPubkey.algorithm.
++  if (sodSig.circuitSignature !== certPubkey.algorithm) {
++    return { error: `algorithm mismatch: sod=${sodSig.circuitSignature}, cert=${certPubkey.algorithm}` };
++  }
++  if (certPubkey.keySize === null) {
++    return { error: "cert key size not in supported set" };
++  }
++
++  // For RSA/ECDSA the hash comes from the SOD signing OID; for RSA-PSS it
++  // comes from the PSS params (which we don't fully parse yet — overlay later).
++  const hashAlgorithm = sodSig.circuitHash;
++
++  const candidate: Omit<CircuitSignatureType, "staticId"> = {
++    algorithm: certPubkey.algorithm,
++    keySize: certPubkey.keySize,
++    exponent: certPubkey.exponent,
++    salt: certPubkey.salt,
++    curve: certPubkey.curve,
++    hashAlgorithm,
++  };
++  const signatureTypeId = getSupportedSignatureTypeId(candidate);
++  if (signatureTypeId === null) {
++    return { error: `no supported signature type row matches: ${JSON.stringify(candidate)}` };
++  }
++
++  // 3) Document type — TD1 = 95-byte DG1, TD3 = 93-byte DG1
++  let documentType: CircuitDocumentType;
++  if (args.dg1.length === 95) documentType = CircuitDocumentType.TD1;
++  else if (args.dg1.length === 93) documentType = CircuitDocumentType.TD3;
++  else return { error: `unsupported DG1 length: ${args.dg1.length}` };
++
++  // 4) ec chunk number = SHA-padded chunk count of encapsulatedContent
++  const ecChunkNumber = getChunkNumber(
++    args.encapsulatedContent.length,
++    passportHashChunkSize(passportHashType),
++  );
++
++  // 5) ecDigestPosition = bit offset of the EC hash inside signedAttributes
++  const ecHashByteOffset = findSubarrayIndex(args.signedAttributes, args.ecHash);
++  if (ecHashByteOffset < 0) {
++    return { error: "EC hash not found inside signedAttributes" };
++  }
++  const ecDigestPosition = ecHashByteOffset * 8;
++
++  // 6) dg1DigestPositionShift = bit offset of DG1 hash inside encapsulatedContent
++  const dg1Hash = hashWith(passportHashType, args.dg1);
++  const dg1HashByteOffset = findSubarrayIndex(args.encapsulatedContent, dg1Hash);
++  if (dg1HashByteOffset < 0) {
++    return { error: "DG1 hash not found inside encapsulatedContent" };
++  }
++  const dg1DigestPositionShift = dg1HashByteOffset * 8;
++
++  // 7) AA — only if DG15 present. Punted to Phase A.3; for now treat as no AA.
++  const aaType: CircuitAAType | null = args.dg15 && args.dg15.length > 0
++    ? null  // TODO Phase A.3: parse DG15 SPKI, build AA suite
++    : null;
++
++  return {
++    suite: {
++      signatureType: { ...candidate, staticId: signatureTypeId },
++      passportHashType,
++      documentType,
++      ecChunkNumber,
++      ecDigestPosition,
++      dg1DigestPositionShift,
++      aaType,
++    },
++    signatureTypeId,
++  };
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts
+new file mode 100644
+index 0000000..e488cc5
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/SupportedCircuits.ts
+@@ -0,0 +1,102 @@
++// Static lookup tables for the Rarimo registerIdentity circuit family.
++// Mirrors:
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitSignatureType.swift
++//   rarime-ios-app/Rarime/Code/Models/Circuits/SupportRegisterIdentityCircuitAAType.swift
++//
++// Adding a new row here only matters if Rarimo publishes a new Noir circuit
++// for that signature suite — until then, these IDs aren't valid filename
++// components.
++
++import {
++  CircuitAlgorithm,
++  CircuitKeySize,
++  CircuitExponent,
++  CircuitSalt,
++  CircuitCurve,
++  CircuitHashAlgorithm,
++  CircuitSignatureType,
++  CircuitAAAlgorithm,
++} from "./CircuitSuite";
++
++// 28 entries: 8 RSA + 6 RSA-PSS + 14 ECDSA. The numbering is owned by Rarimo
++// and shows up in every registerIdentity_<id>_... filename.
++export const SUPPORTED_SIGNATURE_TYPES: CircuitSignatureType[] = [
++  // ── RSA (PKCS#1 v1.5) ──────────────────────────────────────────────────
++  { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 2, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B4096, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 3, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 4, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E37187, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 5, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 6, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E58333, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 7, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E45347, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 8, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E46271, salt: null, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++
++  // ── RSA-PSS ────────────────────────────────────────────────────────────
++  { staticId: 10, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E3,     salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 11, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 12, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 13, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S48, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA384 },
++  { staticId: 14, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B3072, exponent: CircuitExponent.E65537, salt: CircuitSalt.S32, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 15, algorithm: CircuitAlgorithm.RSAPSS, keySize: CircuitKeySize.B2048, exponent: CircuitExponent.E65537, salt: CircuitSalt.S64, curve: null, hashAlgorithm: CircuitHashAlgorithm.HA512 },
++
++  // ── ECDSA ──────────────────────────────────────────────────────────────
++  { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.SECP256R1,        hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B256, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1,  hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B320, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1,  hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B192, exponent: null, salt: null, curve: CircuitCurve.SECP192R1,        hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B224, exponent: null, salt: null, curve: CircuitCurve.SECP224R1,        hashAlgorithm: CircuitHashAlgorithm.HA224 },
++  { staticId: 25, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP384R1,  hashAlgorithm: CircuitHashAlgorithm.HA384 },
++  { staticId: 26, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B512, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP512R1,  hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 27, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B521, exponent: null, salt: null, curve: CircuitCurve.SECP521R1,        hashAlgorithm: CircuitHashAlgorithm.HA512 },
++  { staticId: 28, algorithm: CircuitAlgorithm.ECDSA, keySize: CircuitKeySize.B384, exponent: null, salt: null, curve: CircuitCurve.SECP384R1,        hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++
++// Lookup the staticId for a given (algo, keySize, exponent, salt, curve, hashAlgo)
++// tuple. Returns null if no row matches — that means the passport's signature
++// suite isn't supported by Rarimo's published heavy-register circuits.
++export function getSupportedSignatureTypeId(
++  candidate: Omit<CircuitSignatureType, "staticId">,
++): number | null {
++  const match = SUPPORTED_SIGNATURE_TYPES.find(
++    (row) =>
++      row.algorithm === candidate.algorithm &&
++      row.keySize === candidate.keySize &&
++      row.exponent === candidate.exponent &&
++      row.salt === candidate.salt &&
++      row.curve === candidate.curve &&
++      row.hashAlgorithm === candidate.hashAlgorithm,
++  );
++  return match ? match.staticId : null;
++}
++
++// 5 entries (1 RSA + 4 ECDSA) for Active Authentication algorithms. Used only
++// when the passport has a non-empty DG15.
++export const SUPPORTED_AA_TYPES: CircuitAAAlgorithm[] = [
++  // RSA fallback
++  { staticId: 1, algorithm: CircuitAlgorithm.RSA, keySize: CircuitKeySize.B1024, exponent: CircuitExponent.E65537, salt: null, curve: null, hashAlgorithm: null },
++
++  // ECDSA AA variants
++  { staticId: 20, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP256R1,       hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 21, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP256R1, hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 22, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.BRAINPOOLP320R1, hashAlgorithm: CircuitHashAlgorithm.HA256 },
++  { staticId: 23, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP192R1,       hashAlgorithm: CircuitHashAlgorithm.HA160 },
++  { staticId: 24, algorithm: CircuitAlgorithm.ECDSA, keySize: null, exponent: null, salt: null, curve: CircuitCurve.SECP384R1,       hashAlgorithm: CircuitHashAlgorithm.HA384 },
++];
++
++// Match an AA row by (algorithm, hashAlgorithm, curve). Mirrors the iOS
++// SupportRegisterIdentityCircuitAAType.getSupportedSignatureTypeId logic,
++// including its RSA fallback to staticId=1 when no other row matches.
++export function getSupportedAATypeId(
++  candidate: Pick<CircuitAAAlgorithm, "algorithm" | "hashAlgorithm" | "curve">,
++): number | null {
++  const match = SUPPORTED_AA_TYPES.find(
++    (row) =>
++      row.algorithm === candidate.algorithm &&
++      row.hashAlgorithm === candidate.hashAlgorithm &&
++      row.curve === candidate.curve,
++  );
++  if (match) return match.staticId;
++  // iOS fallback: any RSA AA without an exact row defaults to staticId=1.
++  if (candidate.algorithm === CircuitAlgorithm.RSA) return 1;
++  return null;
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitFiles.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitFiles.ts
+new file mode 100644
+index 0000000..edc00c1
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitFiles.ts
+@@ -0,0 +1,121 @@
++// Atomic, validated circuit cache (dossier 2.0.2, item 15 / R9; plan D12,
++// merged with the app's markers).
++//
++// The SDK used to download straight to the final name and trust any file
++// present there, so a download interrupted at 670 KB left a bytecode file that
++// every later launch reported as cached and the proof failed on for ever
++// (2026-09-19T17-02-53-549Z). Now:
++//   - a download goes to `<name>.partial`, is checked, and only then renamed;
++//   - a cached bytecode is trusted when its `.ok` marker holds its size (the
++//     marker the app's utils/circuit-preload.ts writes too), else validated
++//     once and the marker written; a bytecode that fails is deleted and
++//     fetched again;
++//   - the trusted setup (150 to 300 MB) is never read in JavaScript: its size
++//     is compared with the `.size` marker. A setup from before the markers,
++//     without one, is kept if it is at least 50 MB (the app's rule), so no
++//     one downloads 300 MB again because of this update.
++import * as FileSystem from "expo-file-system/legacy";
++import { validateCircuitJson } from "./circuitValidation";
++
++const MIN_TRUSTED_SETUP_BYTES = 50 * 1024 * 1024;
++const downloads = new Map<string, Promise<string>>();
++
++const okMarker = (uri: string) => uri + ".ok";
++const sizeMarker = (uri: string) => uri + ".size";
++
++async function readSmall(uri: string): Promise<string | null> {
++  try {
++    const info = await FileSystem.getInfoAsync(uri);
++    if (!info.exists) return null;
++    return await FileSystem.readAsStringAsync(uri);
++  } catch {
++    return null;
++  }
++}
++
++async function removeQuietly(uri: string): Promise<void> {
++  try {
++    await FileSystem.deleteAsync(uri, { idempotent: true });
++  } catch {}
++}
++
++/** True when the file at `uri` can be handed to the prover as is. */
++export async function validCircuitFile(uri: string, bytecode: boolean): Promise<boolean> {
++  const info = await FileSystem.getInfoAsync(uri);
++  if (!info.exists) return false;
++  const size = info.size ?? 0;
++  try {
++    if (!bytecode) {
++      const recorded = parseInt((await readSmall(sizeMarker(uri))) ?? "", 10);
++      return Number.isFinite(recorded) && recorded > 0
++        ? size === recorded
++        : size >= MIN_TRUSTED_SETUP_BYTES;
++    }
++    if ((await readSmall(okMarker(uri))) === String(size)) return true;
++    await validateCircuitJson(await FileSystem.readAsStringAsync(uri));
++    await FileSystem.writeAsStringAsync(okMarker(uri), String(size));
++    return true;
++  } catch {
++    return false;
++  }
++}
++
++/**
++ * The file at `uri`, downloaded from `url` if the cached one is missing or
++ * invalid. Concurrent calls for the same file share one download. Throws
++ * [CIRCUIT_UNAVAILABLE] when the download is incomplete or invalid; nothing
++ * is published under `uri` then.
++ */
++export async function atomicCircuitDownload(
++  url: string,
++  uri: string,
++  bytecode: boolean,
++  progress?: (event: FileSystem.DownloadProgressData) => void
++): Promise<string> {
++  const running = downloads.get(uri);
++  if (running) return running;
++  const work = (async () => {
++    if (await validCircuitFile(uri, bytecode)) return uri;
++    await removeQuietly(uri);
++    await removeQuietly(bytecode ? okMarker(uri) : sizeMarker(uri));
++    const temporary = uri + ".partial";
++    await removeQuietly(temporary);
++    let expected = 0;
++    try {
++      const result = await FileSystem.createDownloadResumable(url, temporary, {}, (p) => {
++        if (p.totalBytesExpectedToWrite > 0) expected = p.totalBytesExpectedToWrite;
++        progress?.(p);
++      }).downloadAsync();
++      if (!result || result.status !== 200) throw new Error("[CIRCUIT_UNAVAILABLE] download failed");
++      const headers: Record<string, string> = (result.headers as any) || {};
++      expected = Number(headers["Content-Length"] || headers["content-length"]) || expected;
++      const info = await FileSystem.getInfoAsync(temporary);
++      const size = info.exists ? info.size ?? 0 : 0;
++      if (!info.exists || (expected > 0 && size !== expected)) {
++        throw new Error("[CIRCUIT_UNAVAILABLE] download truncated");
++      }
++      if (bytecode) {
++        try {
++          await validateCircuitJson(await FileSystem.readAsStringAsync(temporary));
++        } catch {
++          throw new Error("[CIRCUIT_UNAVAILABLE] bytecode invalid");
++        }
++      } else if (size < MIN_TRUSTED_SETUP_BYTES) {
++        throw new Error("[CIRCUIT_UNAVAILABLE] trusted setup too small");
++      }
++      // Marker first: a crash between the two leaves a marker without a
++      // file, which reads as "not cached".
++      await FileSystem.writeAsStringAsync(bytecode ? okMarker(uri) : sizeMarker(uri), String(size));
++      await FileSystem.moveAsync({ from: temporary, to: uri });
++      return uri;
++    } finally {
++      await removeQuietly(temporary);
++    }
++  })();
++  downloads.set(uri, work);
++  try {
++    return await work;
++  } finally {
++    if (downloads.get(uri) === work) downloads.delete(uri);
++  }
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitValidation.ts b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitValidation.ts
+new file mode 100644
+index 0000000..2e87e33
+--- /dev/null
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/helpers/circuitValidation.ts
+@@ -0,0 +1,99 @@
++// Circuit JSON validation for the atomic circuit cache (dossier 2.0.2, item
++// 15 / R9; plan D12).
++//
++// Validates the whole JSON incrementally and requires a non-empty top-level
++// "bytecode" string, without building the parsed object beside its source.
++// Yields a macrotask every 16 ms, and pauses entirely while the gate says no
++// (the app closes it while an NFC read owns the phone). Nothing from the file
++// is ever logged.
++let gate: () => boolean = () => true;
++
++/** The app sets this once: validation pauses while it returns false. */
++export const setCircuitValidationGate = (fn: () => boolean): void => {
++  gate = fn;
++};
++
++const fail = (): never => {
++  throw new Error("CIRCUIT_UNAVAILABLE");
++};
++
++export async function validateCircuitJson(text: string): Promise<void> {
++  let i = 0;
++  let lastYield = Date.now();
++  let bytecode = false;
++  const whitespace = () => {
++    while (i < text.length && /[ \t\r\n]/.test(text[i])) i++;
++  };
++  async function yieldIfNeeded() {
++    if (!gate() || Date.now() - lastYield >= 16) {
++      do {
++        await new Promise((r) => setTimeout(r, gate() ? 0 : 50));
++      } while (!gate());
++      lastYield = Date.now();
++    }
++  }
++  async function string(capture = false): Promise<string | boolean> {
++    if (text[i++] !== '"') fail();
++    const start = i - 1;
++    while (i < text.length) {
++      const c = text[i++];
++      if (c === '"') return capture ? JSON.parse(text.slice(start, i)) : i - start > 2;
++      if (c.charCodeAt(0) < 32) fail();
++      if (c === "\\") {
++        const escape = text[i++];
++        if (escape === "u") {
++          if (!/^[\da-f]{4}$/i.test(text.slice(i, i + 4))) fail();
++          i += 4;
++        } else if (!escape || !'"\\/bfnrt'.includes(escape)) fail();
++      }
++      if (i % 4096 < 6) await yieldIfNeeded();
++    }
++    return fail();
++  }
++  async function value(depth = 0, isBytecode = false): Promise<void> {
++    if (depth > 200) fail();
++    await yieldIfNeeded();
++    whitespace();
++    const c = text[i];
++    if (c === '"') {
++      const nonEmpty = await string();
++      if (isBytecode) bytecode = nonEmpty === true;
++      return;
++    }
++    if (isBytecode) fail();
++    if (c === "{" || c === "[") {
++      const object = c === "{";
++      const end = object ? "}" : "]";
++      i++;
++      whitespace();
++      if (text[i] === end) {
++        i++;
++        return;
++      }
++      for (;;) {
++        let key: string | boolean | undefined;
++        if (object) {
++          whitespace();
++          key = await string(depth === 0);
++          whitespace();
++          if (text[i++] !== ":") fail();
++        }
++        await value(depth + 1, depth === 0 && key === "bytecode");
++        whitespace();
++        if (text[i] === end) {
++          i++;
++          return;
++        }
++        if (text[i++] !== ",") fail();
++      }
++    }
++    const match = text
++      .slice(i, i + 128)
++      .match(/^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/);
++    if (!match) fail();
++    i += match![0].length;
++  }
++  await value();
++  whitespace();
++  if (i !== text.length || !bytecode) fail();
++}
+diff --git a/node_modules/@rarimo/rarime-rn-sdk/src/index.ts b/node_modules/@rarimo/rarime-rn-sdk/src/index.ts
+index caa27e1..70b0c66 100644
+--- a/node_modules/@rarimo/rarime-rn-sdk/src/index.ts
++++ b/node_modules/@rarimo/rarime-rn-sdk/src/index.ts
+@@ -3,3 +3,4 @@ export * from "./RarimeUtils";
+ export * from "./RarimePassport";
+ export * from "./Freedomtool";
+ export { QueryProofParams } from "./types";
++export type { ProposalInfo, ProposalCriteria, ProposalQuestion } from "./types/proposal";
