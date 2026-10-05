@@ -1,0 +1,20 @@
+# Compiled circuit / verifier artifacts are generated blobs, not source.
+#
+# `-diff` (and the `binary` macro it comes from) tells git to emit
+# "Binary files a/… and b/… differ" instead of the file contents, which is what
+# you want for these anyway: the ACIR JSON is one 3 MB line with no newlines, so
+# a normal diff is a single unreadable `+` line, and the Solidity verifier is
+# 2700 lines of generated field constants.
+#
+# The side effect that matters: .husky/pre-commit greps the staged diff for
+# secret-shaped hex (`0x?[a-f0-9]{64}`) and these artifacts are full of
+# legitimate matches — BN254 field constants and the Aztec verification-key
+# hash. There is no way to annotate them with the hook's `// nosec: <reason>`
+# escape (it would corrupt the JSON, and the .sol has 62 matching lines). With
+# no diff content to scan, the hook sees nothing and the real secret scan is
+# left untouched for every other file.
+#
+# Scoped to these exact paths on purpose — do NOT broaden this to `*.json`.
+assets/circuits/registerIdentity_*.json -diff
+circuits/*.sol                          -diff
+circuits/*.vk                           -diff binary

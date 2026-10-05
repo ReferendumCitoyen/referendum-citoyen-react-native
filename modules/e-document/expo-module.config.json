@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["EDocumentModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.edocument.EDocumentModule"]
+  }
+}
